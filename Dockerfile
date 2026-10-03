@@ -22,5 +22,12 @@ WORKDIR /var/www
 # Copy toàn bộ code nguồn vào container
 COPY . /var/www
 
-EXPOSE 9000
-CMD ["php-fpm"]
+# 1. Cài đặt các gói vendor cho Laravel khi build
+RUN composer install --no-dev --optimize-autoloader --no-interaction
+
+# 2. Phân quyền thư mục ghi log & cache cho Laravel
+RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
+
+# 3. Mở cổng 10000 và tự động chạy server Laravel
+EXPOSE 10000
+CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=10000"]
