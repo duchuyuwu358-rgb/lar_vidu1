@@ -25,9 +25,12 @@ COPY . /var/www
 # 1. Cài đặt các gói vendor cho Laravel khi build
 RUN composer install --no-dev --optimize-autoloader --no-interaction
 
-# 2. Phân quyền thư mục ghi log & cache cho Laravel
-RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
+# 2. Tạo liên kết lưu trữ ảnh storage:link
+RUN php artisan storage:link --force
 
-# 3. Mở cổng 10000 và tự động chạy server Laravel
+# 3. Phân quyền thư mục ghi log, cache & storage cho Laravel
+RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache /var/www/public
+
+# 4. Mở cổng 10000 và tự động chạy server Laravel
 EXPOSE 10000
 CMD php artisan migrate --force && php artisan config:clear && php artisan serve --host=0.0.0.0 --port=10000
