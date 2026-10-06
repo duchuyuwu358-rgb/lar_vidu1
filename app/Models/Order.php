@@ -21,7 +21,8 @@ class Order extends Model
         'payment_status',
         'status',
         'momo_transaction_id',
-        'ghn_order_code', // Mã vận đơn GHN
+        'transaction_id',     // Bổ sung để tương thích lưu mã giao dịch chung
+        'ghn_order_code',     // Mã vận đơn GHN
         'address',
         'phone',
         'name',
@@ -65,6 +66,14 @@ class Order extends Model
     ];
 
     /**
+     * Accessor: Tự động hiển thị Mã đơn dạng ORD-00023
+     */
+    public function getOrderCodeAttribute()
+    {
+        return 'ORD-' . str_pad($this->id, 5, '0', STR_PAD_LEFT);
+    }
+
+    /**
      * Accessor: Tên nhãn hiển thị trạng thái
      */
     public function getStatusLabelAttribute()
@@ -94,6 +103,14 @@ class Order extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Quan hệ với chi tiết lịch sử giao dịch thanh toán
+     */
+    public function paymentTransactions()
+    {
+        return $this->hasMany(PaymentTransaction::class, 'order_id');
     }
 
     /**

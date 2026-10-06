@@ -1,12 +1,16 @@
 @extends('layouts.app')
 
-@section('title', 'Chi Tiết Đơn Hàng #' . $order->id)
+@php
+    $orderCode = $order->order_number ?? $order->code ?? ('ORD-' . str_pad($order->id, 5, '0', STR_PAD_LEFT));
+@endphp
+
+@section('title', 'Chi Tiết Đơn Hàng ' . $orderCode)
 
 @section('content')
 <div class="container-fluid py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2 class="h4 fw-bold text-dark mb-0">
-            <i class="fas fa-receipt text-primary me-2"></i>Chi Tiết Đơn Hàng #{{ $order->id }}
+            <i class="fas fa-receipt text-primary me-2"></i>Chi Tiết Đơn Hàng <span class="text-primary">{{ $orderCode }}</span>
         </h2>
         <a href="{{ route('admin.orders.index') }}" class="btn btn-outline-secondary">
             <i class="fas fa-arrow-left me-1"></i> Quay lại
@@ -35,6 +39,7 @@
                     <i class="fas fa-user me-2"></i>Thông Tin Đặt Hàng
                 </div>
                 <div class="card-body">
+                    <p class="mb-2"><strong>Mã đơn hàng:</strong> <span class="fw-bold text-primary">{{ $orderCode }}</span></p>
                     <p class="mb-2"><strong>Tên khách hàng:</strong> {{ $order->user->name ?? $order->name ?? 'Khách vãng lai' }}</p>
                     <p class="mb-2"><strong>Email:</strong> {{ $order->user->email ?? $order->email ?? 'N/A' }}</p>
                     <p class="mb-2"><strong>Số điện thoại:</strong> {{ $order->phone ?? $order->user->phone ?? 'N/A' }}</p>
@@ -52,7 +57,7 @@
                         @csrf
                         @method('PUT')
 
-                        <label class="form-label fw-bold text-secondary">Trạng thái thanh toán:</label>
+                        <label class="form-label fw-bold text-secondary">Trạng thái thanh toán / đơn hàng:</label>
                         <div class="input-group mb-2">
                             <select name="status" class="form-select fw-bold border-primary">
                                 <option value="pending" {{ in_array($currentStatus, ['pending', 'chờ thanh toán']) ? 'selected' : '' }}>
@@ -76,7 +81,16 @@
 
                     <hr class="my-3">
 
-                    <p class="mb-2"><strong>Phương thức:</strong> {{ strtoupper($order->payment_method ?? 'MoMo / Chuyển khoản') }}</p>
+                    <p class="mb-2">
+                        <strong>Phương thức:</strong> 
+                        <span class="fw-semibold">
+                            @if(strtolower($order->payment_method ?? '') === 'momo' || $order->momo_transaction_id)
+                                MOMO / CHUYỂN KHOẢN
+                            @else
+                                COD (THANH TOÁN KHI NHẬN HÀNG)
+                            @endif
+                        </span>
+                    </p>
                     <p class="mb-0"><strong>Thời gian tạo:</strong> {{ $order->created_at ? $order->created_at->format('H:i:s d/m/Y') : 'N/A' }}</p>
                 </div>
             </div>
@@ -86,17 +100,17 @@
         <div class="col-lg-8">
             <div class="card shadow-sm border-0">
                 <div class="card-header bg-dark text-white fw-bold py-3">
-                    <i class="fas fa-boxes me-2"></i>Sản Phẩm Trong Đơn Hàng
+                    <i class="fas fa-boxes me-2"></i>Sản Phẩm / Dịch Vụ Trong Đơn Hàng
                 </div>
                 <div class="card-body p-0">
                     <div class="table-responsive">
                         <table class="table table-hover align-middle mb-0">
                             <thead class="table-light">
                                 <tr>
-                                    <th>Sản phẩm</th>
+                                    <th>Sản phẩm / Dịch vụ</th>
                                     <th class="text-center">Đơn giá</th>
                                     <th class="text-center">Số lượng</th>
-                                    <th class="text-end">Thành tiền</th>
+                                    <th class="text-end pe-3">Thành tiền</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -106,24 +120,35 @@
 
                                 @forelse($items as $item)
                                     @php
-                                        $productName = $item->hood->name ?? $item->product->name ?? $item->product_name ?? $item->name ?? ('Máy hút mùi #' . ($item->hood_id ?? $item->product_id ?? ''));
+                                        // Ưu tiên kiểm tra Tên dịch vụ -> Tên sản phẩm -> Cột tên lưu trực tiếp
+                                        $productName = $item->service->title 
+                                            ?? $item->service->name 
+                                            ?? $item->service_name 
+                                            ?? $item->hood->name 
+                                            ?? $item->product->name 
+                                            ?? $item->product_name 
+                                            ?? $item->name 
+                                            ?? $item->title 
+                                            ?? ('Mặt hàng #' . ($item->service_id ?? $item->hood_id ?? $item->product_id ?? ''));
+
                                         $price = $item->price ?? $item->unit_price ?? 0;
                                         $qty = $item->quantity ?? $item->qty ?? 1;
+                                        $modelColor = $item->color ?? $item->model_name ?? $item->model ?? $item->options ?? null;
                                     @endphp
                                     <tr>
                                         <td>
                                             <div class="fw-bold text-dark">{{ $productName }}</div>
-                                            @if(!empty($item->color))
-                                                <small class="text-muted">Màu sắc: <strong>{{ $item->color }}</strong></small>
+                                            @if(!empty($modelColor))
+                                                <small class="text-muted"><i class="fas fa-tag me-1"></i>Mẫu / Màu: <strong>{{ $modelColor }}</strong></small>
                                             @endif
                                         </td>
                                         <td class="text-center">{{ number_format($price, 0, ',', '.') }}đ</td>
                                         <td class="text-center fw-bold">x{{ $qty }}</td>
-                                        <td class="text-end fw-bold text-primary">{{ number_format($price * $qty, 0, ',', '.') }}đ</td>
+                                        <td class="text-end pe-3 fw-bold text-primary">{{ number_format($price * $qty, 0, ',', '.') }}đ</td>
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="4" class="text-center text-muted py-4">Chưa có chi tiết danh sách sản phẩm.</td>
+                                        <td colspan="4" class="text-center text-muted py-4">Chưa có chi tiết danh sách sản phẩm/dịch vụ.</td>
                                     </tr>
                                 @endforelse
                             </tbody>
@@ -135,19 +160,19 @@
                                 @endphp
                                 <tr>
                                     <td colspan="3" class="text-end text-muted fw-semibold">Tiền hàng:</td>
-                                    <td class="text-end fw-bold text-dark">
+                                    <td class="text-end pe-3 fw-bold text-dark">
                                         {{ number_format($subtotal > 0 ? $subtotal : $totalAmount, 0, ',', '.') }}đ
                                     </td>
                                 </tr>
                                 <tr>
                                     <td colspan="3" class="text-end text-muted fw-semibold">Phí vận chuyển (Shipping):</td>
-                                    <td class="text-end fw-bold text-primary">
+                                    <td class="text-end pe-3 fw-bold text-primary">
                                         +{{ number_format($shippingFee, 0, ',', '.') }}đ
                                     </td>
                                 </tr>
                                 <tr class="border-top">
                                     <td colspan="3" class="text-end fw-bold fs-5 text-uppercase">TỔNG TIỀN THANH TOÁN:</td>
-                                    <td class="text-end fw-bold fs-5 text-danger">
+                                    <td class="text-end pe-3 fw-bold fs-5 text-danger">
                                         {{ number_format($totalAmount, 0, ',', '.') }}đ
                                     </td>
                                 </tr>

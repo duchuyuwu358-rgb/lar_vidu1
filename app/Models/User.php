@@ -23,6 +23,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'email',
         'password',
         'role',
+        'email_verified_at', // <-- Đã thêm để Admin tạo tài khoản không bị dính xác minh
     ];
 
     /**
@@ -31,6 +32,14 @@ class User extends Authenticatable implements MustVerifyEmail
     public function isAdmin(): bool
     {
         return $this->role === 'admin';
+    }
+
+    /**
+     * Kiểm tra người dùng có phải Nhân viên (Staff) hay không.
+     */
+    public function isStaff(): bool
+    {
+        return $this->role === 'staff';
     }
 
     /**

@@ -9,6 +9,9 @@ use Illuminate\Support\Str;
 
 class CategoryController extends Controller
 {
+    /**
+     * 1. Hiển thị danh sách danh mục (có tìm kiếm, lọc & phân trang)
+     */
     public function index(Request $request)
     {
         $search = $request->get('search');
@@ -27,28 +30,43 @@ class CategoryController extends Controller
             $query->where('is_active', $status === 'active');
         }
 
-        $categories = $query->paginate(10);
+        $categories = $query->paginate(10)->appends($request->all());
         $totalCategories = Category::count();
         $activeCategories = Category::where('is_active', true)->count();
 
         return view('categories.index', compact('categories', 'search', 'status', 'totalCategories', 'activeCategories'));
     }
 
+    /**
+     * 2. Giao diện thêm danh mục mới
+     */
     public function create()
     {
         return view('categories.create');
     }
 
+    /**
+     * 3. Xử lý lưu danh mục mới
+     */
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name'        => 'required|string|max:255',
-            'slug'        => 'nullable|string|max:255|unique:categories,slug',
-            'description' => 'nullable|string',
-            'status'      => 'required|in:active,inactive',
-            'colors'      => 'nullable|array',
-            'colors.*'    => 'string',
-            'image'       => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
+            'name'        => ['required', 'string', 'max:255'],
+            'slug'        => ['nullable', 'string', 'max:255', 'unique:categories,slug'],
+            'description' => ['nullable', 'string'],
+            'status'      => ['required', 'in:active,inactive'],
+            'colors'      => ['nullable', 'array'],
+            'colors.*'    => ['string', 'max:50'],
+            'image'       => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,webp', 'max:2048'],
+        ], [
+            'name.required'   => 'Vui lòng nhập tên danh mục.',
+            'name.max'        => 'Tên danh mục không được vượt quá 255 ký tự.',
+            'slug.unique'     => 'Đường dẫn (Slug) này đã tồn tại trên hệ thống.',
+            'status.required' => 'Vui lòng chọn trạng thái danh mục.',
+            'status.in'       => 'Trạng thái được chọn không hợp lệ.',
+            'image.image'     => 'Tệp tải lên phải là hình ảnh.',
+            'image.mimes'     => 'Hình ảnh phải có định dạng: jpeg, png, jpg, gif, webp.',
+            'image.max'       => 'Dung lượng ảnh tối đa là 2MB.',
         ]);
 
         $validated['is_active'] = ($validated['status'] === 'active');
@@ -69,27 +87,45 @@ class CategoryController extends Controller
         return redirect()->route('categories.index')->with('success', 'Thêm danh mục thành công!');
     }
 
+    /**
+     * 4. Hiển thị chi tiết danh mục
+     */
     public function show(Category $category)
     {
         $hoods = $category->hoods()->paginate(10);
         return view('categories.show', compact('category', 'hoods'));
     }
 
+    /**
+     * 5. Giao diện chỉnh sửa danh mục
+     */
     public function edit(Category $category)
     {
         return view('categories.edit', compact('category'));
     }
 
+    /**
+     * 6. Cập nhật thông tin danh mục
+     */
     public function update(Request $request, Category $category)
     {
         $validated = $request->validate([
-            'name'        => 'required|string|max:255',
-            'slug'        => 'nullable|string|max:255|unique:categories,slug,' . $category->id,
-            'description' => 'nullable|string',
-            'status'      => 'required|in:active,inactive',
-            'colors'      => 'nullable|array',
-            'colors.*'    => 'string',
-            'image'       => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
+            'name'        => ['required', 'string', 'max:255'],
+            'slug'        => ['nullable', 'string', 'max:255', 'unique:categories,slug,' . $category->id],
+            'description' => ['nullable', 'string'],
+            'status'      => ['required', 'in:active,inactive'],
+            'colors'      => ['nullable', 'array'],
+            'colors.*'    => ['string', 'max:50'],
+            'image'       => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,webp', 'max:2048'],
+        ], [
+            'name.required'   => 'Vui lòng nhập tên danh mục.',
+            'name.max'        => 'Tên danh mục không được vượt quá 255 ký tự.',
+            'slug.unique'     => 'Đường dẫn (Slug) này đã tồn tại trên hệ thống.',
+            'status.required' => 'Vui lòng chọn trạng thái danh mục.',
+            'status.in'       => 'Trạng thái được chọn không hợp lệ.',
+            'image.image'     => 'Tệp tải lên phải là hình ảnh.',
+            'image.mimes'     => 'Hình ảnh phải có định dạng: jpeg, png, jpg, gif, webp.',
+            'image.max'       => 'Dung lượng ảnh tối đa là 2MB.',
         ]);
 
         $validated['is_active'] = ($validated['status'] === 'active');
@@ -113,8 +149,16 @@ class CategoryController extends Controller
         return redirect()->route('categories.index')->with('success', 'Cập nhật danh mục thành công!');
     }
 
+    /**
+     * 7. Xóa danh mục
+     */
     public function destroy(Category $category)
     {
+        // Kiểm tra an toàn: Không cho phép xóa danh mục đang có sản phẩm liên kết
+        if ($category->hoods()->exists()) {
+            return redirect()->route('categories.index')->with('error', 'Không thể xóa danh mục này vì đang có sản phẩm thuộc danh mục!');
+        }
+
         if ($category->image && Storage::disk('public')->exists($category->image)) {
             Storage::disk('public')->delete($category->image);
         }

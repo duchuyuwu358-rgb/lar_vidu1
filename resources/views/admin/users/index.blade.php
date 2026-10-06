@@ -7,9 +7,11 @@
     <!-- HEADER & NÚT THÊM TÀI KHOẢN -->
     <div class="card-header bg-white d-flex justify-content-between align-items-center py-3 border-bottom">
         <h5 class="mb-0 fw-bold text-dark"><i class="fas fa-users me-2 text-primary"></i>Danh Sách Tài Khoản</h5>
-        <button class="btn btn-primary fw-bold" data-bs-toggle="modal" data-bs-target="#addUserModal">
-            <i class="fas fa-user-plus me-1"></i> Thêm Tài Khoản
-        </button>
+        @if(auth()->user()->role === 'admin')
+            <button class="btn btn-primary fw-bold" data-bs-toggle="modal" data-bs-target="#addUserModal">
+                <i class="fas fa-user-plus me-1"></i> Thêm Tài Khoản
+            </button>
+        @endif
     </div>
     
     <div class="card-body">
@@ -25,6 +27,7 @@
                 <select name="role" class="form-select form-select-sm">
                     <option value="">-- Tất cả vai trò --</option>
                     <option value="admin" {{ request('role') == 'admin' ? 'selected' : '' }}>Quản trị viên (Admin)</option>
+                    <option value="staff" {{ request('role') == 'staff' ? 'selected' : '' }}>Nhân viên (Staff)</option>
                     <option value="customer" {{ request('role') == 'customer' ? 'selected' : '' }}>Khách hàng (Customer)</option>
                 </select>
             </div>
@@ -58,7 +61,7 @@
                         <th>Email</th>
                         <th>Trạng thái xác minh</th>
                         <th>Quyền (Role)</th>
-                        <th class="text-center pe-3" width="100">Hành động</th>
+                        <th class="text-center pe-3" width="120">Hành động</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -75,30 +78,46 @@
                                 @endif
                             </td>
                             <td>
-                                <!-- Form thay đổi quyền -->
-                                <form action="{{ route('users.update', $user) }}" method="POST" class="d-flex align-items-center">
-                                    @csrf
-                                    @method('PUT')
-                                    <select name="role" class="form-select form-select-sm me-2" style="width: 130px;" {{ auth()->id() === $user->id ? 'disabled' : '' }}>
-                                        <option value="customer" {{ ($user->role === 'customer' || $user->role === 'user') ? 'selected' : '' }}>Khách hàng</option>
-                                        <option value="admin" {{ $user->role === 'admin' ? 'selected' : '' }}>Quản trị viên</option>
-                                    </select>
-                                    @if(auth()->id() !== $user->id)
-                                        <button type="submit" class="btn btn-sm btn-primary">Lưu</button>
-                                    @endif
-                                </form>
-                            </td>
-                            <td class="text-center pe-3">
-                                @if(auth()->id() !== $user->id)
-                                    <form action="{{ route('users.destroy', $user) }}" method="POST" class="d-inline" onsubmit="return confirm('Bạn có chắc chắn muốn xóa tài khoản này?');">
+                                @if(auth()->user()->role === 'admin')
+                                    <!-- Form thay đổi quyền dành cho Admin -->
+                                    <form action="{{ route('users.update', $user) }}" method="POST" class="d-flex align-items-center">
                                         @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Xóa tài khoản">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
+                                        @method('PUT')
+                                        <select name="role" class="form-select form-select-sm me-2" style="width: 130px;" {{ auth()->id() === $user->id ? 'disabled' : '' }}>
+                                            <option value="customer" {{ ($user->role === 'customer' || $user->role === 'user') ? 'selected' : '' }}>Khách hàng</option>
+                                            <option value="staff" {{ $user->role === 'staff' ? 'selected' : '' }}>Nhân viên</option>
+                                            <option value="admin" {{ $user->role === 'admin' ? 'selected' : '' }}>Quản trị viên</option>
+                                        </select>
+                                        @if(auth()->id() !== $user->id)
+                                            <button type="submit" class="btn btn-sm btn-primary">Lưu</button>
+                                        @endif
                                     </form>
                                 @else
-                                    <span class="badge bg-secondary">Tài khoản bạn</span>
+                                    <!-- Hiển thị tĩnh dành cho Nhân viên (Chỉ xem) -->
+                                    @if($user->role === 'admin')
+                                        <span class="badge bg-danger">Quản trị viên</span>
+                                    @elseif($user->role === 'staff')
+                                        <span class="badge bg-info text-dark">Nhân viên</span>
+                                    @else
+                                        <span class="badge bg-secondary">Khách hàng</span>
+                                    @endif
+                                @endif
+                            </td>
+                            <td class="text-center pe-3">
+                                @if(auth()->user()->role === 'admin')
+                                    @if(auth()->id() !== $user->id)
+                                        <form action="{{ route('users.destroy', $user) }}" method="POST" class="d-inline" onsubmit="return confirm('Bạn có chắc chắn muốn xóa tài khoản này?');">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Xóa tài khoản">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
+                                    @else
+                                        <span class="badge bg-secondary">Tài khoản bạn</span>
+                                    @endif
+                                @else
+                                    <span class="badge bg-light text-muted border">Chỉ xem</span>
                                 @endif
                             </td>
                         </tr>
@@ -117,7 +136,8 @@
     </div>
 </div>
 
-<!-- MODAL THÊM TÀI KHOẢN MỚI -->
+<!-- MODAL THÊM TÀI KHOẢN MỚI (CHỈ ADMIN THẤY) -->
+@if(auth()->user()->role === 'admin')
 <div class="modal fade" id="addUserModal" tabindex="-1" aria-labelledby="addUserModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -144,6 +164,7 @@
                         <label class="form-label fw-semibold">Phân quyền <span class="text-danger">*</span></label>
                         <select name="role" class="form-select" required>
                             <option value="customer">Khách hàng (Customer)</option>
+                            <option value="staff">Nhân viên (Staff)</option>
                             <option value="admin">Quản trị viên (Admin)</option>
                         </select>
                     </div>
@@ -156,4 +177,5 @@
         </div>
     </div>
 </div>
+@endif
 @endsection

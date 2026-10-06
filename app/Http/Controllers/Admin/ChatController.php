@@ -16,23 +16,40 @@ class ChatController extends Controller
      * ==========================================
      */
 
+    /**
+     * Lấy danh sách tin nhắn của khách hàng đang đăng nhập
+     */
     public function getUserMessages()
     {
         $userId = Auth::id();
-        if (!$userId) return response()->json([]);
+        if (!$userId) {
+            return response()->json(['error' => 'Chưa đăng nhập'], 401);
+        }
 
         $messages = ChatMessage::where(function ($q) use ($userId) {
-            $q->where('sender_id', $userId)->orWhere('receiver_id', $userId);
+            $q->where('sender_id', $userId)
+              ->orWhere('receiver_id', $userId);
         })->orderBy('created_at', 'asc')->get();
 
         return response()->json($messages);
     }
 
+    /**
+     * Khách hàng gửi tin nhắn cho Admin
+     */
     public function sendUserMessage(Request $request)
     {
-        $request->validate(['message' => 'required|string']);
+        $request->validate([
+            'message' => ['required', 'string', 'max:2000'],
+        ], [
+            'message.required' => 'Nội dung tin nhắn không được để trống.',
+            'message.max'      => 'Tin nhắn không được vượt quá 2000 ký tự.',
+        ]);
+
         $userId = Auth::id();
-        if (!$userId) return response()->json(['error' => 'Chưa đăng nhập'], 401);
+        if (!$userId) {
+            return response()->json(['error' => 'Chưa đăng nhập'], 401);
+        }
 
         $admin = User::where('role', 'admin')->first();
 
@@ -46,10 +63,15 @@ class ChatController extends Controller
         return response()->json(['status' => 'success', 'data' => $chat]);
     }
 
+    /**
+     * Kiểm tra số tin nhắn chưa đọc của khách hàng
+     */
     public function checkUserUnread()
     {
         $userId = Auth::id();
-        if (!$userId) return response()->json(['unread_count' => 0]);
+        if (!$userId) {
+            return response()->json(['unread_count' => 0]);
+        }
 
         $count = ChatMessage::where('receiver_id', $userId)
             ->where('is_read', false)
@@ -58,6 +80,9 @@ class ChatController extends Controller
         return response()->json(['unread_count' => $count]);
     }
 
+    /**
+     * Đánh dấu tất cả tin nhắn gửi tới khách hàng là ĐÃ ĐỌC
+     */
     public function markUserRead()
     {
         $userId = Auth::id();
@@ -76,36 +101,43 @@ class ChatController extends Controller
      * ==========================================
      */
 
-    // Admin lấy danh sách khách hàng (kèm số tin nhắn chưa đọc của từng khách)
+    /**
+     * Admin lấy danh sách khách hàng đã nhắn tin (kèm số tin nhắn chưa đọc)
+     */
     public function getAdminUsers()
     {
         $adminId = Auth::id();
 
-        $senders = ChatMessage::where('sender_id', '!=', $adminId)->pluck('sender_id');
+        $senders   = ChatMessage::where('sender_id', '!=', $adminId)->pluck('sender_id');
         $receivers = ChatMessage::where('receiver_id', '!=', $adminId)->whereNotNull('receiver_id')->pluck('receiver_id');
-        $userIds = $senders->merge($receivers)->unique();
+        $userIds   = $senders->merge($receivers)->unique();
 
-        $users = User::whereIn('id', $userIds)->select('id', 'name', 'email')->get()->map(function($user) use ($adminId) {
-            $user->unread_count = ChatMessage::where('sender_id', $user->id)
-                ->where(function($q) use ($adminId) {
-                    $q->where('receiver_id', $adminId)->orWhereNull('receiver_id');
-                })
-                ->where('is_read', false)
-                ->count();
-            return $user;
-        });
+        $users = User::whereIn('id', $userIds)
+            ->select('id', 'name', 'email')
+            ->get()
+            ->map(function ($user) use ($adminId) {
+                $user->unread_count = ChatMessage::where('sender_id', $user->id)
+                    ->where(function ($q) use ($adminId) {
+                        $q->where('receiver_id', $adminId)->orWhereNull('receiver_id');
+                    })
+                    ->where('is_read', false)
+                    ->count();
+                return $user;
+            });
 
         return response()->json($users);
     }
 
-    // Admin xem tin nhắn riêng với 1 User & tự động đánh dấu ĐÃ ĐỌC
+    /**
+     * Admin xem tin nhắn riêng với 1 User & tự động đánh dấu ĐÃ ĐỌC
+     */
     public function getAdminMessages($userId)
     {
         $adminId = Auth::id();
 
         // Đánh dấu tất cả tin nhắn từ User này gửi cho Admin thành ĐÃ ĐỌC
         ChatMessage::where('sender_id', $userId)
-            ->where(function($q) use ($adminId) {
+            ->where(function ($q) use ($adminId) {
                 $q->where('receiver_id', $adminId)->orWhereNull('receiver_id');
             })
             ->where('is_read', false)
@@ -124,12 +156,19 @@ class ChatController extends Controller
         return response()->json($messages);
     }
 
-    // Admin phản hồi tin nhắn
+    /**
+     * Admin phản hồi tin nhắn cho 1 User
+     */
     public function sendAdminMessage(Request $request)
     {
         $request->validate([
-            'user_id' => 'required|exists:users,id',
-            'message' => 'required|string',
+            'user_id' => ['required', 'exists:users,id'],
+            'message' => ['required', 'string', 'max:2000'],
+        ], [
+            'user_id.required' => 'Không xác định được người nhận.',
+            'user_id.exists'   => 'Tài khoản người dùng không tồn tại.',
+            'message.required' => 'Nội dung tin nhắn không được để trống.',
+            'message.max'      => 'Tin nhắn không được vượt quá 2000 ký tự.',
         ]);
 
         $chat = ChatMessage::create([
@@ -142,7 +181,9 @@ class ChatController extends Controller
         return response()->json(['status' => 'success', 'data' => $chat]);
     }
 
-    // Đếm tổng số tin nhắn chưa đọc của tất cả khách hàng gửi đến Admin
+    /**
+     * Đếm tổng số tin nhắn chưa đọc của tất cả khách hàng gửi đến Admin
+     */
     public function checkAdminUnread()
     {
         $adminId = Auth::id();

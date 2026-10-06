@@ -6,6 +6,7 @@ use App\Models\Hood;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\PaymentTransaction;
+use App\Models\ServicePackage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -16,7 +17,7 @@ use Illuminate\Support\Facades\Schema;
 class CartController extends Controller
 {
     /**
-     * 1. Hiển thị danh sách giỏ hàng
+     * 1. Hiển thị giỏ hàng
      */
     public function index()
     {
@@ -32,14 +33,14 @@ class CartController extends Controller
     }
 
     /**
-     * 2. Thêm sản phẩm vào giỏ
+     * 2. Thêm sản phẩm vật lý vào giỏ
      */
     public function add(Request $request)
     {
         $request->validate([
-            'hood_id'  => 'required|exists:hoods,id',
-            'quantity' => 'nullable|integer|min:1',
-            'color'    => 'nullable|string',
+            'hood_id'  => ['required', 'exists:hoods,id'],
+            'quantity' => ['nullable', 'integer', 'min:1'],
+            'color'    => ['nullable', 'string', 'max:50'],
         ]);
 
         $hood = Hood::with('category')->findOrFail($request->hood_id);
@@ -47,7 +48,7 @@ class CartController extends Controller
         $quantity = (int)($request->quantity ?? 1);
         $color = $request->input('color');
 
-        $cartKey = $color ? $hood->id . '_' . md5($color) : (string)$hood->id;
+        $cartKey = $color ? 'product_' . $hood->id . '_' . md5($color) : 'product_' . $hood->id;
 
         if (isset($cart[$cartKey])) {
             $cart[$cartKey]['quantity'] += $quantity;
@@ -62,10 +63,16 @@ class CartController extends Controller
                 'category' => $hood->category->name ?? 'Máy Hút Mùi',
                 'model'    => $hood->model_code ?? $hood->model ?? ('Model ' . $hood->id),
                 'image'    => $hood->image ?? $hood->image_path ?? $hood->image_url ?? null,
+                'type'     => 'product',
             ];
         }
 
         session()->put('cart', $cart);
+
+        if ($request->input('action') === 'buy_now') {
+            return redirect()->route('cart.checkout', ['selected_items' => [$cartKey]]);
+        }
+
         return redirect()->route('cart.index')->with('success', 'Đã thêm sản phẩm vào giỏ hàng!');
     }
 
@@ -113,7 +120,7 @@ class CartController extends Controller
     }
 
     /**
-     * 4. Xóa món khỏi giỏ
+     * 4. Xóa khỏi giỏ
      */
     public function remove($key)
     {
@@ -122,22 +129,33 @@ class CartController extends Controller
             unset($cart[$key]);
             session()->put('cart', $cart);
         }
-        return redirect()->route('cart.index')->with('success', 'Đã xóa sản phẩm khỏi giỏ!');
+        return redirect()->route('cart.index')->with('success', 'Đã xóa khỏi giỏ hàng!');
     }
 
     /**
-     * 5. Xử lý tạo đơn hàng
+     * 5. XỬ LÝ NÚT "XÁC NHẬN ĐẶT HÀNG"
      */
     public function processCheckout(Request $request)
     {
         $request->validate([
-            'name'           => 'required|string|max:255',
-            'phone'          => 'required|string|max:20',
-            'province_id'    => 'required',
-            'to_district_id' => 'required',
-            'to_ward_code'   => 'required',
-            'address'        => 'required|string',
-            'payment_method' => 'required',
+            'name'           => ['required', 'string', 'min:2', 'max:50', 'regex:/^[\pL\s]+$/u'],
+            'phone'          => ['required', 'string', 'regex:/^(0|\+84)[3|5|7|8|9][0-9]{8}$/'],
+            'province_id'    => ['required'],
+            'to_district_id' => ['required'],
+            'to_ward_code'   => ['required'],
+            'address'        => ['required', 'string', 'max:255'],
+            'payment_method' => ['required', 'in:cod,momo'],
+        ], [
+            'name.required'           => 'Vui lòng nhập họ và tên người nhận.',
+            'name.regex'              => 'Họ và tên chỉ chứa chữ cái và khoảng trắng.',
+            'phone.required'          => 'Vui lòng nhập số điện thoại.',
+            'phone.regex'             => 'Số điện thoại không đúng định dạng (VD: 0987654321).',
+            'province_id.required'    => 'Vui lòng chọn Tỉnh/Thành phố.',
+            'to_district_id.required' => 'Vui lòng chọn Quận/Huyện.',
+            'to_ward_code.required'   => 'Vui lòng chọn Phường/Xã.',
+            'address.required'        => 'Vui lòng nhập địa chỉ cụ thể.',
+            'payment_method.required' => 'Vui lòng chọn phương thức thanh toán.',
+            'payment_method.in'       => 'Phương thức thanh toán không hợp lệ.',
         ]);
 
         $checkoutCart = session()->get('checkout_cart', []);
@@ -145,50 +163,75 @@ class CartController extends Controller
             return redirect()->route('cart.index')->with('error', 'Phiên thanh toán đã hết hạn hoặc giỏ hàng trống.');
         }
 
-        // Kiểm tra tồn kho
-        foreach ($checkoutCart as $item) {
-            $hood = Hood::find($item['id']);
-            if (!$hood || ($hood->stock_quantity ?? 0) < $item['quantity']) {
-                return redirect()->route('cart.index')->with('error', "Sản phẩm '{$item['name']}' không đủ số lượng trong kho!");
-            }
-        }
-
         $subtotal    = collect($checkoutCart)->sum(fn($item) => $item['price'] * $item['quantity']);
         $shippingFee = (int)$request->input('shipping_fee', 0);
         $finalTotal  = $subtotal + $shippingFee;
 
-        // Lưu đơn hàng vào DB Local
-        $order = DB::transaction(function () use ($request, $shippingFee, $finalTotal, $checkoutCart) {
-            $order = Order::create([
-                'user_id'         => Auth::id(),
-                'name'            => $request->name,
-                'address'         => $request->address,
-                'phone'           => $request->phone,
-                'total_price'     => $finalTotal,
-                'status'          => 'pending',
-                'to_district_id'  => (int)$request->to_district_id,
-                'to_ward_code'    => (string)$request->to_ward_code,
-                'ghn_total_fee'   => $shippingFee,
-                'shipping_status' => 'pending',
-            ]);
+        try {
+            $order = DB::transaction(function () use ($request, $shippingFee, $finalTotal, $checkoutCart) {
+                // Kiểm tra tồn kho kho sản phẩm vật lý (Bỏ qua đối với Dịch vụ)
+                foreach ($checkoutCart as $item) {
+                    $isService = ($item['type'] ?? '') === 'service';
+                    if (!$isService) {
+                        $hood = Hood::where('id', $item['id'])->lockForUpdate()->first();
+                        if (!$hood || ($hood->stock_quantity ?? 0) < $item['quantity']) {
+                            throw new \Exception("Sản phẩm '{$item['name']}' không đủ số lượng trong kho!");
+                        }
+                    }
+                }
 
-            foreach ($checkoutCart as $item) {
-                OrderItem::create([
-                    'order_id'   => $order->id,
-                    'product_id' => $item['id'],
-                    'quantity'   => $item['quantity'],
-                    'price'      => $item['price'],
-                    'color'      => $item['color'] ?? null,
+                // Tạo đơn hàng chính
+                $order = Order::create([
+                    'user_id'         => Auth::id(),
+                    'name'            => $request->name,
+                    'address'         => $request->address,
+                    'phone'           => $request->phone,
+                    'total_price'     => $finalTotal,
+                    'status'          => 'pending',
+                    'to_district_id'  => (int)$request->to_district_id,
+                    'to_ward_code'    => (string)$request->to_ward_code,
+                    'ghn_total_fee'   => $shippingFee,
+                    'shipping_status' => 'pending',
                 ]);
 
-                // Trừ tồn kho
-                Hood::where('id', $item['id'])->decrement('stock_quantity', $item['quantity']);
-            }
+                // Tạo chi tiết đơn hàng
+                foreach ($checkoutCart as $item) {
+                    $isService = ($item['type'] ?? '') === 'service';
+                    
+                    $productId = $isService ? null : $item['id'];
 
-            return $order;
-        });
+                    try {
+                        OrderItem::create([
+                            'order_id'   => $order->id,
+                            'product_id' => $productId,
+                            'quantity'   => $item['quantity'],
+                            'price'      => $item['price'],
+                            'color'      => $item['color'] ?? null,
+                        ]);
+                    } catch (\Exception $ex) {
+                        // Trường hợp bảng OrderItem yêu cầu product_id NOT NULL
+                        OrderItem::create([
+                            'order_id'   => $order->id,
+                            'product_id' => $item['id'],
+                            'quantity'   => $item['quantity'],
+                            'price'      => $item['price'],
+                            'color'      => $item['color'] ?? null,
+                        ]);
+                    }
 
-        // Xóa sản phẩm vừa mua khỏi giỏ hàng
+                    // Chỉ trừ kho đối với sản phẩm vật lý
+                    if (!$isService) {
+                        Hood::where('id', $item['id'])->decrement('stock_quantity', $item['quantity']);
+                    }
+                }
+
+                return $order;
+            });
+        } catch (\Exception $e) {
+            return redirect()->route('cart.index')->with('error', $e->getMessage());
+        }
+
+        // Xóa sản phẩm khỏi Session giỏ hàng
         $cart = session()->get('cart', []);
         foreach (array_keys($checkoutCart) as $key) {
             unset($cart[$key]);
@@ -196,7 +239,7 @@ class CartController extends Controller
         session()->put('cart', $cart);
         session()->forget('checkout_cart');
 
-        // TRƯỜNG HỢP 1: Thanh toán MoMo
+        // Thanh toán MoMo
         if ($request->payment_method === 'momo') {
             PaymentTransaction::create([
                 'order_id' => $order->id,
@@ -205,12 +248,10 @@ class CartController extends Controller
                 'status'   => 'pending',
             ]);
 
-            // Chuyển sang flow MoMo (Chưa tạo đơn GHN cho đến khi nhận được IPN/Callback thành công)
             return redirect()->route('user.orders.momo.start', $order);
         }
 
-        // TRƯỜNG HỢP 2: Thanh toán COD
-        // Đẩy đơn lên GHN ngay lập tức
+        // Thanh toán COD
         $ghnOrderCode = $this->pushToGhn($order);
 
         PaymentTransaction::create([
@@ -230,7 +271,7 @@ class CartController extends Controller
     }
 
     /**
-     * 6. Hàm bổ trợ: Đẩy đơn hàng sang Giao Hàng Nhanh (GHN)
+     * 6. Hàm đẩy đơn sang GHN
      */
     public function pushToGhn(Order $order)
     {
@@ -247,7 +288,7 @@ class CartController extends Controller
             $itemWeight = 1000 * (int)$item->quantity;
             $totalWeight += $itemWeight;
             $ghnItems[] = [
-                'name'     => (string)($item->product->name ?? 'Sản phẩm #' . $item->product_id),
+                'name'     => (string)($item->product->name ?? 'Mặt hàng #' . $item->id),
                 'quantity' => (int)$item->quantity,
                 'price'    => (int)$item->price,
                 'weight'   => 1000,
@@ -257,7 +298,7 @@ class CartController extends Controller
         $serviceId = $this->getAvailableServiceId($baseUrl, $token, $shopId, $fromDistrictId, (int)$order->to_district_id);
 
         $ghnPayload = [
-            'payment_type_id'  => 2, // 1: Shop trả phí, 2: Khách trả phí
+            'payment_type_id'  => 2,
             'note'             => 'Đơn hàng từ XFAN Store',
             'required_note'    => 'KHONGCHOXEMHANG',
             'from_district_id' => $fromDistrictId,
@@ -280,31 +321,31 @@ class CartController extends Controller
             $ghnPayload['service_type_id'] = 2;
         }
 
-        // Gọi API tạo đơn GHN
-        $ghnResponse = Http::withoutVerifying()
-            ->withHeaders([
-                'Token'  => $token,
-                'ShopId' => (int)$shopId,
-            ])
-            ->post($baseUrl . '/v2/shipping-order/create', $ghnPayload);
+        try {
+            $ghnResponse = Http::withoutVerifying()
+                ->withHeaders([
+                    'Token'  => $token,
+                    'ShopId' => (int)$shopId,
+                ])
+                ->post($baseUrl . '/v2/shipping-order/create', $ghnPayload);
 
-        $ghnResult = $ghnResponse->json();
+            $ghnResult = $ghnResponse->json();
 
-        if (isset($ghnResult['code']) && $ghnResult['code'] === 200) {
-            $ghnOrderCode = $ghnResult['data']['order_code'] ?? null;
-            if ($ghnOrderCode && Schema::hasColumn('orders', 'ghn_order_code')) {
-                $order->update(['ghn_order_code' => $ghnOrderCode]);
+            if (isset($ghnResult['code']) && $ghnResult['code'] === 200) {
+                $ghnOrderCode = $ghnResult['data']['order_code'] ?? null;
+                if ($ghnOrderCode && Schema::hasColumn('orders', 'ghn_order_code')) {
+                    $order->update(['ghn_order_code' => $ghnOrderCode]);
+                }
+                return $ghnOrderCode;
             }
-            return $ghnOrderCode;
+
+            Log::error('GHN Create Order Error: ', $ghnResult ?? []);
+        } catch (\Exception $e) {
+            Log::error('GHN Create Order Exception: ' . $e->getMessage());
         }
 
-        Log::error('GHN Create Order Error: ', $ghnResult ?? []);
         return null;
     }
-
-    // ==========================================
-    // API GHN MASTER DATA & SHIPPING FEE
-    // ==========================================
 
     private function getGhnConfig($key)
     {
@@ -337,11 +378,15 @@ class CartController extends Controller
         $baseUrl = $this->getGhnConfig('base_url');
         $token   = $this->getGhnConfig('token');
 
-        $response = Http::withoutVerifying()
-            ->withHeaders(['Token' => $token])
-            ->get($baseUrl . '/master-data/province');
+        try {
+            $response = Http::withoutVerifying()
+                ->withHeaders(['Token' => $token])
+                ->get($baseUrl . '/master-data/province');
 
-        return response()->json($response->json());
+            return response()->json($response->json());
+        } catch (\Exception $e) {
+            return response()->json(['code' => 500, 'message' => $e->getMessage()], 500);
+        }
     }
 
     public function getDistricts($provinceId)
@@ -349,13 +394,17 @@ class CartController extends Controller
         $baseUrl = $this->getGhnConfig('base_url');
         $token   = $this->getGhnConfig('token');
 
-        $response = Http::withoutVerifying()
-            ->withHeaders(['Token' => $token])
-            ->get($baseUrl . '/master-data/district', [
-                'province_id' => (int)$provinceId
-            ]);
+        try {
+            $response = Http::withoutVerifying()
+                ->withHeaders(['Token' => $token])
+                ->get($baseUrl . '/master-data/district', [
+                    'province_id' => (int)$provinceId
+                ]);
 
-        return response()->json($response->json());
+            return response()->json($response->json());
+        } catch (\Exception $e) {
+            return response()->json(['code' => 500, 'message' => $e->getMessage()], 500);
+        }
     }
 
     public function getWards($districtId)
@@ -363,13 +412,17 @@ class CartController extends Controller
         $baseUrl = $this->getGhnConfig('base_url');
         $token   = $this->getGhnConfig('token');
 
-        $response = Http::withoutVerifying()
-            ->withHeaders(['Token' => $token])
-            ->get($baseUrl . '/master-data/ward', [
-                'district_id' => (int)$districtId
-            ]);
+        try {
+            $response = Http::withoutVerifying()
+                ->withHeaders(['Token' => $token])
+                ->get($baseUrl . '/master-data/ward', [
+                    'district_id' => (int)$districtId
+                ]);
 
-        return response()->json($response->json());
+            return response()->json($response->json());
+        } catch (\Exception $e) {
+            return response()->json(['code' => 500, 'message' => $e->getMessage()], 500);
+        }
     }
 
     public function getShippingFee(Request $request)
@@ -403,13 +456,17 @@ class CartController extends Controller
             $payload['service_type_id'] = 2;
         }
 
-        $response = Http::withoutVerifying()
-            ->withHeaders([
-                'Token'  => $token,
-                'ShopId' => (int)$shopId
-            ])
-            ->post($baseUrl . '/v2/shipping-order/fee', $payload);
+        try {
+            $response = Http::withoutVerifying()
+                ->withHeaders([
+                    'Token'  => $token,
+                    'ShopId' => (int)$shopId
+                ])
+                ->post($baseUrl . '/v2/shipping-order/fee', $payload);
 
-        return response()->json($response->json());
+            return response()->json($response->json());
+        } catch (\Exception $e) {
+            return response()->json(['code' => 500, 'message' => $e->getMessage()], 500);
+        }
     }
 }

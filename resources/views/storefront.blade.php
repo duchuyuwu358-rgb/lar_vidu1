@@ -15,6 +15,64 @@
     </div>
 </div>
 
+<!-- Thanh Tìm Kiếm & Bộ Lọc -->
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-body p-3 p-md-4">
+        <form action="{{ route('storefront') }}" method="GET" class="row g-3">
+            <!-- Ô tìm kiếm -->
+            <div class="col-md-4">
+                <label class="form-label fw-bold text-secondary small">Tìm kiếm</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-light text-muted border-end-0">
+                        <i class="fas fa-search"></i>
+                    </span>
+                    <input type="text" name="search" class="form-control border-start-0 bg-light" 
+                           placeholder="Tên, mã SP hoặc model..." 
+                           value="{{ request('search') }}">
+                </div>
+            </div>
+
+            <!-- Dropdown Danh mục -->
+            <div class="col-md-3">
+                <label class="form-label fw-bold text-secondary small">Danh mục</label>
+                <select name="category" class="form-select bg-light">
+                    <option value="">-- Tất cả danh mục --</option>
+                    @if(isset($categories))
+                        @foreach($categories as $cat)
+                            <option value="{{ $cat->id }}" {{ (request('category') == $cat->id || request('category_id') == $cat->id) ? 'selected' : '' }}>
+                                {{ $cat->name }}
+                            </option>
+                        @endforeach
+                    @endif
+                </select>
+            </div>
+
+            <!-- Dropdown Khoảng giá -->
+            <div class="col-md-3">
+                <label class="form-label fw-bold text-secondary small">Khoảng giá</label>
+                <select name="price_range" class="form-select bg-light">
+                    <option value="">-- Tất cả mức giá --</option>
+                    <option value="under_3m" {{ request('price_range') == 'under_3m' ? 'selected' : '' }}>Dưới 3 triệu</option>
+                    <option value="3m_5m" {{ request('price_range') == '3m_5m' ? 'selected' : '' }}>3 - 5 triệu</option>
+                    <option value="over_5m" {{ request('price_range') == 'over_5m' ? 'selected' : '' }}>Trên 5 triệu</option>
+                </select>
+            </div>
+
+            <!-- Nút Lọc & Reset -->
+            <div class="col-md-2 d-flex align-items-end gap-2">
+                <button type="submit" class="btn btn-primary w-100 fw-bold">
+                    <i class="fas fa-filter me-1"></i> Lọc
+                </button>
+                @if(request()->hasAny(['search', 'category', 'category_id', 'price_range']))
+                    <a href="{{ route('storefront') }}" class="btn btn-outline-secondary" title="Xóa bộ lọc">
+                        <i class="fas fa-undo"></i>
+                    </a>
+                @endif
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Product Grid -->
 <div class="row g-4 mb-4">
     @forelse($hoods as $hood)
@@ -63,12 +121,18 @@
         <div class="col-12">
             <div class="text-center py-5 bg-white rounded-3 shadow-sm border">
                 <i class="fas fa-box-open fa-3x text-muted mb-3"></i>
-                <p class="text-muted fs-5 mb-0">Hiện chưa có sản phẩm nào đang bán.</p>
+                <p class="text-muted fs-5 mb-0">Không tìm thấy sản phẩm nào phù hợp với bộ lọc.</p>
+                @if(request()->hasAny(['search', 'category', 'category_id', 'price_range']))
+                    <a href="{{ route('storefront') }}" class="btn btn-sm btn-outline-primary mt-3">
+                        <i class="fas fa-sync-alt me-1"></i> Xem tất cả sản phẩm
+                    </a>
+                @endif
             </div>
         </div>
     @endforelse
 </div>
 
+<!-- Phân trang -->
 @if(method_exists($hoods, 'hasPages') && $hoods->hasPages())
     <div class="d-flex justify-content-center mt-4">
         {{ $hoods->appends(request()->query())->links() }}

@@ -3,17 +3,37 @@
 namespace App\Http\Controllers;
 
 use App\Models\Order;
+use App\Mail\OrderStatusUpdatedMail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
 
 class OrderController extends Controller
 {
+    /**
+     * Hàm phụ hỗ trợ gửi email cập nhật trạng thái đơn hàng
+     */
+    private function sendOrderStatusEmail(Order $order)
+    {
+        $recipientEmail = $order->email ?? $order->user->email ?? null;
+
+        if ($recipientEmail) {
+            try {
+                Mail::to($recipientEmail)->send(new OrderStatusUpdatedMail($order));
+            } catch (\Exception $e) {
+                Log::error("Lỗi gửi email cho đơn hàng #{$order->id}: " . $e->getMessage());
+            }
+        }
+    }
+
     /**
      * Danh sách đơn hàng phía Khách hàng
      */
     public function index()
     {
-        $orders = Order::where('user_id', auth()->id())
+        $orders = Order::with(['paymentTransactions', 'orderItems.hood', 'orderItems.service', 'items.hood', 'items.service'])
+            ->where('user_id', auth()->id())
             ->latest()
             ->paginate(10);
 
@@ -32,18 +52,24 @@ class OrderController extends Controller
 
         $counts = [
             'all'             => Order::count(),
-            'pending_payment' => Order::where('status', 'pending_payment')->count(),
-            'paid'            => Order::where('status', 'paid')->count(),
+            'pending_payment' => Order::whereIn('status', ['pending_payment', 'pending'])->count(),
+            'paid'            => Order::whereIn('status', ['paid', 'completed'])->count(),
             'processing'      => Order::where('status', 'processing')->count(),
             'shipping'        => Order::where('status', 'shipping')->count(),
             'completed'       => Order::where('status', 'completed')->count(),
-            'cancelled'       => Order::where('status', 'cancelled')->count(),
+            'cancelled'       => Order::whereIn('status', ['cancelled', 'failed'])->count(),
         ];
 
-        $query = Order::with('user')->latest();
+        $query = Order::with(['user', 'paymentTransactions'])->latest();
 
-        if ($currentTab !== 'all' && array_key_exists($currentTab, $counts)) {
-            $query->where('status', $currentTab);
+        if ($currentTab !== 'all') {
+            if ($currentTab === 'pending_payment') {
+                $query->whereIn('status', ['pending_payment', 'pending']);
+            } elseif ($currentTab === 'cancelled') {
+                $query->whereIn('status', ['cancelled', 'failed']);
+            } elseif (array_key_exists($currentTab, $counts)) {
+                $query->where('status', $currentTab);
+            }
         }
 
         if (!empty($search)) {
@@ -53,6 +79,11 @@ class OrderController extends Controller
                   ->orWhere('phone', 'like', "%{$search}%")
                   ->orWhere('email', 'like', "%{$search}%")
                   ->orWhere('ghn_order_code', 'like', "%{$search}%")
+                  ->orWhere('momo_transaction_id', 'like', "%{$search}%")
+                  ->orWhere('transaction_id', 'like', "%{$search}%")
+                  ->orWhereHas('paymentTransactions', function ($pt) use ($search) {
+                      $pt->where('transaction_id', 'like', "%{$search}%");
+                  })
                   ->orWhereHas('user', function ($u) use ($search) {
                       $u->where('name', 'like', "%{$search}%")
                         ->orWhere('email', 'like', "%{$search}%");
@@ -83,7 +114,16 @@ class OrderController extends Controller
      */
     public function show($id)
     {
-        $order = Order::with(['user', 'orderItems.hood', 'items.hood'])->findOrFail($id);
+        $order = Order::with([
+            'user', 
+            'paymentTransactions', 
+            'orderItems.hood', 
+            'orderItems.service', 
+            'orderItems.product',
+            'items.hood', 
+            'items.service',
+            'items.product'
+        ])->findOrFail($id);
 
         return view('orders.show', compact('order'));
     }
@@ -112,6 +152,9 @@ class OrderController extends Controller
             'email'          => $request->email,
         ]);
 
+        // Gửi email xác nhận đặt hàng
+        $this->sendOrderStatusEmail($order);
+
         return redirect()->route('orders.show', $order->id)->with('status', 'Đặt hàng thành công!');
     }
 
@@ -120,17 +163,24 @@ class OrderController extends Controller
      */
     public function updateStatus(Request $request, $id)
     {
+        if (auth()->user()->role !== 'admin') {
+            return back()->with('error', 'Nhân viên không có quyền cập nhật trạng thái đơn hàng!');
+        }
+
         $request->validate([
-            'status' => 'required|in:pending_payment,paid,processing,shipping,completed,cancelled',
+            'status' => 'required|in:pending,pending_payment,paid,processing,shipping,completed,failed,cancelled',
         ]);
 
         $order = Order::findOrFail($id);
+        $oldStatus = $order->status;
         $newStatus = $request->status;
 
         $paymentStatus = $order->payment_status;
         if (in_array($newStatus, ['paid', 'completed'])) {
             $paymentStatus = 'paid';
-        } elseif ($newStatus === 'cancelled') {
+        } elseif ($newStatus === 'failed') {
+            $paymentStatus = 'failed';
+        } elseif (in_array($newStatus, ['cancelled', 'pending', 'pending_payment'])) {
             $paymentStatus = 'unpaid';
         }
 
@@ -138,6 +188,10 @@ class OrderController extends Controller
             'status'         => $newStatus,
             'payment_status' => $paymentStatus,
         ]);
+
+        if ($oldStatus !== $newStatus) {
+            $this->sendOrderStatusEmail($order);
+        }
 
         $ghnNotice = '';
         if ($newStatus === 'cancelled' && !empty($order->ghn_order_code)) {
@@ -163,7 +217,7 @@ class OrderController extends Controller
             }
         }
 
-        return back()->with('status', 'Cập nhật trạng thái đơn hàng thành công!' . $ghnNotice);
+        return back()->with('status', 'Cập nhật trạng thái đơn hàng thành công và đã gửi mail thông báo!' . $ghnNotice);
     }
 
     /**
@@ -171,7 +225,18 @@ class OrderController extends Controller
      */
     public function pushToGhn($id)
     {
-        $order = Order::with(['orderItems.hood', 'items.hood'])->findOrFail($id);
+        if (auth()->user()->role !== 'admin') {
+            return back()->with('error', 'Nhân viên không có quyền đẩy đơn sang GHN!');
+        }
+
+        $order = Order::with([
+            'orderItems.hood', 
+            'orderItems.service', 
+            'orderItems.product',
+            'items.hood', 
+            'items.service',
+            'items.product'
+        ])->findOrFail($id);
 
         if (!empty($order->ghn_order_code)) {
             return back()->with('error', 'Đơn hàng này đã có mã GHN: ' . $order->ghn_order_code);
@@ -188,15 +253,20 @@ class OrderController extends Controller
         }
 
         $items = [];
-        $orderItems = $order->orderItems ?? $order->items ?? collect();
+        $orderItems = ($order->orderItems && $order->orderItems->isNotEmpty()) 
+            ? $order->orderItems 
+            : ($order->items && $order->items->isNotEmpty() ? $order->items : collect());
 
         if ($orderItems->count() > 0) {
             foreach ($orderItems as $item) {
+                $itemName = $item->display_name;
+                $itemCode = 'SKU_' . ($item->service_id ?? $item->hood_id ?? $item->product_id ?? $item->id);
+
                 $items[] = [
-                    'name'     => (string) ($item->hood->name ?? 'Sản phẩm XFAN'),
-                    'code'     => (string) ($item->hood_id ?? 'SKU' . $item->id),
-                    'quantity' => (int) ($item->quantity ?? 1),
-                    'price'    => (int) ($item->price ?? $order->total_price),
+                    'name'     => (string) $itemName,
+                    'code'     => (string) $itemCode,
+                    'quantity' => (int) ($item->quantity ?? $item->qty ?? 1),
+                    'price'    => (int) ($item->price ?? $item->unit_price ?? $order->total_price),
                     'length'   => 10,
                     'width'    => 10,
                     'height'   => 10,
@@ -226,9 +296,9 @@ class OrderController extends Controller
             'from_district_id'  => $fromDistrictId,
             'to_name'           => (string) $order->name,
             'to_phone'          => (string) $order->phone,
-            'to_address'        => (string) $order->address,
-            'to_ward_code'      => '20314',
-            'to_district_id'    => 1485,
+            'to_address'        => (string) ($order->address ?? $order->shipping_address),
+            'to_ward_code'      => (string) ($order->ward_code ?? '20314'),
+            'to_district_id'    => (int) ($order->district_id ?? 1485),
             'cod_amount'        => ($order->payment_status === 'paid') ? 0 : (int) $order->total_price,
             'weight'            => 1200,
             'length'            => 30,
@@ -249,11 +319,16 @@ class OrderController extends Controller
 
             if ($response->successful() && isset($resData['code']) && $resData['code'] === 200) {
                 $ghnOrderCode = $resData['data']['order_code'];
+                $oldStatus    = $order->status;
 
                 $order->update([
                     'ghn_order_code' => $ghnOrderCode,
                     'status'         => 'processing',
                 ]);
+
+                if ($oldStatus !== 'processing') {
+                    $this->sendOrderStatusEmail($order);
+                }
 
                 return back()->with('status', "Tạo đơn GHN thành công! Mã vận đơn: {$ghnOrderCode}");
             }
@@ -271,6 +346,10 @@ class OrderController extends Controller
      */
     public function syncGhnStatus(Request $request, $id)
     {
+        if (auth()->user()->role !== 'admin') {
+            return back()->with('error', 'Nhân viên không có quyền đồng bộ trạng thái GHN!');
+        }
+
         $order = Order::findOrFail($id);
 
         if ($request->filled('ghn_order_code')) {
@@ -312,13 +391,19 @@ class OrderController extends Controller
                 ];
 
                 if (isset($statusMapping[$ghnStatus])) {
-                    $updateData = ['status' => $statusMapping[$ghnStatus]];
+                    $oldStatus  = $order->status;
+                    $newStatus  = $statusMapping[$ghnStatus];
+                    $updateData = ['status' => $newStatus];
 
                     if ($ghnStatus === 'delivered') {
                         $updateData['payment_status'] = 'paid';
                     }
 
                     $order->update($updateData);
+
+                    if ($oldStatus !== $newStatus) {
+                        $this->sendOrderStatusEmail($order);
+                    }
 
                     return back()->with('status', "Đồng bộ thành công đơn #{$order->id}! Trạng thái GHN: {$ghnStatus}");
                 }
@@ -335,7 +420,7 @@ class OrderController extends Controller
     }
 
     /**
-     * Nhận Webhook tự động từ GHN (hoặc Giả lập từ Postman) để cập nhật trạng thái đơn
+     * Nhận Webhook tự động từ GHN
      */
     public function handleGhnWebhook(Request $request)
     {
@@ -369,7 +454,9 @@ class OrderController extends Controller
         ];
 
         if (isset($statusMapping[$ghnStatus])) {
-            $updateData = ['status' => $statusMapping[$ghnStatus]];
+            $oldStatus  = $order->status;
+            $newStatus  = $statusMapping[$ghnStatus];
+            $updateData = ['status' => $newStatus];
 
             if ($ghnStatus === 'delivered') {
                 $updateData['payment_status'] = 'paid';
@@ -377,9 +464,13 @@ class OrderController extends Controller
 
             $order->update($updateData);
 
+            if ($oldStatus !== $newStatus) {
+                $this->sendOrderStatusEmail($order);
+            }
+
             return response()->json([
                 'success'    => true,
-                'message'    => "Đã cập nhật đơn hàng #{$order->id} sang trạng thái [{$statusMapping[$ghnStatus]}] thành công!",
+                'message'    => "Đã cập nhật đơn hàng #{$order->id} sang trạng thái [{$newStatus}] thành công!",
                 'order_id'   => $order->id,
                 'new_status' => $order->status,
             ], 200);

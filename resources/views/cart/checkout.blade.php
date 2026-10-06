@@ -18,7 +18,7 @@
                     </div>
                 @endif
 
-                <form action="{{ route('cart.checkout.process') }}" method="POST">
+                <form action="{{ Route::has('cart.processCheckout') ? route('cart.processCheckout') : (Route::has('cart.checkout.process') ? route('cart.checkout.process') : url('/cart/checkout')) }}" method="POST" id="checkout-form">
                     @csrf
                     
                     <!-- Input ẩn lưu Phí Vận Chuyển -->
@@ -36,7 +36,7 @@
                     <!-- Input Số điện thoại -->
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Số điện thoại <span class="text-danger">*</span></label>
-                        <input type="tel" class="form-control @error('phone') is-invalid @enderror" name="phone" placeholder="Nhập số điện thoại liên hệ" required value="{{ old('phone') }}">
+                        <input type="tel" class="form-control @error('phone') is-invalid @enderror" name="phone" placeholder="Nhập số điện thoại liên hệ" required value="{{ old('phone', auth()->user()->phone ?? '') }}">
                         @error('phone')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
@@ -90,7 +90,7 @@
                     <div class="card p-3 mb-2 border">
                         <div class="form-check">
                             <input class="form-check-input" type="radio" name="payment_method" id="payment_cod" value="cod" {{ old('payment_method', 'cod') === 'cod' ? 'checked' : '' }}>
-                            <label class="form-check-label fw-semibold" for="payment_cod">
+                            <label class="form-check-label fw-semibold cursor-pointer" for="payment_cod">
                                 <i class="fas fa-money-bill-wave text-success me-2"></i> Thanh toán trực tiếp (COD khi nhận hàng)
                             </label>
                         </div>
@@ -100,7 +100,7 @@
                     <div class="card p-3 mb-4 border">
                         <div class="form-check">
                             <input class="form-check-input" type="radio" name="payment_method" id="payment_momo" value="momo" {{ old('payment_method') === 'momo' ? 'checked' : '' }}>
-                            <label class="form-check-label fw-semibold" for="payment_momo">
+                            <label class="form-check-label fw-semibold cursor-pointer" for="payment_momo">
                                 <i class="fas fa-qrcode text-danger me-2"></i> Thanh toán qua Ví Điện Tử MoMo
                             </label>
                         </div>
@@ -109,7 +109,7 @@
                         <div class="text-danger mb-3 small">{{ $message }}</div>
                     @enderror
 
-                    <button type="submit" class="btn btn-success w-100 py-3 fw-bold fs-5">
+                    <button type="submit" class="btn btn-success w-100 py-3 fw-bold fs-5 shadow-sm">
                         <i class="fas fa-check-circle me-1"></i> XÁC NHẬN ĐẶT HÀNG
                     </button>
                 </form>
@@ -125,35 +125,45 @@
             </div>
             <div class="card-body p-4">
                 <ul class="list-group mb-3">
-                    @if(!empty($checkoutCart))
-                        @foreach($checkoutCart as $details)
+                    @if(isset($checkoutCart) && (is_array($checkoutCart) || is_object($checkoutCart)) && count($checkoutCart) > 0)
+                        @foreach ($checkoutCart as $itemKey => $details)
+                            @php
+                                $price = is_array($details) ? ($details['price'] ?? 0) : ($details->price ?? 0);
+                                $qty = is_array($details) ? ($details['quantity'] ?? 1) : ($details->quantity ?? 1);
+                                $name = is_array($details) ? ($details['name'] ?? 'Sản phẩm') : ($details->name ?? 'Sản phẩm');
+                                $type = is_array($details) ? ($details['type'] ?? '') : ($details->type ?? '');
+                                $itemSubtotal = $price * $qty;
+                            @endphp
                             <li class="list-group-item d-flex justify-content-between align-items-center lh-sm py-3">
                                 <div>
-                                    <h6 class="my-0 fw-bold">{{ $details['name'] }}</h6>
-                                    <small class="text-muted">SL: {{ $details['quantity'] }} x {{ number_format($details['price'], 0, ',', '.') }} đ</small>
+                                    <h6 class="my-0 fw-bold text-dark">{{ $name }}</h6>
+                                    <small class="text-muted">SL: {{ $qty }} x {{ number_format($price, 0, ',', '.') }} đ</small>
+                                    @if($type === 'service')
+                                        <span class="badge bg-info text-dark ms-1">Dịch vụ</span>
+                                    @endif
                                 </div>
-                                <span class="fw-bold text-primary">{{ number_format($details['price'] * $details['quantity'], 0, ',', '.') }} đ</span>
+                                <span class="fw-bold text-primary">{{ number_format($itemSubtotal, 0, ',', '.') }} đ</span>
                             </li>
                         @endforeach
                     @else
-                        <li class="list-group-item text-center text-muted">Chưa chọn sản phẩm nào</li>
+                        <li class="list-group-item text-center text-muted py-4">Chưa chọn sản phẩm nào</li>
                     @endif
                 </ul>
 
                 <!-- Khối Bổ Sung Chi Tiết Phí GHN & Tổng Tiền -->
                 <div class="border-top pt-3 mt-3">
                     <div class="d-flex justify-content-between mb-2">
-                        <span>Tạm tính (Tiền hàng):</span>
-                        <strong id="subtotal_text">{{ number_format($totalAmount ?? 0, 0, ',', '.') }} đ</strong>
+                        <span class="text-muted">Tạm tính (Tiền hàng):</span>
+                        <strong id="subtotal_text" class="text-dark">{{ number_format($totalAmount ?? 0, 0, ',', '.') }} đ</strong>
                     </div>
                     <div class="d-flex justify-content-between mb-2">
-                        <span>Phí vận chuyển (GHN):</span>
+                        <span class="text-muted">Phí vận chuyển (GHN):</span>
                         <strong class="text-primary" id="shipping_fee_text">0 đ</strong>
                     </div>
                     <hr>
-                    <div class="d-flex justify-content-between fw-bold fs-5">
+                    <div class="d-flex justify-content-between align-items-center fw-bold fs-5">
                         <span>Tổng tiền thanh toán:</span>
-                        <span class="text-danger fs-4" id="final_total_text">{{ number_format($totalAmount ?? 0, 0, ',', '.') }} đ</span>
+                        <span class="text-danger fs-3" id="final_total_text">{{ number_format($totalAmount ?? 0, 0, ',', '.') }} đ</span>
                     </div>
                 </div>
 
@@ -174,17 +184,22 @@ document.addEventListener("DOMContentLoaded", function () {
     const finalTotalText = document.getElementById('final_total_text');
     const totalPriceInput = document.getElementById('total_price_input');
 
-    const districtsUrl = "{{ route('locations.districts', ['provinceId' => '_PROVINCE_']) }}";
-    const wardsUrl = "{{ route('locations.wards', ['districtId' => '_DISTRICT_']) }}";
     const subtotal = parseInt(totalPriceInput ? totalPriceInput.value : 0) || 0;
 
+    // URL endpoints (Hỗ trợ linh hoạt cả Route Name lẫn URL mặc định)
+    const provincesUrl = "{{ Route::has('locations.provinces') ? route('locations.provinces') : url('/cart/api/provinces') }}";
+    const districtsBaseUrl = "{{ Route::has('locations.districts') ? route('locations.districts', ['provinceId' => '___ID___']) : url('/cart/api/districts/___ID___') }}";
+    const wardsBaseUrl = "{{ Route::has('locations.wards') ? route('locations.wards', ['districtId' => '___ID___']) : url('/cart/api/wards/___ID___') }}";
+    const feeUrl = "{{ Route::has('locations.fee') ? route('locations.fee') : url('/cart/api/shipping-fee') }}";
+
     // 1. Load Tỉnh/Thành từ GHN
-    fetch("{{ route('locations.provinces') }}")
+    fetch(provincesUrl)
         .then(res => res.json())
         .then(res => {
-            if (res.data) {
+            const list = res.data || res;
+            if (Array.isArray(list)) {
                 let options = '<option value="">-- Chọn Tỉnh/Thành --</option>';
-                res.data.forEach(p => {
+                list.forEach(p => {
                     options += `<option value="${p.ProvinceID}">${p.ProvinceName}</option>`;
                 });
                 provinceSelect.innerHTML = options;
@@ -201,12 +216,14 @@ document.addEventListener("DOMContentLoaded", function () {
         updateTotals(0);
         if (!this.value) return;
 
-        fetch(districtsUrl.replace('_PROVINCE_', this.value))
+        const url = districtsBaseUrl.replace('___ID___', this.value);
+        fetch(url)
             .then(res => res.json())
             .then(res => {
-                if (res.data) {
+                const list = res.data || res;
+                if (Array.isArray(list)) {
                     let options = '<option value="">-- Chọn Quận/Huyện --</option>';
-                    res.data.forEach(d => {
+                    list.forEach(d => {
                         options += `<option value="${d.DistrictID}">${d.DistrictName}</option>`;
                     });
                     districtSelect.innerHTML = options;
@@ -223,12 +240,14 @@ document.addEventListener("DOMContentLoaded", function () {
         updateTotals(0);
         if (!this.value) return;
 
-        fetch(wardsUrl.replace('_DISTRICT_', this.value))
+        const url = wardsBaseUrl.replace('___ID___', this.value);
+        fetch(url)
             .then(res => res.json())
             .then(res => {
-                if (res.data) {
+                const list = res.data || res;
+                if (Array.isArray(list)) {
                     let options = '<option value="">-- Chọn Phường/Xã --</option>';
-                    res.data.forEach(w => {
+                    list.forEach(w => {
                         options += `<option value="${w.WardCode}">${w.WardName}</option>`;
                     });
                     wardSelect.innerHTML = options;
@@ -243,7 +262,7 @@ document.addEventListener("DOMContentLoaded", function () {
         if (!this.value || !districtSelect.value) return;
         shippingFeeText.innerText = 'Đang tính cước...';
 
-        fetch("{{ route('locations.fee') }}", {
+        fetch(feeUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -256,17 +275,17 @@ document.addEventListener("DOMContentLoaded", function () {
         })
         .then(res => res.json())
         .then(res => {
-            if (res.code === 200 && res.data) {
-                const fee = parseInt(res.data.total) || 0;
-                updateTotals(fee);
-            } else {
-                shippingFeeText.innerText = 'Chưa hỗ trợ';
-                updateTotals(0);
+            let fee = 0;
+            if (res.code === 200 && res.data && res.data.total !== undefined) {
+                fee = parseInt(res.data.total) || 0;
+            } else if (res.total !== undefined) {
+                fee = parseInt(res.total) || 0;
             }
+            updateTotals(fee);
         })
         .catch(err => {
             console.error("Lỗi tính phí GHN:", err);
-            shippingFeeText.innerText = 'Chưa hỗ trợ';
+            shippingFeeText.innerText = '0 đ';
             updateTotals(0);
         });
     });

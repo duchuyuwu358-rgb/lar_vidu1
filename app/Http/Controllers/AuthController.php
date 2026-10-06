@@ -3,82 +3,114 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
-use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
 {
+    /**
+     * Hiển thị giao diện đăng nhập
+     */
     public function showLogin()
     {
-        // Nếu đã đăng nhập rồi thì chuyển hướng thẳng, không hiển thị lại form login
-        if (Auth::check()) {
-            return redirect()->route(Auth::user()->isAdmin() ? 'admin.portal' : 'storefront');
-        }
-
-        // Trả về view login và CẤM Trình duyệt Cache trang này (Sửa lỗi 419 khi Logout/Login lại)
-        return response()
-            ->view('auth.login')
-            ->header('Cache-Control', 'no-cache, no-store, max-age=0, must-revalidate')
-            ->header('Pragma', 'no-cache')
-            ->header('Expires', 'Sat, 01 Jan 1990 00:00:00 GMT');
+        return view('auth.login');
     }
 
-    public function showRegister()
-    {
-        if (Auth::check()) {
-            return redirect()->route(Auth::user()->isAdmin() ? 'admin.portal' : 'storefront');
-        }
-
-        return view('auth.register');
-    }
-
-    public function register(Request $request)
-    {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => ['required', 'email:rfc,dns', 'lowercase', 'ends_with:@gmail.com', 'unique:users,email'],
-            'password' => 'required|string|min:8|confirmed',
-        ]);
-
-        $user = User::create([
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'password' => Hash::make($validated['password']),
-            'role' => 'customer',
-        ]);
-
-        event(new Registered($user));
-        Auth::login($user);
-
-        return redirect()->route('verification.notice');
-    }
-
+    /**
+     * Xử lý đăng nhập
+     */
     public function login(Request $request)
     {
         $credentials = $request->validate([
-            'email' => ['required', 'email'],
-            'password' => 'required|string',
+            'email'    => ['required', 'email'],
+            'password' => ['required'],
+        ], [
+            'email.required'    => 'Vui lòng nhập địa chỉ email.',
+            'email.email'       => 'Email không đúng định dạng.',
+            'password.required' => 'Vui lòng nhập mật khẩu.',
         ]);
 
-        if (!Auth::attempt($credentials, $request->boolean('remember'))) {
-            return back()->withErrors(['email' => 'Email hoặc mật khẩu không đúng.'])->onlyInput('email');
+        if (Auth::attempt($credentials, $request->boolean('remember'))) {
+            $request->session()->regenerate();
+            return redirect()->intended(route('storefront'));
         }
 
-        $request->session()->regenerate();
-
-        // Xóa URL intended để tránh bị chuyển hướng vào các route cũ trong session
-        session()->forget('url.intended');
-
-        if (! $request->user()->hasVerifiedEmail()) {
-            return redirect()->route('verification.notice');
-        }
-
-        // Điều hướng trực tiếp theo vai trò
-        return redirect()->route($request->user()->isAdmin() ? 'admin.portal' : 'storefront');
+        return back()->withErrors([
+            'email' => 'Địa chỉ email hoặc mật khẩu không chính xác.',
+        ])->onlyInput('email');
     }
 
+    /**
+     * Hiển thị giao diện đăng ký
+     */
+    public function showRegister()
+    {
+        return view('auth.register');
+    }
+
+    /**
+     * Xử lý đăng ký tài khoản
+     */
+    public function register(Request $request)
+    {
+        $validated = $request->validate([
+            'name' => [
+                'required',
+                'string',
+                'min:2',
+                'max:50',
+                'regex:/^[\pL\s]+$/u', // Chấp nhận chữ cái có dấu, KHÔNG DẤU và khoảng trắng
+            ],
+            'email' => [
+                'required',
+                'string',
+                'email',
+                'max:255',
+                'unique:users,email',
+                'regex:/^[a-zA-Z0-9._%+-]+@gmail\.com$/i', // Định dạng @gmail.com
+            ],
+            'password' => [
+                'required',
+                'string',
+                'min:8',
+                'confirmed', // Khớp với password_confirmation
+            ],
+            'password_confirmation' => [
+                'required',
+            ],
+        ], [
+            'name.required'                  => 'Vui lòng nhập họ và tên.',
+            'name.min'                       => 'Họ và tên phải có ít nhất 2 ký tự.',
+            'name.max'                       => 'Họ và tên không được vượt quá 50 ký tự.',
+            'name.regex'                     => 'Họ và tên chỉ được chứa chữ cái (có dấu hoặc không dấu) và khoảng trắng.',
+
+            'email.required'                 => 'Vui lòng nhập địa chỉ Gmail.',
+            'email.email'                    => 'Địa chỉ email không đúng định dạng.',
+            'email.unique'                   => 'Địa chỉ Gmail này đã được đăng ký tài khoản.',
+            'email.regex'                    => 'Vui lòng nhập đúng định dạng Gmail (ví dụ: example@gmail.com).',
+
+            'password.required'              => 'Vui lòng nhập mật khẩu.',
+            'password.min'                   => 'Mật khẩu phải có tối thiểu 8 ký tự.',
+            'password.confirmed'             => 'Mật khẩu xác nhận không trùng khớp.',
+
+            'password_confirmation.required' => 'Vui lòng xác nhận lại mật khẩu.',
+        ]);
+
+        $user = User::create([
+            'name'     => $validated['name'],
+            'email'    => $validated['email'],
+            'password' => Hash::make($validated['password']),
+        ]);
+
+        Auth::login($user);
+
+        return redirect()->route('storefront')->with('success', 'Đăng ký tài khoản thành công!');
+    }
+
+    /**
+     * Xử lý đăng xuất
+     */
     public function logout(Request $request)
     {
         Auth::logout();
@@ -86,7 +118,6 @@ class AuthController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        // Chuyển hướng về login kèm Header xóa triệt để cache trình duyệt
         return redirect()->route('login')->withHeaders([
             'Cache-Control' => 'no-cache, no-store, max-age=0, must-revalidate',
             'Pragma'        => 'no-cache',

@@ -10,7 +10,10 @@ class AdminMiddleware
 {
     public function handle(Request $request, Closure $next): Response
     {
-        abort_unless($request->user()?->isAdmin(), 403);
+        $user = $request->user();
+
+        // Cho phép cả Admin lẫn Nhân viên (staff) truy cập vào trang admin
+        abort_unless($user && ($user->isAdmin() || $user->isStaff()), 403);
 
         return $next($request);
     }

@@ -3,7 +3,7 @@
 @section('content')
 <div class="container-fluid px-4 py-3">
     
-    <!-- Tiêu đề trang (Đã bỏ nút Sinh Đơn Mẫu) -->
+    <!-- Tiêu đề trang -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2 class="h3 fw-bold text-primary mb-0">
             <i class="fas fa-boxes me-2"></i>Quản Lý Đơn Hàng
@@ -36,7 +36,7 @@
                     <div class="input-group">
                         <span class="input-group-text bg-light border-end-0"><i class="fas fa-search text-muted"></i></span>
                         <input type="text" name="search" class="form-control border-start-0" 
-                               placeholder="Mã đơn, Tên, SĐT, Email, Mã GHN..." value="{{ $search }}">
+                               placeholder="Mã đơn, Tên, SĐT, Email, Mã GHN, Mã giao dịch..." value="{{ $search }}">
                     </div>
                 </div>
 
@@ -100,8 +100,10 @@
                 <table class="table table-hover align-middle mb-0">
                     <thead class="table-light">
                         <tr>
-                            <th class="ps-3">Mã đơn</th>
+                            <th class="ps-3 text-center">STT</th>
+                            <th>Mã đơn</th>
                             <th>Khách hàng</th>
+                            <th>Mã giao dịch</th>
                             <th>Tổng tiền</th>
                             <th>Thanh toán</th>
                             <th>Mã GHN</th>
@@ -111,16 +113,46 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @forelse($orders as $order)
+                        @forelse($orders as $index => $order)
                             <tr>
-                                <td class="ps-3 fw-bold">#{{ $order->id }}</td>
+                                <!-- 1. SỐ THỨ TỰ ĐẾM LÙI (25 -> 24 -> 23...) -->
+                                <td class="ps-3 text-center fw-bold text-secondary">
+                                    @if(method_exists($orders, 'total'))
+                                        {{ $orders->total() - ($orders->firstItem() - 1 + $index) }}
+                                    @else
+                                        {{ count($orders) - $index }}
+                                    @endif
+                                </td>
+
+                                <!-- 2. MÃ ĐƠN HÀNG CHUẨN (ĐỒNG BỘ VỚI CLIENT) -->
+                                <td class="fw-bold text-primary">
+                                    {{ $order->order_code ?? 'ORD-' . str_pad($order->id, 5, '0', STR_PAD_LEFT) }}
+                                </td>
+
+                                <!-- 3. THÔNG TIN KHÁCH HÀNG -->
                                 <td>
                                     <div class="fw-bold">{{ $order->name }}</div>
                                     <small class="text-muted">{{ $order->phone }}</small>
                                 </td>
-                                <td class="fw-bold text-danger">
-                                    {{ number_format($order->total_price, 0, ',', '.') }}đ
+
+                                <!-- 4. MÃ GIAO DỊCH THỰC TẾ (MOMO / VNPAY / NGÂN HÀNG) -->
+                                <td>
+                                    @php
+                                        $transId = $order->transaction_id ?? $order->momo_trans_id ?? $order->vnp_transaction_no ?? null;
+                                    @endphp
+                                    @if($transId)
+                                        <span class="badge bg-dark font-monospace">{{ $transId }}</span>
+                                    @else
+                                        <span class="text-muted small">Chưa có</span>
+                                    @endif
                                 </td>
+
+                                <!-- 5. TỔNG TIỀN -->
+                                <td class="fw-bold text-danger">
+                                    {{ number_format($order->total_price ?? $order->total_amount ?? 0, 0, ',', '.') }}đ
+                                </td>
+
+                                <!-- 6. TRẠNG THÁI THANH TOÁN -->
                                 <td>
                                     @if($order->payment_status === 'paid')
                                         <span class="badge bg-success">Đã thanh toán</span>
@@ -128,6 +160,8 @@
                                         <span class="badge bg-warning text-dark">Chưa thanh toán</span>
                                     @endif
                                 </td>
+
+                                <!-- 7. MÃ GHN -->
                                 <td>
                                     @if($order->ghn_order_code)
                                         <span class="badge bg-secondary font-monospace">{{ $order->ghn_order_code }}</span>
@@ -135,6 +169,8 @@
                                         <span class="text-muted small">Chưa có</span>
                                     @endif
                                 </td>
+
+                                <!-- 8. TRẠNG THÁI ĐƠN HÀNG -->
                                 <td>
                                     <form action="{{ route('admin.orders.updateStatus', $order->id) }}" method="POST" class="d-inline">
                                         @csrf
@@ -149,9 +185,13 @@
                                         </select>
                                     </form>
                                 </td>
+
+                                <!-- 9. NGÀY TẠO -->
                                 <td class="small text-muted">
-                                    {{ $order->created_at ? $order->created_at->format('d/m/Y H:i') : '' }}
+                                    {{ $order->created_at ? \Carbon\Carbon::parse($order->created_at)->format('d/m/Y H:i') : '' }}
                                 </td>
+
+                                <!-- 10. THAO TÁC -->
                                 <td class="text-end pe-3">
                                     <div class="btn-group btn-group-sm">
                                         <!-- Xem chi tiết -->
@@ -181,7 +221,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="8" class="text-center py-4 text-muted">
+                                <td colspan="10" class="text-center py-4 text-muted">
                                     <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
                                     Không tìm thấy đơn hàng nào!
                                 </td>
@@ -191,9 +231,9 @@
                 </table>
             </div>
         </div>
-        @if($orders->hasPages())
+        @if(method_exists($orders, 'hasPages') && $orders->hasPages())
             <div class="card-footer bg-white py-3">
-                {{ $orders->links() }}
+                {{ $orders->appends(request()->query())->links() }}
             </div>
         @endif
     </div>

@@ -3,8 +3,40 @@
 @section('title', $hood->name)
 
 @section('content')
+@php
+    // Khởi tạo $colors ngay đầu view để dùng chung cho cả Form đặt hàng lẫn Bảng thông số
+    $rawColors = $hood->color ?? $hood->colors ?? $hood->category?->colors ?? 'Trắng';
+    
+    if (is_string($rawColors)) {
+        $colors = array_filter(array_map('trim', explode(',', $rawColors)));
+    } else {
+        $colors = (array) $rawColors;
+    }
+
+    if (empty($colors)) {
+        $colors = ['Trắng'];
+    }
+
+    // Bảng mã màu động
+    $colorMap = [
+        'Trắng'      => ['bg' => '#FFFFFF', 'text' => '#212529', 'border' => '#CCCCCC'],
+        'Đen'        => ['bg' => '#1A1A1A', 'text' => '#FFFFFF', 'border' => '#000000'],
+        'Bạc'        => ['bg' => '#C0C0C0', 'text' => '#111111', 'border' => '#A0A0A0'],
+        'Xám'        => ['bg' => '#6C757D', 'text' => '#FFFFFF', 'border' => '#495057'],
+        'Inox'       => ['bg' => '#E2E8F0', 'text' => '#1E293B', 'border' => '#CBD5E1'],
+        'Đỏ'         => ['bg' => '#DC3545', 'text' => '#FFFFFF', 'border' => '#B02A37'],
+        'Vàng'       => ['bg' => '#FFC107', 'text' => '#212529', 'border' => '#D39E00'],
+        'Cam'        => ['bg' => '#FD7E14', 'text' => '#FFFFFF', 'border' => '#DC6803'],
+        'Hồng'       => ['bg' => '#E83E8C', 'text' => '#FFFFFF', 'border' => '#D63384'],
+        'Xanh Dương' => ['bg' => '#0D6EFD', 'text' => '#FFFFFF', 'border' => '#0A58CA'],
+        'Xanh Lá'    => ['bg' => '#198754', 'text' => '#FFFFFF', 'border' => '#146C43'],
+        'Đồng'       => ['bg' => '#B87333', 'text' => '#FFFFFF', 'border' => '#965B25'],
+        'Gỗ'         => ['bg' => '#8B5A2B', 'text' => '#FFFFFF', 'border' => '#6B4220'],
+    ];
+@endphp
+
 <style>
-    /* Hiệu ứng nổi bật khi người dùng chọn nút màu sắc */
+    /* Hiệu ứng nổi bật khi chọn nút màu sắc */
     .btn-check:checked + .custom-color-option {
         box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.4);
         border-color: #0d6efd !important;
@@ -98,36 +130,13 @@
                                     <!-- BỘ CHỌN MÀU SẮC DỰA TRÊN MÀU THỰC TẾ -->
                                     <div class="mb-3">
                                         <label class="fw-bold d-block mb-2">Chọn màu sắc:</label>
-                                        @php
-                                            $colors = $hood->color ?? $hood->colors ?? $hood->category->colors ?? ['Trắng'];
-                                            if (is_string($colors)) {
-                                                $colors = array_map('trim', explode(',', $colors));
-                                            }
-
-                                            // Bảng mã màu động
-                                            $colorMap = [
-                                                'Trắng'      => ['bg' => '#FFFFFF', 'text' => '#212529', 'border' => '#CCCCCC'],
-                                                'Đen'        => ['bg' => '#1A1A1A', 'text' => '#FFFFFF', 'border' => '#000000'],
-                                                'Bạc'        => ['bg' => '#C0C0C0', 'text' => '#111111', 'border' => '#A0A0A0'],
-                                                'Xám'        => ['bg' => '#6C757D', 'text' => '#FFFFFF', 'border' => '#495057'],
-                                                'Inox'       => ['bg' => '#E2E8F0', 'text' => '#1E293B', 'border' => '#CBD5E1'],
-                                                'Đỏ'         => ['bg' => '#DC3545', 'text' => '#FFFFFF', 'border' => '#B02A37'],
-                                                'Vàng'       => ['bg' => '#FFC107', 'text' => '#212529', 'border' => '#D39E00'],
-                                                'Cam'        => ['bg' => '#FD7E14', 'text' => '#FFFFFF', 'border' => '#DC6803'],
-                                                'Hồng'       => ['bg' => '#E83E8C', 'text' => '#FFFFFF', 'border' => '#D63384'],
-                                                'Xanh Dương' => ['bg' => '#0D6EFD', 'text' => '#FFFFFF', 'border' => '#0A58CA'],
-                                                'Xanh Lá'    => ['bg' => '#198754', 'text' => '#FFFFFF', 'border' => '#146C43'],
-                                                'Đồng'       => ['bg' => '#B87333', 'text' => '#FFFFFF', 'border' => '#965B25'],
-                                                'Gỗ'         => ['bg' => '#8B5A2B', 'text' => '#FFFFFF', 'border' => '#6B4220'],
-                                            ];
-                                        @endphp
-
                                         <div class="d-flex flex-wrap gap-2" role="group" aria-label="Color selector">
                                             @foreach($colors as $index => $color)
                                                 @php
-                                                    $cStyle = $colorMap[$color] ?? ['bg' => '#F8F9FA', 'text' => '#212529', 'border' => '#CED4DA'];
+                                                    $formattedColor = mb_convert_case($color, MB_CASE_TITLE, "UTF-8");
+                                                    $cStyle = $colorMap[$formattedColor] ?? ['bg' => '#F8F9FA', 'text' => '#212529', 'border' => '#CED4DA'];
                                                 @endphp
-                                                <input type="radio" class="btn-check" name="color" id="color_option_{{ $index }}" value="{{ $color }}" {{ $index === 0 ? 'checked' : '' }}>
+                                                <input type="radio" class="btn-check" name="color" id="color_option_{{ $index }}" value="{{ $color }}" {{ $loop->first ? 'checked' : '' }}>
                                                 
                                                 <label class="btn custom-color-option px-3 py-2 d-inline-flex align-items-center gap-2 rounded border" 
                                                        for="color_option_{{ $index }}"
@@ -140,13 +149,19 @@
                                         </div>
                                     </div>
 
-                                    <!-- CHỌN SỐ LƯỢNG VÀ THÊM VÀO GIỎ -->
-                                    <div class="d-flex align-items-center">
+                                    <!-- CHỌN SỐ LƯỢNG VÀ NÚT BẤM (THÊM VÀO GIỎ / MUA NGAY) -->
+                                    <div class="d-flex align-items-center flex-wrap gap-2">
                                         <label class="me-2 fw-bold mb-0">Số lượng:</label>
-                                        <input type="number" name="quantity" class="form-control me-3" value="1" min="1" max="{{ $hood->stock_quantity ?? 1 }}" style="width: 90px;">
+                                        <input type="number" name="quantity" class="form-control me-2" value="1" min="1" max="{{ $hood->stock_quantity ?? 1 }}" style="width: 80px;">
                                         
-                                        <button type="submit" class="btn btn-primary fw-bold">
+                                        <!-- Nút Thêm Vào Giỏ -->
+                                        <button type="submit" name="action" value="add_to_cart" class="btn btn-outline-primary fw-bold">
                                             <i class="fas fa-cart-plus me-1"></i> Thêm vào giỏ
+                                        </button>
+
+                                        <!-- Nút Mua Ngay -->
+                                        <button type="submit" name="action" value="buy_now" class="btn btn-danger fw-bold">
+                                            <i class="fas fa-bolt me-1"></i> Mua ngay
                                         </button>
                                     </div>
                                 </form>
@@ -210,7 +225,7 @@
                         </tr>
                         <tr>
                             <th class="ps-4 text-secondary">Màu Sắc Khả Dụng</th>
-                            <td>{{ is_array($colors) ? implode(', ', $colors) : $colors }}</td>
+                            <td>{{ implode(', ', $colors) }}</td>
                         </tr>
                         <tr>
                             <th class="ps-4 text-secondary">Nhà Sản Xuất / Thương Hiệu</th>

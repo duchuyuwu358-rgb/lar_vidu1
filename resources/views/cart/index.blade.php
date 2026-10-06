@@ -50,9 +50,11 @@
                                     <tbody>
                                         @foreach($items as $key => $item)
                                             @php 
-                                                $subtotal = $item['price'] * $item['quantity'];
+                                                $price = $item['price'] ?? 0;
+                                                $quantity = $item['quantity'] ?? 1;
+                                                $subtotal = $price * $quantity;
                                             @endphp
-                                            <tr class="cart-item-row" data-key="{{ $key }}" data-price="{{ $item['price'] }}">
+                                            <tr class="cart-item-row" data-key="{{ $key }}" data-price="{{ $price }}">
                                                 <td class="text-center">
                                                     <input type="checkbox" name="selected_items[]" value="{{ $key }}" class="form-check-input item-checkbox" style="width: 18px; height: 18px;" checked>
                                                 </td>
@@ -60,29 +62,36 @@
                                                     <div class="d-flex align-items-center">
                                                         @if(!empty($item['image']))
                                                             <img src="{{ \Illuminate\Support\Str::startsWith($item['image'], ['http://', 'https://']) ? $item['image'] : asset('storage/' . $item['image']) }}" 
-                                                                 alt="{{ $item['name'] }}" 
+                                                                 alt="{{ $item['name'] ?? '' }}" 
                                                                  class="rounded me-3 border" 
                                                                  style="width: 50px; height: 50px; object-fit: cover;">
                                                         @else
                                                             <div class="bg-light rounded d-flex align-items-center justify-content-center me-3 border" style="width: 50px; height: 50px;">
-                                                                <i class="fas fa-fan text-primary fs-4"></i>
+                                                                <i class="fas {{ ($item['type'] ?? '') === 'service' ? 'fa-wrench' : 'fa-fan' }} text-primary fs-4"></i>
                                                             </div>
                                                         @endif
 
                                                         <div>
-                                                            <span class="fw-bold d-block text-dark">{{ $item['name'] }}</span>
-                                                            <small class="text-muted d-block"><i class="fas fa-barcode me-1"></i>Mẫu: <strong>{{ $item['model'] }}</strong></small>
+                                                            <span class="fw-bold d-block text-dark">{{ $item['name'] ?? 'Không tên' }}</span>
+                                                            
+                                                            {{-- KIỂM TRA AN TOÀN TRÁNH LỖI UNDEFINED KEY MODEL --}}
+                                                            @if(!empty($item['model']) && $item['model'] !== 'Dịch vụ')
+                                                                <small class="text-muted d-block"><i class="fas fa-barcode me-1"></i>Mẫu: <strong>{{ $item['model'] }}</strong></small>
+                                                            @else
+                                                                <small class="badge bg-info-subtle text-info border border-info-subtle mt-1"><i class="fas fa-wrench me-1"></i>Dịch vụ</small>
+                                                            @endif
+
                                                             @if(!empty($item['color']))
                                                                 <small class="badge bg-outline-secondary text-dark border"><i class="fas fa-palette me-1"></i>Màu: {{ $item['color'] }}</small>
                                                             @endif
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td class="fw-semibold">{{ number_format($item['price'], 0, ',', '.') }} đ</td>
+                                                <td class="fw-semibold">{{ number_format($price, 0, ',', '.') }} đ</td>
                                                 <td>
                                                     <div class="input-group input-group-sm">
                                                         <button class="btn btn-outline-secondary btn-decrease" type="button">-</button>
-                                                        <input type="number" name="quantities[{{ $key }}]" class="form-control text-center item-quantity" value="{{ $item['quantity'] }}" min="1">
+                                                        <input type="number" name="quantities[{{ $key }}]" class="form-control text-center item-quantity" value="{{ $quantity }}" min="1">
                                                         <button class="btn btn-outline-secondary btn-increase" type="button">+</button>
                                                     </div>
                                                 </td>
@@ -160,7 +169,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             itemCbs.forEach(cb => {
                 const row = cb.closest('.cart-item-row');
-                const price = parseFloat(row.getAttribute('data-price'));
+                const price = parseFloat(row.getAttribute('data-price')) || 0;
                 const qtyInput = row.querySelector('.item-quantity');
                 const qty = parseInt(qtyInput.value) || 1;
                 const subtotal = price * qty;

@@ -10,18 +10,24 @@ use Illuminate\Support\Facades\Storage;
 class HoodController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * --------------------------------------------------------------------------
+     * 1. GIAO DIỆN BÁN HÀNG (STOREFRONT - Dành cho người mua)
+     * --------------------------------------------------------------------------
      */
-    public function index(Request $request)
+
+    /**
+     * Trang danh sách sản phẩm bán hàng (/storefront)
+     */
+    public function storefront(Request $request)
     {
-        $search = $request->get('search');
-        $category = $request->get('category');
-        $type = $request->get('type');
-        $status = $request->get('status');
+        $search     = $request->get('search');
+        $category   = $request->get('category_id') ?? $request->get('category');
+        $priceRange = $request->get('price_range');
 
-        $query = Hood::with('category');
+        // Chỉ lấy sản phẩm đang kích hoạt
+        $query = Hood::with('category')->where('is_active', true);
 
-        // Tìm kiếm theo tên hoặc model (Gom nhóm điều kiện WHERE OR)
+        // 1. Tìm kiếm theo Tên hoặc Model
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', '%' . $search . '%')
@@ -29,78 +35,152 @@ class HoodController extends Controller
             });
         }
 
-        // Lọc theo danh mục
+        // 2. Lọc theo Danh mục
         if ($category) {
             $query->where('category_id', $category);
         }
 
-        // Lọc theo loại
+        // 3. Lọc theo Khoảng giá
+        if ($priceRange) {
+            switch ($priceRange) {
+                case 'under_3m':
+                    $query->where('price', '<', 3000000);
+                    break;
+                case '3m_5m':
+                    $query->whereBetween('price', [3000000, 5000000]);
+                    break;
+                case 'over_5m':
+                    $query->where('price', '>', 5000000);
+                    break;
+            }
+        }
+
+        $products   = $query->latest()->paginate(9)->withQueryString();
+        $hoods      = $products; // Đồng bộ biến cho View storefront.blade.php
+        $categories = Category::where('is_active', true)->get();
+
+        return view('storefront', compact('products', 'hoods', 'categories', 'search', 'category', 'priceRange'));
+    }
+
+    /**
+     * Trang chi tiết sản phẩm bán hàng (/storefront/{id})
+     */
+    public function storefrontShow($id)
+    {
+        $hood = $id instanceof Hood ? $id : Hood::with('category')->findOrFail($id);
+        $product = $hood;
+
+        return view('storefront_detail', compact('hood', 'product'));
+    }
+
+    /**
+     * --------------------------------------------------------------------------
+     * 2. TRANG QUẢN TRỊ (ADMIN CRUD - Dành cho Quản trị viên)
+     * --------------------------------------------------------------------------
+     */
+
+    /**
+     * Hiển thị danh sách sản phẩm quản trị
+     */
+    public function index(Request $request)
+    {
+        $search   = $request->get('search');
+        $category = $request->get('category');
+        $type     = $request->get('type');
+        $status   = $request->get('status');
+
+        $query = Hood::with('category');
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', '%' . $search . '%')
+                  ->orWhere('model', 'like', '%' . $search . '%');
+            });
+        }
+
+        if ($category) {
+            $query->where('category_id', $category);
+        }
+
         if ($type) {
             $query->where('type', $type);
         }
 
-        // Lọc theo trạng thái: đang bán, đang nhập, hết hàng
         if ($status !== null && $status !== '') {
-            $query->byStatus($status);
+            if (method_exists(Hood::class, 'scopeByStatus')) {
+                $query->byStatus($status);
+            }
         }
 
-        // Phân trang và giữ query string trên URL
-        $hoods = $query->paginate(10)->withQueryString();
+        $hoods = $query->latest()->paginate(10)->withQueryString();
 
-        $totalHoods = Hood::count();
+        $totalHoods   = Hood::count();
         $sellingHoods = Hood::where('is_active', true)->where('stock_quantity', '>', 0)->count();
-        $soldOutHoods = Hood::where(function ($query) {
-            $query->where('is_active', false)->orWhere('stock_quantity', '<=', 0);
+        $soldOutHoods = Hood::where(function ($q) {
+            $q->where('is_active', false)->orWhere('stock_quantity', '<=', 0);
         })->count();
 
         $categories = Category::all();
         $types = [
-            'wall-mounted' => 'Treo tường',
+            'wall-mounted'  => 'Treo tường',
             'under-cabinet' => 'Gắn dưới tủ',
-            'island' => 'Đảo',
-            'cooktop' => 'Bếp điện từ',
+            'island'        => 'Đảo',
+            'cooktop'       => 'Bếp điện từ',
         ];
 
         return view('hoods.index', compact('hoods', 'totalHoods', 'sellingHoods', 'soldOutHoods', 'categories', 'types', 'search', 'category', 'type', 'status'));
     }
 
     /**
-     * Show the form for creating a new resource.
+     * Giao diện thêm sản phẩm mới
      */
     public function create()
     {
-        $categories = Category::all();
+        $categories = Category::where('is_active', true)->get();
         $types = [
-            'wall-mounted' => 'Treo tường',
+            'wall-mounted'  => 'Treo tường',
             'under-cabinet' => 'Gắn dưới tủ',
-            'island' => 'Đảo',
-            'cooktop' => 'Bếp điện từ',
+            'island'        => 'Đảo',
+            'cooktop'       => 'Bếp điện từ',
         ];
-        
+
         return view('hoods.create', compact('categories', 'types'));
     }
 
     /**
-     * Store a newly created resource in storage.
+     * Xử lý lưu sản phẩm mới
      */
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'model' => 'nullable|string|max:255',
-            'description' => 'nullable|string',
-            'category_id' => 'required|exists:categories,id',
-            'price' => 'nullable|numeric|min:0',
-            'power' => 'nullable|string|max:100',
-            'dimensions' => 'nullable|string|max:255',
-            'color' => 'nullable|string|max:100',
-            'manufacturer' => 'nullable|string|max:255',
-            'material' => 'nullable|string|max:255',
-            'warranty_months' => 'nullable|integer|min:0|max:240',
-            'type' => 'required|in:wall-mounted,under-cabinet,island,cooktop',
-            'status' => 'required|in:selling,importing,sold_out',
-            'stock_quantity' => 'nullable|integer|min:0',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'name'            => ['required', 'string', 'max:255'],
+            'model'           => ['nullable', 'string', 'max:255'],
+            'description'     => ['nullable', 'string'],
+            'category_id'     => ['required', 'exists:categories,id'],
+            'price'           => ['nullable', 'numeric', 'min:0'],
+            'power'           => ['nullable', 'string', 'max:100'],
+            'dimensions'      => ['nullable', 'string', 'max:255'],
+            'color'           => ['nullable', 'string', 'max:100'],
+            'manufacturer'    => ['nullable', 'string', 'max:255'],
+            'material'        => ['nullable', 'string', 'max:255'],
+            'warranty_months' => ['nullable', 'integer', 'min:0', 'max:240'],
+            'type'            => ['required', 'in:wall-mounted,under-cabinet,island,cooktop'],
+            'status'          => ['required', 'in:selling,importing,sold_out'],
+            'stock_quantity'  => ['nullable', 'integer', 'min:0'],
+            'image'           => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,webp', 'max:2048'],
+        ], [
+            'name.required'        => 'Vui lòng nhập tên sản phẩm.',
+            'category_id.required' => 'Vui lòng chọn danh mục sản phẩm.',
+            'category_id.exists'   => 'Danh mục được chọn không tồn tại.',
+            'type.required'        => 'Vui lòng chọn loại máy hút mùi.',
+            'type.in'              => 'Loại máy hút mùi không hợp lệ.',
+            'status.required'      => 'Vui lòng chọn trạng thái sản phẩm.',
+            'status.in'            => 'Trạng thái sản phẩm không hợp lệ.',
+            'price.numeric'        => 'Giá sản phẩm phải là số.',
+            'price.min'            => 'Giá sản phẩm không được nhỏ hơn 0.',
+            'image.image'          => 'Tệp tải lên phải là hình ảnh.',
+            'image.mimes'          => 'Hình ảnh phải có định dạng: jpeg, png, jpg, gif, webp.',
+            'image.max'            => 'Dung lượng ảnh tối đa là 2MB.',
         ]);
 
         $status = $validated['status'];
@@ -117,7 +197,6 @@ class HoodController extends Controller
             $validated['stock_quantity'] = 0;
         }
 
-        // Xử lý upload ảnh
         if ($request->hasFile('image')) {
             $folder = 'hoods';
             Storage::disk('public')->makeDirectory($folder);
@@ -134,7 +213,7 @@ class HoodController extends Controller
     }
 
     /**
-     * Display the specified resource.
+     * Xem chi tiết sản phẩm trong quản trị
      */
     public function show(Hood $hood)
     {
@@ -143,42 +222,55 @@ class HoodController extends Controller
     }
 
     /**
-     * Show the form for editing the specified resource.
+     * Giao diện chỉnh sửa sản phẩm
      */
     public function edit(Hood $hood)
     {
         $categories = Category::all();
         $types = [
-            'wall-mounted' => 'Treo tường',
+            'wall-mounted'  => 'Treo tường',
             'under-cabinet' => 'Gắn dưới tủ',
-            'island' => 'Đảo',
-            'cooktop' => 'Bếp điện từ',
+            'island'        => 'Đảo',
+            'cooktop'       => 'Bếp điện từ',
         ];
-        
+
         return view('hoods.edit', compact('hood', 'categories', 'types'));
     }
 
     /**
-     * Update the specified resource in storage.
+     * Cập nhật thông tin sản phẩm
      */
     public function update(Request $request, Hood $hood)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'model' => 'nullable|string|max:255',
-            'description' => 'nullable|string',
-            'category_id' => 'required|exists:categories,id',
-            'price' => 'nullable|numeric|min:0',
-            'power' => 'nullable|string|max:100',
-            'dimensions' => 'nullable|string|max:255',
-            'color' => 'nullable|string|max:100',
-            'manufacturer' => 'nullable|string|max:255',
-            'material' => 'nullable|string|max:255',
-            'warranty_months' => 'nullable|integer|min:0|max:240',
-            'type' => 'required|in:wall-mounted,under-cabinet,island,cooktop',
-            'status' => 'required|in:selling,importing,sold_out',
-            'stock_quantity' => 'nullable|integer|min:0',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'name'            => ['required', 'string', 'max:255'],
+            'model'           => ['nullable', 'string', 'max:255'],
+            'description'     => ['nullable', 'string'],
+            'category_id'     => ['required', 'exists:categories,id'],
+            'price'           => ['nullable', 'numeric', 'min:0'],
+            'power'           => ['nullable', 'string', 'max:100'],
+            'dimensions'      => ['nullable', 'string', 'max:255'],
+            'color'           => ['nullable', 'string', 'max:100'],
+            'manufacturer'    => ['nullable', 'string', 'max:255'],
+            'material'        => ['nullable', 'string', 'max:255'],
+            'warranty_months' => ['nullable', 'integer', 'min:0', 'max:240'],
+            'type'            => ['required', 'in:wall-mounted,under-cabinet,island,cooktop'],
+            'status'          => ['required', 'in:selling,importing,sold_out'],
+            'stock_quantity'  => ['nullable', 'integer', 'min:0'],
+            'image'           => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,webp', 'max:2048'],
+        ], [
+            'name.required'        => 'Vui lòng nhập tên sản phẩm.',
+            'category_id.required' => 'Vui lòng chọn danh mục sản phẩm.',
+            'category_id.exists'   => 'Danh mục được chọn không tồn tại.',
+            'type.required'        => 'Vui lòng chọn loại máy hút mùi.',
+            'type.in'              => 'Loại máy hút mùi không hợp lệ.',
+            'status.required'      => 'Vui lòng chọn trạng thái sản phẩm.',
+            'status.in'            => 'Trạng thái sản phẩm không hợp lệ.',
+            'price.numeric'        => 'Giá sản phẩm phải là số.',
+            'price.min'            => 'Giá sản phẩm không được nhỏ hơn 0.',
+            'image.image'          => 'Tệp tải lên phải là hình ảnh.',
+            'image.mimes'          => 'Hình ảnh phải có định dạng: jpeg, png, jpg, gif, webp.',
+            'image.max'            => 'Dung lượng ảnh tối đa là 2MB.',
         ]);
 
         $status = $validated['status'];
@@ -195,9 +287,7 @@ class HoodController extends Controller
             $validated['stock_quantity'] = 0;
         }
 
-        // Xử lý upload ảnh
         if ($request->hasFile('image')) {
-            // Xóa ảnh cũ nếu có
             if ($hood->image && Storage::disk('public')->exists($hood->image)) {
                 Storage::disk('public')->delete($hood->image);
             }
@@ -217,7 +307,7 @@ class HoodController extends Controller
     }
 
     /**
-     * Remove the specified resource from storage.
+     * Xóa sản phẩm
      */
     public function destroy(Hood $hood)
     {
