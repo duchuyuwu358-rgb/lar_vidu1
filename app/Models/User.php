@@ -5,6 +5,7 @@ namespace App\Models;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -23,7 +24,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'email',
         'password',
         'role',
-        'email_verified_at', // <-- Đã thêm để Admin tạo tài khoản không bị dính xác minh
+        'email_verified_at',
     ];
 
     /**
@@ -40,6 +41,30 @@ class User extends Authenticatable implements MustVerifyEmail
     public function isStaff(): bool
     {
         return $this->role === 'staff';
+    }
+
+    /**
+     * Kiểm tra người dùng có phải Khách hàng hay không.
+     */
+    public function isCustomer(): bool
+    {
+        return in_array($this->role, ['customer', 'user']);
+    }
+
+    /**
+     * Mối quan hệ với Đơn hàng (Orders).
+     */
+    public function orders(): HasMany
+    {
+        return $this->hasMany(Order::class, 'user_id');
+    }
+
+    /**
+     * Mối quan hệ với Tin nhắn Chat (ChatMessage).
+     */
+    public function chatMessages(): HasMany
+    {
+        return $this->hasMany(ChatMessage::class, 'sender_id');
     }
 
     /**
@@ -61,7 +86,7 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return [
             'email_verified_at' => 'datetime',
-            'password' => 'hashed',
+            'password'          => 'hashed',
         ];
     }
 }

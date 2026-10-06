@@ -3,7 +3,6 @@
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
-use Illuminate\Auth\Events\Verified;
 
 // Controllers
 use App\Http\Controllers\AuthController;
@@ -85,17 +84,10 @@ Route::middleware('auth')->group(function () {
     // Email Verification (Xác minh Email)
     Route::get('/email/verify', fn () => view('auth.verify-email'))->name('verification.notice');
     Route::get('/email/verify/{id}/{hash}', function (EmailVerificationRequest $request) {
+        $request->fulfill();
         $user = $request->user();
-        $isAdminOrStaff = method_exists($user, 'isAdmin') && method_exists($user, 'isStaff') 
-            ? ($user->isAdmin() || $user->isStaff()) 
-            : in_array($user->role, ['admin', 'staff']);
+        $isAdminOrStaff = in_array($user->role, ['admin', 'staff']);
 
-        if ($user->hasVerifiedEmail()) {
-            return redirect()->route($isAdminOrStaff ? 'admin.portal' : 'storefront');
-        }
-        if ($user->markEmailAsVerified()) {
-            event(new Verified($user));
-        }
         return redirect()->route($isAdminOrStaff ? 'admin.portal' : 'storefront');
     })->middleware('signed')->name('verification.verify');
 
@@ -164,25 +156,26 @@ Route::middleware('auth')->group(function () {
             Route::post('/orders/{id}/push-ghn', [OrderController::class, 'pushToGhn'])->name('admin.orders.pushGhn');
 
             // Admin Livechat
+            Route::get('/chat', [ChatController::class, 'index'])->name('admin.chat');
             Route::get('/chat/users', [ChatController::class, 'getAdminUsers'])->name('admin.chat.users');
             Route::get('/chat/messages/{userId}', [ChatController::class, 'getAdminMessages'])->name('admin.chat.messages');
             Route::post('/chat/send', [ChatController::class, 'sendAdminMessage'])->name('admin.chat.send');
             Route::get('/chat/unread-count', [ChatController::class, 'checkAdminUnread'])->name('admin.chat.unread');
 
             // Resource Routes CRUD
-            Route::resource('categories', CategoryController::class);
-            Route::resource('users', UserController::class)->only(['index', 'store', 'update', 'destroy']);
-            Route::resource('hoods', HoodController::class);
+            Route::resource('categories', CategoryController::class)->names('admin.categories');
+            Route::resource('users', UserController::class)->only(['index', 'store', 'update', 'destroy'])->names('admin.users');
+            Route::resource('hoods', HoodController::class)->names('admin.hoods');
             
             // Quản lý Gói dịch vụ Admin
             Route::resource('services', AdminServicePackageController::class)->names('admin.services');
 
             // Alias Routes v2
-            Route::get('/v2/categories', [CategoryController::class, 'index'])->name('admin.categories.index');
-            Route::get('/v2/categories/create', [CategoryController::class, 'create'])->name('admin.categories.create');
-            Route::get('/v2/hoods', [HoodController::class, 'index'])->name('admin.hoods.index');
-            Route::get('/v2/hoods/create', [HoodController::class, 'create'])->name('admin.hoods.create');
-            Route::get('/v2/users', [UserController::class, 'index'])->name('admin.users.index');
+            Route::get('/v2/categories', [CategoryController::class, 'index'])->name('admin.categories.v2.index');
+            Route::get('/v2/categories/create', [CategoryController::class, 'create'])->name('admin.categories.v2.create');
+            Route::get('/v2/hoods', [HoodController::class, 'index'])->name('admin.hoods.v2.index');
+            Route::get('/v2/hoods/create', [HoodController::class, 'create'])->name('admin.hoods.v2.create');
+            Route::get('/v2/users', [UserController::class, 'index'])->name('admin.users.v2.index');
             Route::get('/v2/services', [AdminServicePackageController::class, 'index'])->name('admin.services.v2.index');
         });
 });
