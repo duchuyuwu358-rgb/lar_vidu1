@@ -206,7 +206,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Tải tin nhắn từ backend
     async function loadChatData() {
         try {
-            const response = await fetch('/chat/messages', {
+            const response = await fetch('/user/chat/messages', {
                 headers: { 
                     'Accept': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest'
@@ -321,7 +321,7 @@ document.addEventListener('DOMContentLoaded', function() {
         chatInput.value = '';
 
         try {
-            await fetch('/chat/send', {
+            await fetch('/user/chat/send', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
