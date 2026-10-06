@@ -5,7 +5,8 @@ namespace App\Providers;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Notifications\Messages\MailMessage;
-use Illuminate\Pagination\Paginator; // Thêm Paginator
+use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Facades\URL; // 1. Bổ sung Facade URL
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -22,6 +23,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // 2. Ép toàn bộ link/API/ảnh sinh ra phải chạy qua HTTPS trên server Render
+        if ($this->app->environment('production') || request()->header('x-forwarded-proto') === 'https') {
+            URL::forceScheme('https');
+        }
+
         // Cấu hình phân trang Bootstrap 5 (Sửa lỗi vỡ icon/mũi tên)
         Paginator::useBootstrapFive();
 
