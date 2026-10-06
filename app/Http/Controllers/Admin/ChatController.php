@@ -7,9 +7,25 @@ use App\Models\ChatMessage;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\View;
 
 class ChatController extends Controller
 {
+    /**
+     * ==========================================
+     * 0. HIỂN THỊ GIAO DIỆN CHAT ADMIN
+     * ==========================================
+     */
+    public function index()
+    {
+        if (View::exists('admin.chat')) {
+            return view('admin.chat');
+        } elseif (View::exists('admin.messages')) {
+            return view('admin.messages');
+        }
+        return view('admin.portal');
+    }
+
     /**
      * ==========================================
      * 1. DÀNH CHO KHÁCH HÀNG (USER)
@@ -31,7 +47,10 @@ class ChatController extends Controller
               ->orWhere('receiver_id', $userId);
         })->orderBy('created_at', 'asc')->get();
 
-        return response()->json($messages);
+        return response()->json([
+            'status' => 'success',
+            'messages' => $messages
+        ]);
     }
 
     /**
@@ -102,28 +121,44 @@ class ChatController extends Controller
      */
 
     /**
-     * Admin lấy danh sách khách hàng đã nhắn tin (kèm số tin nhắn chưa đọc)
+     * Admin lấy danh sách khách hàng đã nhắn tin (kèm tin nhắn mới nhất & số tin chưa đọc)
      */
     public function getAdminUsers()
     {
         $adminId = Auth::id();
 
-        $senders   = ChatMessage::where('sender_id', '!=', $adminId)->pluck('sender_id');
-        $receivers = ChatMessage::where('receiver_id', '!=', $adminId)->whereNotNull('receiver_id')->pluck('receiver_id');
+        $senders   = ChatMessage::whereNotNull('sender_id')->where('sender_id', '!=', $adminId)->pluck('sender_id');
+        $receivers = ChatMessage::whereNotNull('receiver_id')->where('receiver_id', '!=', $adminId)->pluck('receiver_id');
         $userIds   = $senders->merge($receivers)->unique();
 
         $users = User::whereIn('id', $userIds)
             ->select('id', 'name', 'email')
             ->get()
             ->map(function ($user) use ($adminId) {
+                // Đếm số tin nhắn chưa đọc
                 $user->unread_count = ChatMessage::where('sender_id', $user->id)
                     ->where(function ($q) use ($adminId) {
                         $q->where('receiver_id', $adminId)->orWhereNull('receiver_id');
                     })
                     ->where('is_read', false)
                     ->count();
+
+                // Lấy nội dung và thời gian tin nhắn mới nhất
+                $latestMsg = ChatMessage::where(function ($q) use ($user) {
+                    $q->where('sender_id', $user->id)
+                      ->orWhere('receiver_id', $user->id);
+                })->latest()->first();
+
+                $user->latest_message = $latestMsg ? $latestMsg->content : '';
+                $user->last_activity  = $latestMsg ? $latestMsg->created_at : null;
+
                 return $user;
-            });
+            })
+            // Sắp xếp khách hàng mới nhắn tin lên đầu
+            ->sortByDesc(function ($user) {
+                return $user->last_activity ? $user->last_activity->timestamp : 0;
+            })
+            ->values();
 
         return response()->json($users);
     }
@@ -143,14 +178,16 @@ class ChatController extends Controller
             ->where('is_read', false)
             ->update(['is_read' => true]);
 
-        $messages = ChatMessage::where(function ($q) use ($userId, $adminId) {
-            $q->where('sender_id', $userId)
-              ->where(function ($sub) use ($adminId) {
-                  $sub->where('receiver_id', $adminId)->orWhereNull('receiver_id');
-              });
-        })->orWhere(function ($q) use ($userId, $adminId) {
-            $q->where('sender_id', $adminId)
-              ->where('receiver_id', $userId);
+        $messages = ChatMessage::where(function ($outer) use ($userId, $adminId) {
+            $outer->where(function ($q) use ($userId, $adminId) {
+                $q->where('sender_id', $userId)
+                  ->where(function ($sub) use ($adminId) {
+                      $sub->where('receiver_id', $adminId)->orWhereNull('receiver_id');
+                  });
+            })->orWhere(function ($q) use ($userId, $adminId) {
+                $q->where('sender_id', $adminId)
+                  ->where('receiver_id', $userId);
+            });
         })->orderBy('created_at', 'asc')->get();
 
         return response()->json($messages);
@@ -187,9 +224,13 @@ class ChatController extends Controller
     public function checkAdminUnread()
     {
         $adminId = Auth::id();
-        $count = ChatMessage::where('sender_id', '!=', $adminId)
-            ->where('is_read', false)
-            ->count();
+
+        $count = ChatMessage::where(function ($q) use ($adminId) {
+            $q->where('sender_id', '!=', $adminId)
+              ->orWhereNull('sender_id');
+        })
+        ->where('is_read', false)
+        ->count();
 
         return response()->json(['unread_count' => $count]);
     }

@@ -40,25 +40,24 @@ class UserController extends Controller
      */
     public function store(Request $request)
     {
-        // Kiểm tra quyền: Chỉ Admin mới được thêm tài khoản
-        if (auth()->user()->role !== 'admin') {
-            return back()->with('error', 'Nhân viên không có quyền thêm tài khoản!');
+        // Kiểm tra quyền Admin an toàn
+        if (!auth()->check() || auth()->user()->role !== 'admin') {
+            return back()->with('error', 'Bạn không có quyền thêm tài khoản!');
         }
 
         $validated = $request->validate([
-            'name'     => ['required', 'string', 'min:2', 'max:50', 'regex:/^[\pL\s]+$/u'], // Hỗ trợ tên có dấu và không dấu
-            'email'    => ['required', 'string', 'email', 'max:255', 'unique:users,email', 'regex:/^[a-zA-Z0-9._%+-]+@gmail\.com$/i'],
+            'name'     => ['required', 'string', 'min:2', 'max:50', 'regex:/^[\pL\s]+$/u'],
+            'email'    => ['required', 'string', 'email:rfc,dns', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', 'min:8'],
             'role'     => ['required', Rule::in(['admin', 'staff', 'customer', 'user'])],
         ], [
             'name.required'     => 'Vui lòng nhập họ và tên.',
             'name.min'          => 'Họ và tên phải có ít nhất 2 ký tự.',
             'name.max'          => 'Họ và tên không được vượt quá 50 ký tự.',
-            'name.regex'        => 'Họ và tên chỉ được chứa chữ cái (có dấu hoặc không dấu) và khoảng trắng.',
-            'email.required'    => 'Vui lòng nhập địa chỉ Gmail.',
+            'name.regex'        => 'Họ và tên chỉ được chứa chữ cái và khoảng trắng.',
+            'email.required'    => 'Vui lòng nhập địa chỉ email.',
             'email.email'       => 'Địa chỉ email không đúng định dạng.',
-            'email.unique'      => 'Địa chỉ Gmail này đã tồn tại trên hệ thống.',
-            'email.regex'       => 'Vui lòng nhập đúng định dạng Gmail (ví dụ: example@gmail.com).',
+            'email.unique'      => 'Địa chỉ email này đã tồn tại trên hệ thống.',
             'password.required' => 'Vui lòng nhập mật khẩu.',
             'password.min'      => 'Mật khẩu phải từ 8 ký tự trở lên.',
             'role.required'     => 'Vui lòng chọn vai trò cho người dùng.',
@@ -70,7 +69,7 @@ class UserController extends Controller
             'email'             => $validated['email'],
             'password'          => Hash::make($validated['password']),
             'role'              => $validated['role'],
-            'email_verified_at' => now(), // Đã kích hoạt xác minh ngay lập tức
+            'email_verified_at' => now(), // Tự động xác minh ngay
         ]);
 
         return back()->with('success', 'Thêm tài khoản thành công! Tài khoản đã được tự động xác minh.');
@@ -81,8 +80,8 @@ class UserController extends Controller
      */
     public function update(Request $request, User $user)
     {
-        if (auth()->user()->role !== 'admin') {
-            return back()->with('error', 'Nhân viên không có quyền chỉnh sửa tài khoản!');
+        if (!auth()->check() || auth()->user()->role !== 'admin') {
+            return back()->with('error', 'Bạn không có quyền chỉnh sửa tài khoản!');
         }
 
         if (auth()->id() === $user->id && $request->filled('role') && $request->role !== $user->role) {
@@ -93,12 +92,11 @@ class UserController extends Controller
             'role' => ['required', Rule::in(['admin', 'staff', 'customer', 'user'])],
         ];
 
-        // Nếu form có truyền tên/email/mật khẩu thì bổ sung validation
         if ($request->has('name')) {
             $rules['name'] = ['required', 'string', 'min:2', 'max:50', 'regex:/^[\pL\s]+$/u'];
         }
         if ($request->has('email')) {
-            $rules['email'] = ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user->id), 'regex:/^[a-zA-Z0-9._%+-]+@gmail\.com$/i'];
+            $rules['email'] = ['required', 'string', 'email:rfc,dns', 'max:255', Rule::unique('users', 'email')->ignore($user->id)];
         }
         if ($request->filled('password')) {
             $rules['password'] = ['nullable', 'string', 'min:8'];
@@ -106,10 +104,10 @@ class UserController extends Controller
 
         $validated = $request->validate($rules, [
             'name.required'  => 'Vui lòng nhập họ và tên.',
-            'name.regex'     => 'Họ và tên chỉ chứa chữ cái (có dấu hoặc không dấu) và khoảng trắng.',
-            'email.required' => 'Vui lòng nhập Gmail.',
-            'email.unique'   => 'Gmail này đã thuộc về tài khoản khác.',
-            'email.regex'    => 'Định dạng email phải là @gmail.com.',
+            'name.regex'     => 'Họ và tên chỉ chứa chữ cái và khoảng trắng.',
+            'email.required' => 'Vui lòng nhập email.',
+            'email.email'    => 'Địa chỉ email không đúng định dạng.',
+            'email.unique'   => 'Email này đã thuộc về tài khoản khác.',
             'password.min'   => 'Mật khẩu mới phải từ 8 ký tự trở lên.',
             'role.required'  => 'Vui lòng chọn vai trò.',
             'role.in'        => 'Vai trò được chọn không hợp lệ.',
@@ -130,8 +128,8 @@ class UserController extends Controller
      */
     public function destroy(User $user)
     {
-        if (auth()->user()->role !== 'admin') {
-            return back()->with('error', 'Nhân viên không có quyền xóa tài khoản!');
+        if (!auth()->check() || auth()->user()->role !== 'admin') {
+            return back()->with('error', 'Bạn không có quyền xóa tài khoản!');
         }
 
         if (auth()->id() === $user->id) {
