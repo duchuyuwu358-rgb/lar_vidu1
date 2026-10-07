@@ -6,17 +6,71 @@ use App\Models\Hood;
 use App\Models\Category;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class HoodController extends Controller
 {
     /**
-     * --------------------------------------------------------------------------
-     * 1. GIAO DIỆN BÁN HÀNG (STOREFRONT - Dành cho người mua)
-     * --------------------------------------------------------------------------
+     * Tự động xóa ảnh cũ trong thư mục storage/app/public/hoods/
      */
+    private function deleteOldImage(?string $path): void
+    {
+        if (!$path) {
+            return;
+        }
+
+        // Xóa file trong storage/app/public/
+        if (Storage::disk('public')->exists($path)) {
+            Storage::disk('public')->delete($path);
+        }
+
+        // Xóa file nếu tồn tại trực tiếp trong public/
+        if (file_exists(public_path($path))) {
+            @unlink(public_path($path));
+        }
+    }
 
     /**
-     * Trang danh sách sản phẩm bán hàng (/storefront)
+     * Tự động xử lý và lưu ảnh duy nhất vào thư mục storage/app/public/hoods/
+     */
+    private function handleImageUpload(Request $request, ?string $oldImagePath = null): ?string
+    {
+        // 1. Trường hợp người dùng chọn Tải file ảnh trực tiếp
+        if ($request->hasFile('image')) {
+            $this->deleteOldImage($oldImagePath);
+            return $request->file('image')->store('hoods', 'public');
+        }
+
+        // 2. Trường hợp người dùng Copy-Paste ảnh Base64 vào ô nhập
+        $imageInput = $request->input('image');
+        if (is_string($imageInput) && Str::startsWith($imageInput, 'data:image')) {
+            $this->deleteOldImage($oldImagePath);
+
+            preg_match('/data:image\/(\w+);base64,/', $imageInput, $type);
+            $extension = strtolower($type[1] ?? 'png');
+            if ($extension === 'jpeg') {
+                $extension = 'jpg';
+            }
+
+            $imageData = base64_decode(substr($imageInput, strpos($imageInput, ',') + 1));
+            $fileName = 'hoods/hood_' . uniqid() . '.' . $extension;
+
+            // Lưu trực tiếp vào storage/app/public/hoods/
+            Storage::disk('public')->put($fileName, $imageData);
+
+            return $fileName;
+        }
+
+        // 3. Giữ nguyên đường dẫn ảnh cũ nếu không có thay đổi
+        if (is_string($imageInput) && !empty($imageInput) && !Str::startsWith($imageInput, 'data:image')) {
+            return $imageInput;
+        }
+
+        return $oldImagePath;
+    }
+
+    /**
+     * 1. GIAO DIỆN BÁN HÀNG (STOREFRONT)
      */
     public function storefront(Request $request)
     {
@@ -24,10 +78,8 @@ class HoodController extends Controller
         $category   = $request->get('category_id') ?? $request->get('category');
         $priceRange = $request->get('price_range');
 
-        // Chỉ lấy sản phẩm đang kích hoạt
         $query = Hood::with('category')->where('is_active', true);
 
-        // 1. Tìm kiếm theo Tên hoặc Model
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', '%' . $search . '%')
@@ -35,12 +87,10 @@ class HoodController extends Controller
             });
         }
 
-        // 2. Lọc theo Danh mục
         if ($category) {
             $query->where('category_id', $category);
         }
 
-        // 3. Lọc theo Khoảng giá
         if ($priceRange) {
             switch ($priceRange) {
                 case 'under_3m':
@@ -56,15 +106,12 @@ class HoodController extends Controller
         }
 
         $products   = $query->latest()->paginate(9)->withQueryString();
-        $hoods      = $products; // Đồng bộ biến cho View storefront.blade.php
+        $hoods      = $products;
         $categories = Category::where('is_active', true)->get();
 
         return view('storefront', compact('products', 'hoods', 'categories', 'search', 'category', 'priceRange'));
     }
 
-    /**
-     * Trang chi tiết sản phẩm bán hàng (/storefront/{id})
-     */
     public function storefrontShow($id)
     {
         $hood = $id instanceof Hood ? $id : Hood::with('category')->findOrFail($id);
@@ -74,13 +121,7 @@ class HoodController extends Controller
     }
 
     /**
-     * --------------------------------------------------------------------------
-     * 2. TRANG QUẢN TRỊ (ADMIN CRUD - Dành cho Quản trị viên)
-     * --------------------------------------------------------------------------
-     */
-
-    /**
-     * Hiển thị danh sách sản phẩm quản trị
+     * 2. TRANG QUẢN TRỊ (ADMIN CRUD)
      */
     public function index(Request $request)
     {
@@ -131,9 +172,6 @@ class HoodController extends Controller
         return view('hoods.index', compact('hoods', 'totalHoods', 'sellingHoods', 'soldOutHoods', 'categories', 'types', 'search', 'category', 'type', 'status'));
     }
 
-    /**
-     * Giao diện thêm sản phẩm mới
-     */
     public function create()
     {
         $categories = Category::where('is_active', true)->get();
@@ -147,9 +185,6 @@ class HoodController extends Controller
         return view('hoods.create', compact('categories', 'types'));
     }
 
-    /**
-     * Xử lý lưu sản phẩm mới
-     */
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -167,7 +202,7 @@ class HoodController extends Controller
             'type'            => ['required', 'in:wall-mounted,under-cabinet,island,cooktop'],
             'status'          => ['required', 'in:selling,importing,sold_out'],
             'stock_quantity'  => ['nullable', 'integer', 'min:0'],
-            'image'           => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,webp', 'max:2048'],
+            'image'           => ['nullable'],
         ], [
             'name.required'        => 'Vui lòng nhập tên sản phẩm.',
             'category_id.required' => 'Vui lòng chọn danh mục sản phẩm.',
@@ -178,9 +213,6 @@ class HoodController extends Controller
             'status.in'            => 'Trạng thái sản phẩm không hợp lệ.',
             'price.numeric'        => 'Giá sản phẩm phải là số.',
             'price.min'            => 'Giá sản phẩm không được nhỏ hơn 0.',
-            'image.image'          => 'Tệp tải lên phải là hình ảnh.',
-            'image.mimes'          => 'Hình ảnh phải có định dạng: jpeg, png, jpg, gif, webp.',
-            'image.max'            => 'Dung lượng ảnh tối đa là 2MB.',
         ]);
 
         $status = $validated['status'];
@@ -197,32 +229,20 @@ class HoodController extends Controller
             $validated['stock_quantity'] = 0;
         }
 
-        // Lưu ảnh trực tiếp vào public/uploads/hoods
-        if ($request->hasFile('image')) {
-            $image = $request->file('image');
-            $imageName = time() . '-' . uniqid() . '.' . $image->getClientOriginalExtension();
-            
-            $image->move(public_path('uploads/hoods'), $imageName);
-            $validated['image'] = 'uploads/hoods/' . $imageName;
-        }
+        // Lưu ảnh vào hoods
+        $validated['image'] = $this->handleImageUpload($request);
 
         Hood::create($validated);
 
         return redirect()->route('hoods.index')->with('success', 'Thêm máy hút mùi thành công!');
     }
 
-    /**
-     * Xem chi tiết sản phẩm trong quản trị
-     */
     public function show(Hood $hood)
     {
         $hood->load('category');
         return view('hoods.show', compact('hood'));
     }
 
-    /**
-     * Giao diện chỉnh sửa sản phẩm
-     */
     public function edit(Hood $hood)
     {
         $categories = Category::all();
@@ -236,9 +256,6 @@ class HoodController extends Controller
         return view('hoods.edit', compact('hood', 'categories', 'types'));
     }
 
-    /**
-     * Cập nhật thông tin sản phẩm
-     */
     public function update(Request $request, Hood $hood)
     {
         $validated = $request->validate([
@@ -256,7 +273,7 @@ class HoodController extends Controller
             'type'            => ['required', 'in:wall-mounted,under-cabinet,island,cooktop'],
             'status'          => ['required', 'in:selling,importing,sold_out'],
             'stock_quantity'  => ['nullable', 'integer', 'min:0'],
-            'image'           => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,webp', 'max:2048'],
+            'image'           => ['nullable'],
         ], [
             'name.required'        => 'Vui lòng nhập tên sản phẩm.',
             'category_id.required' => 'Vui lòng chọn danh mục sản phẩm.',
@@ -267,9 +284,6 @@ class HoodController extends Controller
             'status.in'            => 'Trạng thái sản phẩm không hợp lệ.',
             'price.numeric'        => 'Giá sản phẩm phải là số.',
             'price.min'            => 'Giá sản phẩm không được nhỏ hơn 0.',
-            'image.image'          => 'Tệp tải lên phải là hình ảnh.',
-            'image.mimes'          => 'Hình ảnh phải có định dạng: jpeg, png, jpg, gif, webp.',
-            'image.max'            => 'Dung lượng ảnh tối đa là 2MB.',
         ]);
 
         $status = $validated['status'];
@@ -286,19 +300,9 @@ class HoodController extends Controller
             $validated['stock_quantity'] = 0;
         }
 
-        // Cập nhật và lưu ảnh vào public/uploads/hoods
-        if ($request->hasFile('image')) {
-            if ($hood->image && file_exists(public_path($hood->image))) {
-                @unlink(public_path($hood->image));
-            } elseif ($hood->image && Storage::disk('public')->exists($hood->image)) {
-                Storage::disk('public')->delete($hood->image);
-            }
-
-            $image = $request->file('image');
-            $imageName = time() . '-' . uniqid() . '.' . $image->getClientOriginalExtension();
-            
-            $image->move(public_path('uploads/hoods'), $imageName);
-            $validated['image'] = 'uploads/hoods/' . $imageName;
+        // Cập nhật ảnh vào hoods
+        if ($request->hasFile('image') || $request->filled('image')) {
+            $validated['image'] = $this->handleImageUpload($request, $hood->image);
         }
 
         $hood->update($validated);
@@ -306,16 +310,9 @@ class HoodController extends Controller
         return redirect()->route('hoods.index')->with('success', 'Cập nhật máy hút mùi thành công!');
     }
 
-    /**
-     * Xóa sản phẩm
-     */
     public function destroy(Hood $hood)
     {
-        if ($hood->image && file_exists(public_path($hood->image))) {
-            @unlink(public_path($hood->image));
-        } elseif ($hood->image && Storage::disk('public')->exists($hood->image)) {
-            Storage::disk('public')->delete($hood->image);
-        }
+        $this->deleteOldImage($hood->image);
 
         $hood->delete();
         return redirect()->route('hoods.index')->with('success', 'Xóa máy hút mùi thành công!');

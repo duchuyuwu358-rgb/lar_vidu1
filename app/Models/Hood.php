@@ -25,12 +25,40 @@ class Hood extends Model
         'is_active',
         'stock_quantity',
         'image',
-        'image_url', // Bổ sung để cho phép lưu/cập nhật cột image_url
     ];
 
     public function category()
     {
         return $this->belongsTo(Category::class);
+    }
+
+    /**
+     * Tự động lọc đường dẫn ảnh trong DB: ép mọi đường dẫn cũ (dính uploads/) về hoods/
+     */
+    public function getImageAttribute($value)
+    {
+        if (!$value) {
+            return null;
+        }
+
+        // Lấy tên file gốc (loại bỏ tiền tố uploads/ hay hoods/ cũ)
+        $filename = basename($value);
+
+        return 'hoods/' . $filename;
+    }
+
+    /**
+     * Trả về đường dẫn URL đầy đủ tới thư mục hoods
+     */
+    public function getImageUrlAttribute()
+    {
+        $rawImage = $this->getRawOriginal('image');
+        if (!$rawImage) {
+            return asset('images/no-image.png');
+        }
+
+        $filename = basename($rawImage);
+        return asset('storage/hoods/' . $filename);
     }
 
     /**
