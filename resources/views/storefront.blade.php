@@ -63,7 +63,7 @@
                 <button type="submit" class="btn btn-primary w-100 fw-bold">
                     <i class="fas fa-filter me-1"></i> Lọc
                 </button>
-                @if(request()->hasAny(['search', 'category', 'category_id', 'price_range']))
+                @if(request()->anyFilled(['search', 'category', 'category_id', 'price_range']))
                     <a href="{{ route('storefront') }}" class="btn btn-outline-secondary" title="Xóa bộ lọc">
                         <i class="fas fa-undo"></i>
                     </a>
@@ -79,29 +79,30 @@
         <div class="col-md-4 col-sm-6">
             <div class="card h-100 shadow-sm border-0">
                 <!-- Product Image -->
-                <div class="text-center pt-3 px-3">
+                <div class="text-center pt-3 px-3 d-flex align-items-center justify-content-center bg-white" style="height: 220px;">
                     @php
-                        $rawImage = $hood->image ?? $hood->category?->image;
+                        // Quét tất cả các cột chứa ảnh có thể có trong Model Hood
+                        $rawImage = $hood->image ?? $hood->image_url ?? $hood->photo ?? $hood->thumbnail ?? $hood->category?->image;
                         $imageUrl = null;
                         if ($rawImage) {
                             $rawImage = trim($rawImage);
                             if (\Illuminate\Support\Str::startsWith($rawImage, ['http://', 'https://', 'data:image/'])) {
                                 $imageUrl = $rawImage;
                             } else {
-                                // Tự động lấy tên file gốc và ép đường dẫn về storage/hoods/
                                 $filename = basename($rawImage);
                                 $imageUrl = asset('storage/hoods/' . $filename);
                             }
                         }
                     @endphp
+
                     @if($imageUrl)
                         <img src="{{ $imageUrl }}" 
                              alt="{{ $hood->name }}" 
-                             class="card-img-top rounded object-fit-cover" 
-                             style="height: 200px;"
-                             onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'bg-light d-flex align-items-center justify-content-center rounded\' style=\'height: 200px;\'><i class=\'fas fa-fan fa-4x text-secondary\'></i></div>';">
+                             class="img-fluid rounded" 
+                             style="max-height: 100%; max-width: 100%; object-fit: contain;"
+                             onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'bg-light d-flex align-items-center justify-content-center w-100 h-100 rounded\'><i class=\'fas fa-fan fa-4x text-secondary\'></i></div>';">
                     @else
-                        <div class="bg-light d-flex align-items-center justify-content-center rounded" style="height: 200px;">
+                        <div class="bg-light d-flex align-items-center justify-content-center w-100 h-100 rounded">
                             <i class="fas fa-fan fa-4x text-secondary"></i>
                         </div>
                     @endif
@@ -112,16 +113,16 @@
                     <div class="mb-2">
                         <span class="badge bg-secondary">{{ $hood->category->name ?? 'Gia dụng' }}</span>
                     </div>
-                    <h5 class="card-title fw-bold text-dark">{{ $hood->name }}</h5>
+                    <h5 class="card-title fw-bold text-dark fs-6">{{ $hood->name }}</h5>
                     <p class="card-text text-muted small mb-3">
                         Mã SP: <code>{{ $hood->code ?? $hood->model ?? 'N/A' }}</code>
                     </p>
                     
-                    <div class="mt-auto pt-2 d-flex justify-content-between align-items-center">
+                    <div class="mt-auto pt-2 d-flex justify-content-between align-items-center border-top">
                         <span class="text-primary fw-bold fs-5">
                             {{ $hood->price ? number_format($hood->price, 0, ',', '.') . ' đ' : 'Liên hệ' }}
                         </span>
-                        <a href="{{ route('storefront.show', $hood->id) }}" class="btn btn-outline-primary btn-sm">
+                        <a href="{{ route('storefront.show', $hood->id) }}" class="btn btn-outline-primary btn-sm fw-semibold">
                             <i class="fas fa-eye me-1"></i> Chi Tiết
                         </a>
                     </div>
@@ -133,7 +134,7 @@
             <div class="text-center py-5 bg-white rounded-3 shadow-sm border">
                 <i class="fas fa-box-open fa-3x text-muted mb-3"></i>
                 <p class="text-muted fs-5 mb-0">Không tìm thấy sản phẩm nào phù hợp với bộ lọc.</p>
-                @if(request()->hasAny(['search', 'category', 'category_id', 'price_range']))
+                @if(request()->anyFilled(['search', 'category', 'category_id', 'price_range']))
                     <a href="{{ route('storefront') }}" class="btn btn-sm btn-outline-primary mt-3">
                         <i class="fas fa-sync-alt me-1"></i> Xem tất cả sản phẩm
                     </a>
