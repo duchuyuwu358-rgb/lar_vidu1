@@ -36,15 +36,15 @@
             <div class="col-md-3">
                 <label class="form-label fw-bold text-secondary small">Danh mục</label>
                 <select name="category" class="form-select bg-light">
-    <option value="">-- Tất cả danh mục --</option>
-    @if(isset($categories))
-        @foreach($categories as $cat)
-            <option value="{{ $cat->id }}" {{ (request('category') == $cat->id || request('category_id') == $cat->id) ? 'selected' : '' }}>
-                {{ $cat->name }}
-            </option>
-        @endforeach
-    @endif
-</select>
+                    <option value="">-- Tất cả danh mục --</option>
+                    @if(isset($categories))
+                        @foreach($categories as $cat)
+                            <option value="{{ $cat->id }}" {{ (request('category') == $cat->id || request('category_id') == $cat->id) ? 'selected' : '' }}>
+                                {{ $cat->name }}
+                            </option>
+                        @endforeach
+                    @endif
+                </select>
             </div>
 
             <!-- Dropdown Khoảng giá -->
@@ -81,12 +81,12 @@
                 <!-- Product Image -->
                 <div class="text-center pt-3 px-3">
                     @php
-                        $imagePath =$hood->image ?? $hood->image_url ?? $hood->category?->image;
+                        $imagePath = $hood->image ?? $hood->image_url ?? $hood->category?->image;
                         $imageUrl = null;
                         if ($imagePath) {
                             $imagePath = trim($imagePath);
-                            if (\Illuminate\Support\Str::startsWith($imagePath, ['http://', 'https://'])) {
-                                $imageUrl =$imagePath;
+                            if (\Illuminate\Support\Str::startsWith($imagePath, ['http://', 'https://', 'data:image/'])) {
+                                $imageUrl = $imagePath;
                             } else {
                                 $imageUrl = asset('storage/' . ltrim($imagePath, '/'));
                             }
@@ -143,199 +143,9 @@
 </div>
 
 <!-- Phân trang -->
-@if(method_exists($hoods, 'hasPages') &&$hoods->hasPages())
+@if(method_exists($hoods, 'hasPages') && $hoods->hasPages())
     <div class="d-flex justify-content-center mt-4">
         {{ $hoods->appends(request()->query())->links() }}
     </div>
 @endif
-
-<!-- KHUNG CHAT WIDGET HỖ TRỢ KHÁCH HÀNG -->
-<div id="chat-widget-container" class="position-fixed bottom-0 end-0 m-3" style="z-index: 1050;">
-    <button id="btn-toggle-chat" class="btn btn-primary rounded-pill shadow-lg px-3 py-2 d-flex align-items-center gap-2">
-        <i class="fas fa-comments fs-5"></i>
-        <span class="fw-bold">Nhắn tin cho chúng tôi</span>
-    </button>
-
-    <div id="chat-box-popup" class="card shadow-lg border-0 rounded-3 mt-2 d-none" style="width: 360px; height: 480px;">
-        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-2 px-3">
-            <div class="d-flex align-items-center gap-2">
-                <div class="bg-success rounded-circle" style="width: 10px; height: 10px;"></div>
-                <strong class="small" id="chat-title">Nhắn tin cho chúng tôi</strong>
-            </div>
-            <button type="button" class="btn-close btn-close-white btn-sm" id="btn-close-chat"></button>
-        </div>
-
-        <div class="card-body p-3 overflow-auto" id="chat-body-content" style="height: 360px; background-color: #f8f9fa;">
-            <div class="text-center my-4 text-muted small">
-                <div class="spinner-border spinner-border-sm me-1" role="status"></div>
-                Đang tải dữ liệu chat...
-            </div>
-        </div>
-
-        <div class="card-footer bg-white border-top p-2" id="chat-footer">
-            <form id="chat-form" class="input-group">
-                <input type="text" id="chat-input" class="form-control form-control-sm" placeholder="Nhập tin nhắn..." required autocomplete="off">
-                <button class="btn btn-primary btn-sm" type="submit">
-                    <i class="fas fa-paper-plane"></i>
-                </button>
-            </form>
-        </div>
-    </div>
-</div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const btnToggle = document.getElementById('btn-toggle-chat');
-    const btnClose = document.getElementById('btn-close-chat');
-    const chatPopup = document.getElementById('chat-box-popup');
-    const chatBody = document.getElementById('chat-body-content');
-    const chatForm = document.getElementById('chat-form');
-    const chatInput = document.getElementById('chat-input');
-    const currentUserId = {{ auth()->id() ?? 'null' }};
-
-    let loadedMessages = [];
-
-    btnToggle.addEventListener('click', () => {
-        chatPopup.classList.toggle('d-none');
-        if (!chatPopup.classList.contains('d-none')) {
-            loadChatData();
-        }
-    });
-
-    btnClose.addEventListener('click', () => {
-        chatPopup.classList.add('d-none');
-    });
-
-    async function loadChatData() {
-        try {
-            const response = await fetch('/user/chat/messages', {
-                headers: { 
-                    'Accept': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            });
-            if (!response.ok) throw new Error('Không thể tải tin nhắn');
-            const data = await response.json();
-            loadedMessages = data.messages || data || [];
-
-            const hasHistory = Array.isArray(loadedMessages) && loadedMessages.length > 0;
-            renderBotMenu(hasHistory, loadedMessages);
-        } catch (error) {
-            console.error('Lỗi tải tin nhắn:', error);
-            renderBotMenu(false, []);
-        }
-    }
-
-    function renderBotMenu(hasHistory, messages) {
-        let html = `
-            <div class="card border-0 shadow-sm mb-3">
-                <div class="card-body p-3">
-                    <h6 class="fw-bold text-primary mb-1">XFAN Bot</h6>
-                    <p class="small text-muted mb-0">Xin chào, tôi có thể giúp gì cho bạn? Vui lòng chọn một trong các yêu cầu bên dưới:</p>
-                </div>
-            </div>
-            <div class="d-grid gap-2">
-        `;
-
-        if (hasHistory) {
-            html += `
-                <button type="button" id="btn-continue-chat" class="btn btn-success btn-sm text-start fw-bold py-2 shadow-sm">
-                    💬 Tiếp tục cuộc trò chuyện với Admin
-                </button>
-            `;
-        }
-
-        html += `
-                <button type="button" class="btn btn-outline-secondary btn-sm text-start bg-white" onclick="sendQuickMessage('Tôi muốn tư vấn Mua sản phẩm & Máy hút mùi')">Mua sản phẩm & Máy hút mùi</button>
-                <button type="button" class="btn btn-outline-secondary btn-sm text-start bg-white" onclick="sendQuickMessage('Tôi cần Hỗ trợ & Kiểm tra đơn hàng')">Hỗ trợ & Kiểm tra đơn hàng</button>
-                <button type="button" class="btn btn-outline-secondary btn-sm text-start bg-white" onclick="sendQuickMessage('Tôi muốn xem Báo giá & Khuyến mãi mới nhất')">Báo giá & Khuyến mãi mới nhất</button>
-                <button type="button" class="btn btn-outline-primary btn-sm text-start bg-white fw-bold" onclick="sendQuickMessage('Kết nối trực tiếp với Tư vấn viên')">🎧 Kết nối trực tiếp với Tư vấn viên</button>
-            </div>
-        `;
-
-        chatBody.innerHTML = html;
-
-        if (hasHistory) {
-            const btnContinue = document.getElementById('btn-continue-chat');
-            if (btnContinue) {
-                btnContinue.addEventListener('click', function() {
-                    renderHistory(messages);
-                });
-            }
-        }
-    }
-
-    function renderHistory(messages) {
-        let html = `
-            <div class="d-flex justify-content-between align-items-center mb-2 pb-1 border-bottom">
-                <span class="badge bg-secondary">Lịch sử trò chuyện</span>
-                <button type="button" id="btn-back-to-bot" class="btn btn-link btn-sm text-muted p-0 text-decoration-none" style="font-size: 0.75rem;">
-                    <i class="fas fa-robot me-1"></i> Menu bot
-                </button>
-            </div>
-            <div class="d-flex flex-column gap-2">
-        `;
-
-        messages.forEach(msg => {
-            const isUser = (msg.sender_id == currentUserId || msg.is_user);
-            const msgTime = msg.created_at ? new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '';
-
-            html += `
-                <div class="d-flex flex-column ${isUser ? 'align-items-end' : 'align-items-start'}">
-                    <div class="p-2 rounded-3 ${isUser ? 'bg-primary text-white' : 'bg-white text-dark shadow-sm'}" style="max-width: 85%; font-size: 0.9rem;">
-                        ${msg.content || msg.message}
-                    </div>
-                    <span class="text-muted px-1" style="font-size: 0.68rem;">${msgTime}</span>
-                </div>
-            `;
-        });
-
-        html += `</div>`;
-        chatBody.innerHTML = html;
-        chatBody.scrollTop = chatBody.scrollHeight;
-
-        const btnBack = document.getElementById('btn-back-to-bot');
-        if (btnBack) {
-            btnBack.addEventListener('click', () => {
-                renderBotMenu(true, messages);
-            });
-        }
-    }
-
-    window.sendQuickMessage = function(text) {
-        chatInput.value = text;
-        chatForm.dispatchEvent(new Event('submit'));
-    };
-
-    chatForm.addEventListener('submit', async function(e) {
-        e.preventDefault();
-        const text = chatInput.value.trim();
-        if (!text) return;
-
-        loadedMessages.push({
-            sender_id: currentUserId,
-            is_user: true,
-            content: text,
-            created_at: new Date().toISOString()
-        });
-
-        renderHistory(loadedMessages);
-        chatInput.value = '';
-
-        try {
-            await fetch('/user/chat/send', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify({ message: text })
-            });
-        } catch (err) {
-            console.error('Lỗi gửi tin nhắn:', err);
-        }
-    });
-});
-</script>
 @endsection
