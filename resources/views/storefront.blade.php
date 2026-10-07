@@ -81,14 +81,16 @@
                 <!-- Product Image -->
                 <div class="text-center pt-3 px-3">
                     @php
-                        $imagePath = $hood->image ?? $hood->image_url ?? $hood->category?->image;
+                        $rawImage = $hood->image ?? $hood->category?->image;
                         $imageUrl = null;
-                        if ($imagePath) {
-                            $imagePath = trim($imagePath);
-                            if (\Illuminate\Support\Str::startsWith($imagePath, ['http://', 'https://', 'data:image/'])) {
-                                $imageUrl = $imagePath;
+                        if ($rawImage) {
+                            $rawImage = trim($rawImage);
+                            if (\Illuminate\Support\Str::startsWith($rawImage, ['http://', 'https://', 'data:image/'])) {
+                                $imageUrl = $rawImage;
                             } else {
-                                $imageUrl = asset('storage/' . ltrim($imagePath, '/'));
+                                // Tự động lấy tên file gốc và ép đường dẫn về storage/hoods/
+                                $filename = basename($rawImage);
+                                $imageUrl = asset('storage/hoods/' . $filename);
                             }
                         }
                     @endphp
@@ -97,7 +99,6 @@
                              alt="{{ $hood->name }}" 
                              class="card-img-top rounded object-fit-cover" 
                              style="height: 200px;"
-                             referrerpolicy="no-referrer"
                              onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'bg-light d-flex align-items-center justify-content-center rounded\' style=\'height: 200px;\'><i class=\'fas fa-fan fa-4x text-secondary\'></i></div>';">
                     @else
                         <div class="bg-light d-flex align-items-center justify-content-center rounded" style="height: 200px;">

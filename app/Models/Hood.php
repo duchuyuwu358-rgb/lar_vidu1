@@ -33,31 +33,19 @@ class Hood extends Model
     }
 
     /**
-     * Tự động lọc đường dẫn ảnh trong DB: ép mọi đường dẫn cũ (dính uploads/) về hoods/
+     * Tạo đường dẫn URL đầy đủ trỏ thẳng vào storage/hoods/
      */
-    public function getImageAttribute($value)
+    public function getImageUrlAttribute(): string
     {
-        if (!$value) {
-            return null;
-        }
+        $rawImage = $this->attributes['image'] ?? null;
 
-        // Lấy tên file gốc (loại bỏ tiền tố uploads/ hay hoods/ cũ)
-        $filename = basename($value);
-
-        return 'hoods/' . $filename;
-    }
-
-    /**
-     * Trả về đường dẫn URL đầy đủ tới thư mục hoods
-     */
-    public function getImageUrlAttribute()
-    {
-        $rawImage = $this->getRawOriginal('image');
         if (!$rawImage) {
-            return asset('images/no-image.png');
+            return 'https://via.placeholder.com/400x300?text=No+Image';
         }
 
+        // Lấy chính xác tên file (loại bỏ mọi đường dẫn cũ như uploads/ hay hoods/)
         $filename = basename($rawImage);
+
         return asset('storage/hoods/' . $filename);
     }
 
