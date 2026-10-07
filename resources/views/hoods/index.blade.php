@@ -104,7 +104,6 @@
                             <tr>
                                 <td>
                                     @php
-                                        // Kiểm tra tất cả các tên cột có thể dùng lưu ảnh
                                         $rawImage = $hood->image 
                                             ?? $hood->image_url 
                                             ?? $hood->photo 
@@ -118,10 +117,11 @@
 
                                         if (!empty($rawImage)) {
                                             $path = trim($rawImage);
-                                            if (\Illuminate\Support\Str::startsWith($path, ['http://', 'https://'])) {
+                                            if (\Illuminate\Support\Str::startsWith($path, ['http://', 'https://', 'data:image/'])) {
                                                 $imageUrl = $path;
                                             } else {
-                                                $imageUrl = asset('storage/' . ltrim($path, '/'));
+                                                $filename = basename($path);
+                                                $imageUrl = asset('storage/hoods/' . $filename);
                                             }
                                         }
                                     @endphp
@@ -155,7 +155,6 @@
                                         <span class="badge bg-danger">Ngừng bán</span>
                                     @endif
                                 </td>
-                                <!-- Cột 3 nút cùng 1 hàng -->
                                 <td class="text-center text-nowrap">
                                     <div class="d-flex align-items-center justify-content-center gap-1">
                                         <a href="{{ route('hoods.show', $hood) }}" class="btn btn-sm btn-info text-white px-2">Xem</a>

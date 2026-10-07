@@ -127,15 +127,20 @@
                     <label for="image" class="form-label fw-bold">Hình Ảnh Sản Phẩm</label>
                     @php
                         $imagePath = $hood->image ?? $hood->image_url;
+                        $imageUrl = null;
+                        if (!empty($imagePath)) {
+                            $imagePath = trim($imagePath);
+                            if (\Illuminate\Support\Str::startsWith($imagePath, ['http://', 'https://', 'data:image/'])) {
+                                $imageUrl = $imagePath;
+                            } else {
+                                $filename = basename($imagePath);
+                                $imageUrl = asset('storage/hoods/' . $filename);
+                            }
+                        }
                     @endphp
-                    @if ($imagePath)
-                        @php
-                            $imageUrl = \Illuminate\Support\Str::startsWith($imagePath, ['http://', 'https://']) 
-                                ? $imagePath 
-                                : asset('storage/' . ltrim($imagePath, '/'));
-                        @endphp
+                    @if ($imageUrl)
                         <div class="mb-2">
-                            <img src="{{ $imageUrl }}" alt="Ảnh hiện tại" width="100" class="img-thumbnail shadow-sm">
+                            <img src="{{ $imageUrl }}" alt="Ảnh hiện tại" width="100" class="img-thumbnail shadow-sm" onerror="this.style.display='none';">
                         </div>
                     @endif
                     <input type="file" class="form-control @error('image') is-invalid @enderror" id="image" name="image" accept="image/*">

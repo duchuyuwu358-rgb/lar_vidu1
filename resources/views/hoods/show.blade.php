@@ -14,8 +14,22 @@
         <div class="card-body p-4">
             <div class="row">
                 <div class="col-md-5 text-center mb-4 mb-md-0">
-                    @if ($hood->image)
-                        <img src="{{ asset('storage/' . $hood->image) }}" alt="{{ $hood->name }}" class="img-fluid rounded shadow-sm max-h-400">
+                    @php
+                        $rawImage = $hood->image ?? $hood->image_url ?? $hood->category?->image;
+                        $imageUrl = null;
+                        if (!empty($rawImage)) {
+                            $rawImage = trim($rawImage);
+                            if (\Illuminate\Support\Str::startsWith($rawImage, ['http://', 'https://', 'data:image/'])) {
+                                $imageUrl = $rawImage;
+                            } else {
+                                $filename = basename($rawImage);
+                                $imageUrl = asset('storage/hoods/' . $filename);
+                            }
+                        }
+                    @endphp
+
+                    @if ($imageUrl)
+                        <img src="{{ $imageUrl }}" alt="{{ $hood->name }}" class="img-fluid rounded shadow-sm" style="max-height: 400px; object-fit: contain;" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'p-5 bg-light rounded text-muted\'>Chưa có hình ảnh</div>';">
                     @else
                         <div class="p-5 bg-light rounded text-muted">Chưa có hình ảnh</div>
                     @endif

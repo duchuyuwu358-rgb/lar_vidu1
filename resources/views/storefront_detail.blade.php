@@ -4,7 +4,6 @@
 
 @section('content')
 @php
-    // Khởi tạo $colors ngay đầu view để dùng chung cho cả Form đặt hàng lẫn Bảng thông số
     $rawColors = $hood->color ?? $hood->colors ?? $hood->category?->colors ?? 'Trắng';
     
     if (is_string($rawColors)) {
@@ -17,7 +16,6 @@
         $colors = ['Trắng'];
     }
 
-    // Bảng mã màu động
     $colorMap = [
         'Trắng'      => ['bg' => '#FFFFFF', 'text' => '#212529', 'border' => '#CCCCCC'],
         'Đen'        => ['bg' => '#1A1A1A', 'text' => '#FFFFFF', 'border' => '#000000'],
@@ -36,7 +34,6 @@
 @endphp
 
 <style>
-    /* Hiệu ứng nổi bật khi chọn nút màu sắc */
     .btn-check:checked + .custom-color-option {
         box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.4);
         border-color: #0d6efd !important;
@@ -49,37 +46,25 @@
 </style>
 
 <div class="container py-4">
-    <!-- Nút quay lại -->
     <div class="mb-3">
         <a href="{{ route('storefront') }}" class="btn btn-sm btn-outline-secondary">
             <i class="fas fa-arrow-left me-1"></i> Quay lại cửa hàng
         </a>
     </div>
 
-    <!-- KHU VỰC THÔNG TIN CHÍNH & ĐẶT HÀNG -->
     <div class="card p-4 shadow-sm border-0 mb-4">
         <div class="row align-items-center">
-            <!-- Cột Trái: Ảnh Sản Phẩm (Đã sửa lỗi đường dẫn) -->
             <div class="col-md-5 text-center mb-3 mb-md-0">
                 @php
                     $rawPath = trim($hood->image ?? $hood->image_url ?? $hood->category?->image ?? '');
                     $displayImage = null;
 
                     if (!empty($rawPath)) {
-                        // Trường hợp 1: Đường dẫn dạng URL tuyệt đối (http:// hoặc https://)
-                        if (\Illuminate\Support\Str::startsWith($rawPath, ['http://', 'https://'])) {
+                        if (\Illuminate\Support\Str::startsWith($rawPath, ['http://', 'https://', 'data:image/'])) {
                             $displayImage = $rawPath;
                         } else {
-                            // Bỏ dấu / ở đầu chuỗi nếu có
-                            $cleanPath = ltrim($rawPath, '/');
-                            
-                            // Trường hợp 2: Nếu trong CSDL đã có sẵn tiền tố 'storage/'
-                            if (\Illuminate\Support\Str::startsWith($cleanPath, 'storage/')) {
-                                $displayImage = asset($cleanPath);
-                            } else {
-                                // Trường hợp 3: Chỉ lưu tên thư mục/file như 'hoods/filename.png'
-                                $displayImage = asset('storage/' . $cleanPath);
-                            }
+                            $filename = basename($rawPath);
+                            $displayImage = asset('storage/hoods/' . $filename);
                         }
                     }
                 @endphp
@@ -97,7 +82,6 @@
                 @endif
             </div>
             
-            <!-- Cột Phải: Thông tin & Nút Đặt Hàng -->
             <div class="col-md-7">
                 <h2 class="fw-bold text-dark mb-1">{{ $hood->name }}</h2>
                 <p class="text-muted small mb-2">
@@ -109,7 +93,6 @@
                     {{ $hood->price ? number_format($hood->price, 0, ',', '.') . ' đ' : 'Liên hệ' }}
                 </h3>
                 
-                <!-- Tóm tắt thông số nhanh -->
                 <div class="row g-2 mb-3 small text-secondary">
                     <div class="col-6 col-sm-4">
                         <i class="fas fa-layer-group text-primary me-1"></i> Danh mục: 
@@ -138,7 +121,6 @@
                 <p class="fw-bold mb-1">Mô tả sản phẩm:</p>
                 <p class="text-secondary mb-3">{!! nl2br(e($hood->description ?? 'Chưa có mô tả cho sản phẩm này.')) !!}</p>
 
-                <!-- KHU VỰC KIỂM TRA PHÂN QUYỀN MUA HÀNG -->
                 <div class="p-3 bg-light border rounded">
                     @auth
                         @if(auth()->user()->hasVerifiedEmail())
@@ -147,7 +129,6 @@
                                     @csrf
                                     <input type="hidden" name="hood_id" value="{{ $hood->id }}">
                                     
-                                    <!-- BỘ CHỌN MÀU SẮC DỰA TRÊN MÀU THỰC TẾ -->
                                     <div class="mb-3">
                                         <label class="fw-bold d-block mb-2">Chọn màu sắc:</label>
                                         <div class="d-flex flex-wrap gap-2" role="group" aria-label="Color selector">
@@ -169,17 +150,14 @@
                                         </div>
                                     </div>
 
-                                    <!-- CHỌN SỐ LƯỢNG VÀ NÚT BẤM (THÊM VÀO GIỎ / MUA NGAY) -->
                                     <div class="d-flex align-items-center flex-wrap gap-2">
                                         <label class="me-2 fw-bold mb-0">Số lượng:</label>
                                         <input type="number" name="quantity" class="form-control me-2" value="1" min="1" max="{{ $hood->stock_quantity ?? 1 }}" style="width: 80px;">
                                         
-                                        <!-- Nút Thêm Vào Giỏ -->
                                         <button type="submit" name="action" value="add_to_cart" class="btn btn-outline-primary fw-bold">
                                             <i class="fas fa-cart-plus me-1"></i> Thêm vào giỏ
                                         </button>
 
-                                        <!-- Nút Mua Ngay -->
                                         <button type="submit" name="action" value="buy_now" class="btn btn-danger fw-bold">
                                             <i class="fas fa-bolt me-1"></i> Mua ngay
                                         </button>
@@ -210,7 +188,6 @@
         </div>
     </div>
 
-    <!-- BẢNG THÔNG SỐ KỸ THUẬT CHI TIẾT -->
     <div class="card shadow-sm border-0">
         <div class="card-header bg-dark text-white fw-bold py-3">
             <i class="fas fa-list-alt me-2"></i>Thông Số Kỹ Thuật Chi Tiết
