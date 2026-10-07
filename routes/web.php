@@ -162,13 +162,41 @@ Route::middleware('auth')->group(function () {
             Route::post('/chat/send', [ChatController::class, 'sendAdminMessage'])->name('admin.chat.send');
             Route::get('/chat/unread-count', [ChatController::class, 'checkAdminUnread'])->name('admin.chat.unread');
 
-            // Resource Routes CRUD
+            // Resource Routes CRUD (Gắn prefix admin.*)
             Route::resource('categories', CategoryController::class)->names('admin.categories');
             Route::resource('users', UserController::class)->only(['index', 'store', 'update', 'destroy'])->names('admin.users');
             Route::resource('hoods', HoodController::class)->names('admin.hoods');
-            
-            // Quản lý Gói dịch vụ Admin
             Route::resource('services', AdminServicePackageController::class)->names('admin.services');
+
+            // ========================================================
+            // ROUTE ALIASES (Bổ sung tên route rút gọn không có prefix admin.)
+            // ========================================================
+            Route::name('categories.')->group(function () {
+                Route::get('/categories-alias', [CategoryController::class, 'index'])->name('index');
+                Route::get('/categories-alias/create', [CategoryController::class, 'create'])->name('create');
+                Route::post('/categories-alias', [CategoryController::class, 'store'])->name('store');
+                Route::get('/categories-alias/{category}', [CategoryController::class, 'show'])->name('show');
+                Route::get('/categories-alias/{category}/edit', [CategoryController::class, 'edit'])->name('edit');
+                Route::put('/categories-alias/{category}', [CategoryController::class, 'update'])->name('update');
+                Route::delete('/categories-alias/{category}', [CategoryController::class, 'destroy'])->name('destroy');
+            });
+
+            Route::name('hoods.')->group(function () {
+                Route::get('/hoods-alias', [HoodController::class, 'index'])->name('index');
+                Route::get('/hoods-alias/create', [HoodController::class, 'create'])->name('create');
+                Route::post('/hoods-alias', [HoodController::class, 'store'])->name('store');
+                Route::get('/hoods-alias/{hood}', [HoodController::class, 'show'])->name('show');
+                Route::get('/hoods-alias/{hood}/edit', [HoodController::class, 'edit'])->name('edit');
+                Route::put('/hoods-alias/{hood}', [HoodController::class, 'update'])->name('update');
+                Route::delete('/hoods-alias/{hood}', [HoodController::class, 'destroy'])->name('destroy');
+            });
+
+            Route::name('users.')->group(function () {
+                Route::get('/users-alias', [UserController::class, 'index'])->name('index');
+                Route::post('/users-alias', [UserController::class, 'store'])->name('store');
+                Route::put('/users-alias/{user}', [UserController::class, 'update'])->name('update');
+                Route::delete('/users-alias/{user}', [UserController::class, 'destroy'])->name('destroy');
+            });
 
             // Alias Routes v2
             Route::get('/v2/categories', [CategoryController::class, 'index'])->name('admin.categories.v2.index');

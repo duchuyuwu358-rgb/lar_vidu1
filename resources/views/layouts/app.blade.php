@@ -103,6 +103,16 @@
             background-color: #f1f5f9; border-color: #cbd5e1; color: #0284c7; transform: translateY(-1px);
         }
 
+        .btn-resume-chat {
+            background: #eff6ff !important;
+            color: #2563eb !important;
+            border: 1.5px solid #3b82f6 !important;
+            font-weight: 700 !important;
+        }
+        .btn-resume-chat:hover {
+            background: #dbeafe !important;
+        }
+
         .chat-date-badge {
             text-align: center; font-size: 0.75rem; color: #64748b; margin: 10px 0; font-weight: 500;
         }
@@ -122,22 +132,18 @@
 </head>
 
 @php
-    // Cho phép hiển thị Sidebar nếu tài khoản là Admin hoặc Staff
     $isAdminOrStaff = auth()->check() && (
         (method_exists(auth()->user(), 'isAdmin') && auth()->user()->isAdmin()) ||
         (method_exists(auth()->user(), 'isStaff') && auth()->user()->isStaff()) ||
         in_array(auth()->user()->role ?? '', ['admin', 'staff'])
     );
     
-    $isAuthPage = request()->is('login') || request()->is('register');
-    $isAdminManagementPage = request()->is('admin*') || request()->routeIs('admin.*');
+    $isAuthPage = request()->is('login') || request()->is('register');$isAdminManagementPage = request()->is('admin*') || request()->routeIs('admin.*');
 
-    // DỮ LIỆU CỬA HÀNG CHO BOT
-    $bestSeller = \App\Models\Hood::first();
-    $minPrice = \App\Models\Hood::min('price') ?? 0;
+    $bestSeller = \App\Models\Hood::first();$minPrice = \App\Models\Hood::min('price') ?? 0;
     $maxPrice = \App\Models\Hood::max('price') ?? 0;
 
-    $bestSellerName = $bestSeller->name ?? 'Máy Hút Mùi Cao Cấp XFAN';
+    $bestSellerName =$bestSeller->name ?? 'Máy Hút Mùi Cao Cấp XFAN';
     $bestSellerPrice = isset($bestSeller->price) ? number_format($bestSeller->price, 0, ',', '.') . 'đ' : 'Liên hệ';
     $minPriceFormatted = number_format($minPrice, 0, ',', '.') . 'đ';
     $maxPriceFormatted = number_format($maxPrice, 0, ',', '.') . 'đ';
@@ -145,8 +151,7 @@
     $latestOrderInfo = null;
     if (auth()->check()) {
         $latestOrder = \App\Models\Order::where('user_id', auth()->id())->latest()->first();
-        if ($latestOrder) {
-            $latestOrderInfo = [
+        if ($latestOrder) {$latestOrderInfo = [
                 'id' => $latestOrder->id,
                 'status' => $latestOrder->status ?? 'Đang xử lý',
                 'created_at' => $latestOrder->created_at ? $latestOrder->created_at->format('H:i - d/m/Y') : 'Mới đây',
@@ -167,7 +172,6 @@
                     <span class="fw-bold">XFAN STORE</span>
                 </div>
                 
-                {{-- KHU VỰC AVATAR, TÊN VÀ VAI TRÒ --}}
                 <div class="sidebar-user">
                     <div class="avatar">{{ strtoupper(substr(Auth::user()->name ?? 'U', 0, 1)) }}</div>
                     <div class="fw-bold text-white small">{{ Auth::user()->name ?? 'Tài khoản' }}</div>
@@ -205,15 +209,12 @@
                             <i class="bi bi-tags"></i><span>Danh mục</span>
                         </a>
                     </li>
-
-                    {{-- MỤC QUẢN LÝ GÓI DỊCH VỤ ADMIN --}}
                     <li class="nav-item">
                         <a href="{{ Route::has('admin.services.index') ? route('admin.services.index') : (Route::has('services.index') ? route('services.index') : url('/dich-vu')) }}" class="nav-link {{ request()->routeIs('*services*') ? 'active' : '' }}">
                             <i class="bi bi-wrench-adjustable-circle"></i><span>Gói dịch vụ</span>
                         </a>
                     </li>
 
-                    {{-- CHỈ HIỂN THỊ MỤC NGƯỜI DÙNG DÀNH CHO ADMIN --}}
                     @if((method_exists(Auth::user(), 'isAdmin') && Auth::user()->isAdmin()) || Auth::user()->role === 'admin')
                         <li class="nav-item">
                             <a href="{{ Route::has('admin.users.index') ? route('admin.users.index') : (Route::has('users.index') ? route('users.index') : url('/admin/users')) }}" class="nav-link {{ request()->routeIs('*users*') ? 'active' : '' }}">
@@ -278,7 +279,6 @@
                         <a href="{{ Route::has('storefront') ? route('storefront') : url('/') }}" class="user-nav-link {{ request()->routeIs('storefront*') || request()->is('/') ? 'active' : '' }}">
                             <i class="bi bi-shop"></i><span>Cửa hàng</span>
                         </a>
-                        {{-- NÚT DỊCH VỤ VỆ SINH & LẮP ĐẶT --}}
                         <a href="{{ Route::has('services.index') ? route('services.index') : url('/dich-vu') }}" class="user-nav-link {{ request()->routeIs('*services*') ? 'active' : '' }}">
                             <i class="bi bi-tools"></i><span>Dịch vụ & Lắp đặt</span>
                         </a>
@@ -328,17 +328,28 @@
             <div class="flex-grow-1 p-3 overflow-auto" id="userChatMessagesBox">
                 <div class="chat-date-badge" id="chatTodayDate"></div>
 
-                <div class="msg-bubble-received">
-                    <div class="fw-bold mb-1 text-primary">XFAN Bot</div>
-                    <div>Xin chào, tôi có thể giúp gì cho bạn? Vui lòng chọn một trong các yêu cầu bên dưới:</div>
+                <!-- Khối menu Bot chào mừng -->
+                <div id="botWelcomeContainer">
+                    <div class="msg-bubble-received">
+                        <div class="fw-bold mb-1 text-primary" style="font-size:0.8rem">XFAN Bot</div>
+                        <div>Xin chào, tôi có thể giúp gì cho bạn? Vui lòng chọn một trong các yêu cầu bên dưới:</div>
+                    </div>
+
+                    <div id="quickOptionsGroup" class="mt-2">
+                        <!-- Nút Tiếp tục cuộc trò chuyện (ẩn mặc định, chỉ hiện nếu từng chat với Admin) -->
+                        <button type="button" id="btnContinueChat" class="chat-option-btn btn-resume-chat d-none" onclick="resumeAdminChat()">
+                            🔄 Tiếp tục cuộc trò chuyện với Tư vấn viên
+                        </button>
+
+                        <button type="button" class="chat-option-btn" onclick="handleOptionSelect('buy_product', 'Mua sản phẩm & Máy hút mùi')">Mua sản phẩm & Máy hút mùi</button>
+                        <button type="button" class="chat-option-btn" onclick="handleOptionSelect('track_order', 'Hỗ trợ & Kiểm tra đơn hàng')">Hỗ trợ & Kiểm tra đơn hàng</button>
+                        <button type="button" class="chat-option-btn" onclick="handleOptionSelect('promotion', 'Báo giá & Khuyến mãi mới nhất')">Báo giá & Khuyến mãi mới nhất</button>
+                        <button type="button" class="chat-option-btn" onclick="handleOptionSelect('connect_admin', '🎧 Kết nối trực tiếp với Tư vấn viên')">🎧 Kết nối trực tiếp với Tư vấn viên</button>
+                    </div>
                 </div>
 
-                <div id="quickOptionsGroup" class="mt-2">
-                    <button type="button" class="chat-option-btn" onclick="handleOptionSelect('buy_product', 'Mua sản phẩm & Máy hút mùi')">Mua sản phẩm & Máy hút mùi</button>
-                    <button type="button" class="chat-option-btn" onclick="handleOptionSelect('track_order', 'Hỗ trợ & Kiểm tra đơn hàng')">Hỗ trợ & Kiểm tra đơn hàng</button>
-                    <button type="button" class="chat-option-btn" onclick="handleOptionSelect('promotion', 'Báo giá & Khuyến mãi mới nhất')">Báo giá & Khuyến mãi mới nhất</button>
-                    <button type="button" class="chat-option-btn" onclick="handleOptionSelect('connect_admin', '🎧 Kết nối trực tiếp với Tư vấn viên')">🎧 Kết nối trực tiếp với Tư vấn viên</button>
-                </div>
+                <!-- Chứa lịch sử tin nhắn thực tế khi kết nối với Admin -->
+                <div id="chatHistoryContainer"></div>
             </div>
 
             <div class="p-3 bg-white border-top">
@@ -357,12 +368,13 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
-    <!-- JAVASCRIPT CHATBOT & ADMIN CHAT -->
+    <!-- JAVASCRIPT LOGIC CHATBOT & ADMIN CHAT -->
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
             const isUserLoggedIn = @json(auth()->check());
+            const currentUserId = @json(auth()->id());
             const bestSellerName = @json($bestSellerName);
             const bestSellerPrice = @json($bestSellerPrice);
             const minPriceFormatted = @json($minPriceFormatted);
@@ -392,7 +404,8 @@
 
             function checkAdminUnread() {
                 if (!adminBadge) return;
-                fetch("{{ Route::has('admin.chat.unread') ? route('admin.chat.unread') : '#' }}")
+                const unreadUrl = "{{ Route::has('admin.chat.unread') ? route('admin.chat.unread') : url('/admin/chat/unread') }}";
+                fetch(unreadUrl)
                     .then(r => r.json())
                     .then(data => {
                         if (data && data.unread_count > 0) adminBadge.classList.remove('d-none');
@@ -413,7 +426,8 @@
             }
 
             function loadAdminUsers() {
-                fetch("{{ Route::has('admin.chat.users') ? route('admin.chat.users') : '#' }}")
+                const usersUrl = "{{ Route::has('admin.chat.users') ? route('admin.chat.users') : url('/admin/chat/users') }}";
+                fetch(usersUrl)
                     .then(r => r.json())
                     .then(users => {
                         if (!users || users.length === 0) {
@@ -442,7 +456,6 @@
                 if (userName) activeAdminUserName = userName;
                 if (adminInput) adminInput.disabled = false;
                 if (btnAdminSend) btnAdminSend.disabled = false;
-                loadAdminUsers();
                 checkAdminUnread();
 
                 fetch(`/admin/chat/messages/${userId}`)
@@ -469,7 +482,8 @@
                     let msg = adminInput.value.trim();
                     if (!msg || !activeAdminUserId) return;
 
-                    fetch("{{ Route::has('admin.chat.send') ? route('admin.chat.send') : '#' }}", {
+                    const sendAdminUrl = "{{ Route::has('admin.chat.send') ? route('admin.chat.send') : url('/admin/chat/send') }}";
+                    fetch(sendAdminUrl, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
                         body: JSON.stringify({ user_id: activeAdminUserId, receiver_id: activeAdminUserId, message: msg })
@@ -485,26 +499,92 @@
             const userPanel = document.getElementById('userChatPanel');
             const btnUserClose = document.getElementById('btnUserChatClose');
             const userMessagesBox = document.getElementById('userChatMessagesBox');
+            const botWelcomeContainer = document.getElementById('botWelcomeContainer');
+            const chatHistoryContainer = document.getElementById('chatHistoryContainer');
+            const btnContinueChat = document.getElementById('btnContinueChat');
             const userSendForm = document.getElementById('userSendChatForm');
             const userInput = document.getElementById('userChatInput');
             const chatStatusSubtitle = document.getElementById('chatStatusSubtitle');
 
             let unhandledAttempts = 0;
             let isConnectedToAdmin = false;
+            let cachedHistory = [];
 
-            if (btnUserToggle && userPanel) {
-                btnUserToggle.addEventListener('click', function () {
-                    userPanel.classList.toggle('active');
-                });
-                if (btnUserClose) {
-                    btnUserClose.addEventListener('click', function () {
-                        userPanel.classList.remove('active');
-                    });
+            // Kiểm tra trạng thái đóng mở chat > 30 phút
+            function checkChatSessionTimeout() {
+                const lastClosedTime = localStorage.getItem('xfan_chat_closed_time');
+                const now = Date.now();
+                const THIRTY_MINUTES = 30 * 60 * 1000;
+
+                // Nếu vừa mở trang hoặc thời gian đóng chat > 30 phút -> Trở về Bot Menu
+                if (!lastClosedTime || (now - parseInt(lastClosedTime)) > THIRTY_MINUTES) {
+                    resetToBotMenu();
                 }
+                
+                // Mặc dù ở Bot Menu nhưng vẫn đi kiểm tra xem người dùng đã từng nhắn với Admin chưa
+                fetchUserChatHistory();
             }
 
-            function appendBubble(text, type = 'received', senderName = 'XFAN Bot') {
-                if (!userMessagesBox) return;
+            function resetToBotMenu() {
+                isConnectedToAdmin = false;
+                if (chatStatusSubtitle) {
+                    chatStatusSubtitle.innerText = 'Hệ thống tư vấn tự động';
+                    chatStatusSubtitle.className = 'text-white-50 extra-small';
+                }
+                if (botWelcomeContainer) botWelcomeContainer.classList.remove('d-none');
+                if (chatHistoryContainer) chatHistoryContainer.innerHTML = '';
+            }
+
+            function fetchUserChatHistory() {
+                if (!isUserLoggedIn) return;
+                const userMsgUrl = "{{ Route::has('user.chat.messages') ? route('user.chat.messages') : url('/user/chat/messages') }}";
+
+                fetch(userMsgUrl, {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+                })
+                .then(r => r.ok ? r.json() : null)
+                .then(data => {
+                    if (!data) return;
+                    const msgs = Array.isArray(data) ? data : (data.messages || []);
+                    cachedHistory = msgs;
+
+                    // Nếu đã có tin nhắn trao đổi với Admin -> Hiện nút "Tiếp tục cuộc trò chuyện"
+                    if (msgs && msgs.length > 0) {
+                        if (btnContinueChat) btnContinueChat.classList.remove('d-none');
+                    } else {
+                        if (btnContinueChat) btnContinueChat.classList.add('d-none');
+                    }
+                })
+                .catch(() => {});
+            }
+
+            // Bấm nút "Tiếp tục cuộc trò chuyện với Tư vấn viên"
+            window.resumeAdminChat = function() {
+                isConnectedToAdmin = true;
+                
+                // Cập nhật Header
+                if (chatStatusSubtitle) {
+                    chatStatusSubtitle.innerText = '🟢 Đã kết nối với Tư vấn viên Admin';
+                    chatStatusSubtitle.className = 'text-warning extra-small fw-bold';
+                }
+
+                // Ẩn Menu Bot (ảnh 1 & ảnh 2)
+                if (botWelcomeContainer) botWelcomeContainer.classList.add('d-none');
+
+                // Render lịch sử chat
+                if (chatHistoryContainer) {
+                    chatHistoryContainer.innerHTML = '';
+                    cachedHistory.forEach(m => {
+                        let text = m.content || m.message || '';
+                        let isMe = (m.sender_id == currentUserId || m.type === 'user');
+                        appendBubbleToBox(chatHistoryContainer, text, isMe ? 'sent' : 'received', isMe ? 'Bạn' : 'Tư vấn viên Admin');
+                    });
+                }
+                userMessagesBox.scrollTop = userMessagesBox.scrollHeight;
+            };
+
+            function appendBubbleToBox(targetBox, text, type = 'received', senderName = 'XFAN Bot') {
+                if (!targetBox) return;
                 const div = document.createElement('div');
                 div.className = type === 'sent' ? 'msg-bubble-sent' : 'msg-bubble-received';
                 if (type === 'received') {
@@ -512,40 +592,52 @@
                 } else {
                     div.innerHTML = `<div>${text}</div>`;
                 }
-                userMessagesBox.appendChild(div);
+                targetBox.appendChild(div);
                 userMessagesBox.scrollTop = userMessagesBox.scrollHeight;
             }
 
-            function connectDirectToAdmin() {
-                isConnectedToAdmin = true;
-                if (chatStatusSubtitle) {
-                    chatStatusSubtitle.innerText = '🟢 Đã kết nối với Tư vấn viên Admin';
-                    chatStatusSubtitle.classList.replace('text-white-50', 'text-warning');
+            if (btnUserToggle && userPanel) {
+                checkChatSessionTimeout();
+
+                btnUserToggle.addEventListener('click', function () {
+                    userPanel.classList.toggle('active');
+                });
+
+                if (btnUserClose) {
+                    btnUserClose.addEventListener('click', function () {
+                        userPanel.classList.remove('active');
+                        // Lưu thời gian tại thời điểm người dùng đóng bong bóng chat
+                        localStorage.setItem('xfan_chat_closed_time', Date.now().toString());
+                    });
                 }
-                appendBubble('🟢 <b>Hệ thống đã kết nối bạn với Nhân viên Tư vấn!</b> Vui lòng để lại tin nhắn, Admin sẽ phản hồi bạn ngay lập tức.', 'received', 'Hệ thống');
             }
 
             window.handleOptionSelect = function(actionKey, labelText) {
-                appendBubble(labelText, 'sent');
+                // Thêm tin nhắn lựa chọn vào menu bot
+                const botMsgDiv = document.createElement('div');
+                botMsgDiv.className = 'msg-bubble-sent';
+                botMsgDiv.innerHTML = `<div>${labelText}</div>`;
+                botWelcomeContainer.appendChild(botMsgDiv);
+                userMessagesBox.scrollTop = userMessagesBox.scrollHeight;
 
                 setTimeout(() => {
                     if (actionKey === 'buy_product') {
-                        appendBubble(`🔥 <b>Sản phẩm được mua nhiều nhất tại XFAN Store:</b><br>• <b>${bestSellerName}</b><br>• Giá bán: <span class="text-danger fw-bold">${bestSellerPrice}</span><br><br>👉 Bạn có thể truy cập mục <b>Cửa Hàng</b> trên thanh menu để xem chi tiết thông số và đặt mua nhé!`, 'received');
+                        appendBubbleToBox(botWelcomeContainer, `🔥 <b>Sản phẩm được mua nhiều nhất tại XFAN Store:</b><br>• <b>${bestSellerName}</b><br>• Giá bán: <span class="text-danger fw-bold">${bestSellerPrice}</span><br><br>👉 Bạn có thể truy cập mục <b>Cửa Hàng</b> trên thanh menu để xem chi tiết thông số và đặt mua nhé!`, 'received');
                     
                     } else if (actionKey === 'track_order') {
                         if (!isUserLoggedIn) {
-                            appendBubble('Vui lòng <a href="/login" class="fw-bold">Đăng nhập</a> để tra cứu thông tin đơn hàng gần nhất của bạn.', 'received');
+                            appendBubbleToBox(botWelcomeContainer, 'Vui lòng <a href="/login" class="fw-bold">Đăng nhập</a> để tra cứu thông tin đơn hàng gần nhất của bạn.', 'received');
                         } else if (latestOrderInfo) {
-                            appendBubble(`📦 <b>Thông tin đơn hàng gần nhất của bạn:</b><br>• Mã đơn: <b>#${latestOrderInfo.id}</b><br>• Thời gian đặt: <b>${latestOrderInfo.created_at}</b><br>• Trạng thái: <span class="badge bg-info text-dark">${latestOrderInfo.status}</span><br>• Tổng tiền: <b>${latestOrderInfo.total}</b><br><br><i>(Để xem danh sách toàn bộ lịch sử, vui lòng vào mục "Lịch sử đơn hàng" trên thanh menu)</i>`, 'received');
+                            appendBubbleToBox(botWelcomeContainer, `📦 <b>Thông tin đơn hàng gần nhất của bạn:</b><br>• Mã đơn: <b>#${latestOrderInfo.id}</b><br>• Thời gian đặt: <b>${latestOrderInfo.created_at}</b><br>• Trạng thái: <span class="badge bg-info text-dark">${latestOrderInfo.status}</span><br>• Tổng tiền: <b>${latestOrderInfo.total}</b><br><br><i>(Để xem danh sách toàn bộ lịch sử, vui lòng vào mục "Lịch sử đơn hàng" trên thanh menu)</i>`, 'received');
                         } else {
-                            appendBubble('Bạn chưa có đơn hàng nào tại XFAN Store.', 'received');
+                            appendBubbleToBox(botWelcomeContainer, 'Bạn chưa có đơn hàng nào tại XFAN Store.', 'received');
                         }
 
                     } else if (actionKey === 'promotion') {
-                        appendBubble(`💰 <b>Khoảng giá sản phẩm tại XFAN Store:</b><br>Các mẫu máy hút mùi tại cửa hàng hiện có mức giá dao động từ <b>${minPriceFormatted}</b> đến <b>${maxPriceFormatted}</b> tùy thuộc vào kiểu dáng và công suất.<br><br>📢 <b>Khuyến mại:</b> Cửa hàng hiện tại không có chương trình khuyến mại.`, 'received');
+                        appendBubbleToBox(botWelcomeContainer, `💰 <b>Khoảng giá sản phẩm tại XFAN Store:</b><br>Các mẫu máy hút mùi tại cửa hàng hiện có mức giá dao động từ <b>${minPriceFormatted}</b> đến <b>${maxPriceFormatted}</b> tùy thuộc vào kiểu dáng và công suất.<br><br>📢 <b>Khuyến mại:</b> Cửa hàng hiện tại không có chương trình khuyến mại.`, 'received');
                     
                     } else if (actionKey === 'connect_admin') {
-                        connectDirectToAdmin();
+                        resumeAdminChat();
                     }
                 }, 400);
             };
@@ -556,11 +648,14 @@
                     let msg = userInput.value.trim();
                     if (!msg) return;
 
-                    appendBubble(msg, 'sent');
+                    const activeTargetBox = isConnectedToAdmin ? chatHistoryContainer : botWelcomeContainer;
+                    appendBubbleToBox(activeTargetBox, msg, 'sent');
                     userInput.value = '';
 
+                    const userSendUrl = "{{ Route::has('user.chat.send') ? route('user.chat.send') : url('/user/chat/send') }}";
+
                     if (isConnectedToAdmin) {
-                        fetch("{{ Route::has('user.chat.send') ? route('user.chat.send') : '#' }}", {
+                        fetch(userSendUrl, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
                             body: JSON.stringify({ message: msg })
@@ -572,10 +667,10 @@
 
                     if (unhandledAttempts >= 3) {
                         setTimeout(() => {
-                            appendBubble('Tôi nhận thấy câu hỏi của bạn cần sự hỗ trợ chuyên sâu hơn từ kỹ thuật viên.', 'received');
-                            connectDirectToAdmin();
+                            appendBubbleToBox(botWelcomeContainer, 'Tôi nhận thấy câu hỏi của bạn cần sự hỗ trợ chuyên sâu hơn từ kỹ thuật viên.', 'received');
+                            resumeAdminChat();
                             
-                            fetch("{{ Route::has('user.chat.send') ? route('user.chat.send') : '#' }}", {
+                            fetch(userSendUrl, {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
                                 body: JSON.stringify({ message: msg })
@@ -585,7 +680,7 @@
                     }
 
                     setTimeout(() => {
-                        appendBubble(`Cảm ơn bạn. Bot chưa nhận diện rõ câu hỏi "${msg}". Vui lòng chọn menu bên trên hoặc nhập lại chi tiết hơn (Lần ${unhandledAttempts}/3 trước khi chuyển Admin).`, 'received');
+                        appendBubbleToBox(botWelcomeContainer, `Cảm ơn bạn. Bot chưa nhận diện rõ câu hỏi "${msg}". Vui lòng chọn menu bên trên hoặc nhập lại chi tiết hơn (Lần ${unhandledAttempts}/3 trước khi chuyển Admin).`, 'received');
                     }, 500);
                 });
             }

@@ -59,17 +59,37 @@
     <!-- KHU VỰC THÔNG TIN CHÍNH & ĐẶT HÀNG -->
     <div class="card p-4 shadow-sm border-0 mb-4">
         <div class="row align-items-center">
-            <!-- Cột Trái: Ảnh Sản Phẩm -->
+            <!-- Cột Trái: Ảnh Sản Phẩm (Đã sửa lỗi đường dẫn) -->
             <div class="col-md-5 text-center mb-3 mb-md-0">
                 @php
-                    $imagePath = $hood->image ?? $hood->image_url ?? $hood->category?->image;
+                    $rawPath = trim($hood->image ?? $hood->image_url ?? $hood->category?->image ?? '');
+                    $displayImage = null;
+
+                    if (!empty($rawPath)) {
+                        // Trường hợp 1: Đường dẫn dạng URL tuyệt đối (http:// hoặc https://)
+                        if (\Illuminate\Support\Str::startsWith($rawPath, ['http://', 'https://'])) {
+                            $displayImage = $rawPath;
+                        } else {
+                            // Bỏ dấu / ở đầu chuỗi nếu có
+                            $cleanPath = ltrim($rawPath, '/');
+                            
+                            // Trường hợp 2: Nếu trong CSDL đã có sẵn tiền tố 'storage/'
+                            if (\Illuminate\Support\Str::startsWith($cleanPath, 'storage/')) {
+                                $displayImage = asset($cleanPath);
+                            } else {
+                                // Trường hợp 3: Chỉ lưu tên thư mục/file như 'hoods/filename.png'
+                                $displayImage = asset('storage/' . $cleanPath);
+                            }
+                        }
+                    }
                 @endphp
 
-                @if($imagePath)
-                    <img src="{{ \Illuminate\Support\Str::startsWith($imagePath, ['http://', 'https://']) ? $imagePath : asset('storage/' . $imagePath) }}" 
+                @if($displayImage)
+                    <img src="{{ $displayImage }}" 
                          class="img-fluid rounded shadow-sm" 
                          alt="{{ $hood->name }}" 
-                         style="max-height: 350px; object-fit: cover; width: 100%;">
+                         style="max-height: 350px; object-fit: contain; width: 100%;"
+                         onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'bg-light d-flex align-items-center justify-content-center rounded\' style=\'height: 300px;\'><i class=\'fas fa-fan fa-4x text-secondary\'></i></div>';">
                 @else
                     <div class="bg-light d-flex align-items-center justify-content-center rounded" style="height: 300px;">
                         <i class="fas fa-fan fa-4x text-secondary"></i>
