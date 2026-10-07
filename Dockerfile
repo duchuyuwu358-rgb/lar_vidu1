@@ -8,7 +8,8 @@ RUN apt-get update && apt-get install -y \
     libonig-dev \
     libxml2-dev \
     zip \
-    unzip
+    unzip \
+    && rm -rf /var/lib/apt/lists/*
 
 # Cài đặt các PHP extension cho Laravel
 RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
@@ -25,8 +26,8 @@ COPY . /var/www
 # 1. Cài đặt các gói vendor cho Laravel khi build
 RUN composer install --no-dev --optimize-autoloader --no-interaction
 
-# 2. Tạo liên kết lưu trữ ảnh storage:link
-RUN php artisan storage:link --force
+# 2. Xóa thư mục/link storage cũ bị trùng và tạo lại storage:link
+RUN rm -rf /var/www/public/storage && php artisan storage:link
 
 # 3. Phân quyền thư mục ghi log, cache & storage cho Laravel
 RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache /var/www/public
