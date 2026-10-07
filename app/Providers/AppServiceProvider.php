@@ -28,9 +28,20 @@ class AppServiceProvider extends ServiceProvider
             URL::forceScheme('https');
         }
 
-        // 2. Tự động tạo liên kết public/storage tới storage/app/public nếu chưa tồn tại
-        if (!file_exists(public_path('storage')) && file_exists(storage_path('app/public'))) {
-            app('files')->link(storage_path('app/public'), public_path('storage'));
+        // 2. Tự động kiểm tra và xử lý symlink hỏng, kết nối public/storage với storage/app/public
+        $publicStoragePath = public_path('storage');
+        $targetStoragePath = storage_path('app/public');
+
+        if (file_exists($targetStoragePath)) {
+            // Xóa liên kết cũ nếu đó là symlink bị hỏng trên Render
+            if (is_link($publicStoragePath)) {
+                @unlink($publicStoragePath);
+            }
+
+            // Tạo mới liên kết public/storage
+            if (!file_exists($publicStoragePath)) {
+                app('files')->link($targetStoragePath, $publicStoragePath);
+            }
         }
 
         // Cấu hình phân trang Bootstrap 5 (Sửa lỗi vỡ icon/mũi tên)
