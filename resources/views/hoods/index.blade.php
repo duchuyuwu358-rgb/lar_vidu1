@@ -19,19 +19,19 @@
         <div class="col-md-4">
             <div class="card bg-primary text-white p-3 shadow-sm">
                 <h5>Tổng Số Lượng</h5>
-                <h3 class="mb-0">{{ $totalHoods }}</h3>
+                <h3 class="mb-0">{{ $totalHoods ?? 0 }}</h3>
             </div>
         </div>
         <div class="col-md-4">
             <div class="card bg-success text-white p-3 shadow-sm">
                 <h5>Đang Bán</h5>
-                <h3 class="mb-0">{{ $sellingHoods }}</h3>
+                <h3 class="mb-0">{{ $sellingHoods ?? 0 }}</h3>
             </div>
         </div>
         <div class="col-md-4">
             <div class="card bg-secondary text-white p-3 shadow-sm">
                 <h5>Hết Hàng / Ngừng Bán</h5>
-                <h3 class="mb-0">{{ $soldOutHoods }}</h3>
+                <h3 class="mb-0">{{ $soldOutHoods ?? 0 }}</h3>
             </div>
         </div>
     </div>
@@ -41,30 +41,34 @@
         <div class="card-body">
             <form action="{{ route('hoods.index') }}" method="GET" class="row g-3">
                 <div class="col-md-3">
-                    <input type="text" name="search" class="form-control" placeholder="Tìm theo tên hoặc model..." value="{{ $search }}">
+                    <input type="text" name="search" class="form-control" placeholder="Tìm theo tên hoặc model..." value="{{ request('search', $search ?? '') }}">
                 </div>
                 <div class="col-md-3">
                     <select name="category" class="form-select">
                         <option value="">-- Tất cả danh mục --</option>
-                        @foreach ($categories as $cat)
-                            <option value="{{ $cat->id }}" {{ $category == $cat->id ? 'selected' : '' }}>{{ $cat->name }}</option>
-                        @endforeach
+                        @if(isset($categories))
+                            @foreach ($categories as $cat)
+                                <option value="{{ $cat->id }}" {{ request('category', $category ?? '') == $cat->id ? 'selected' : '' }}>{{ $cat->name }}</option>
+                            @endforeach
+                        @endif
                     </select>
                 </div>
                 <div class="col-md-2">
                     <select name="type" class="form-select">
                         <option value="">-- Tất cả loại --</option>
-                        @foreach ($types as $val => $label)
-                            <option value="{{ $val }}" {{ $type == $val ? 'selected' : '' }}>{{ $label }}</option>
-                        @endforeach
+                        @if(isset($types) && is_array($types))
+                            @foreach ($types as $val => $label)
+                                <option value="{{ $val }}" {{ request('type', $type ?? '') == $val ? 'selected' : '' }}>{{ $label }}</option>
+                            @endforeach
+                        @endif
                     </select>
                 </div>
                 <div class="col-md-2">
                     <select name="status" class="form-select">
                         <option value="">-- Tất cả trạng thái --</option>
-                        <option value="selling" {{ $status === 'selling' ? 'selected' : '' }}>Đang bán</option>
-                        <option value="importing" {{ $status === 'importing' ? 'selected' : '' }}>Đang nhập</option>
-                        <option value="sold_out" {{ $status === 'sold_out' ? 'selected' : '' }}>Hết hàng</option>
+                        <option value="selling" {{ request('status', $status ?? '') === 'selling' ? 'selected' : '' }}>Đang bán</option>
+                        <option value="importing" {{ request('status', $status ?? '') === 'importing' ? 'selected' : '' }}>Đang nhập</option>
+                        <option value="sold_out" {{ request('status', $status ?? '') === 'sold_out' ? 'selected' : '' }}>Hết hàng</option>
                     </select>
                 </div>
                 <div class="col-md-2 d-flex gap-2">
@@ -97,22 +101,32 @@
                         @forelse ($hoods as $hood)
                             <tr>
                                 <td>
-                                    @if ($hood->image)
-                                        <img src="{{ asset('storage/' . $hood->image) }}" alt="{{ $hood->name }}" width="50" height="50" class="rounded object-fit-cover">
+                                    @php
+                                        $imagePath = $hood->image ?? $hood->image_url;
+                                    @endphp
+                                    @if ($imagePath)
+                                        @php
+                                            $imageUrl = \Illuminate\Support\Str::startsWith($imagePath, ['http://', 'https://']) 
+                                                ? $imagePath 
+                                                : asset('storage/' . ltrim($imagePath, '/'));
+                                        @endphp
+                                        <img src="{{ $imageUrl }}" alt="{{ $hood->name }}" width="50" height="50" class="rounded object-fit-cover">
                                     @else
-                                        <span class="text-muted small">Không có ảnh</span>
+                                        <div class="bg-light rounded d-flex align-items-center justify-content-center text-muted" style="width: 50px; height: 50px; font-size: 0.75rem;">
+                                            No pic
+                                        </div>
                                     @endif
                                 </td>
                                 <td class="fw-bold">{{ $hood->name }}</td>
                                 <td>{{ $hood->model ?? '-' }}</td>
                                 <td>{{ $hood->category->name ?? '-' }}</td>
-                                <td>{{ $types[$hood->type] ?? $hood->type }}</td>
-                                <td class="text-nowrap">{{ number_format($hood->price, 0, ',', '.') }} VNĐ</td>
-                                <td>{{ $hood->stock_quantity }}</td>
+                                <td>{{ $types[$hood->type] ?? $hood->type ?? '-' }}</td>
+                                <td class="text-nowrap">{{ $hood->price ? number_format($hood->price, 0, ',', '.') . ' VNĐ' : 'Liên hệ' }}</td>
+                                <td>{{ $hood->stock_quantity ?? 0 }}</td>
                                 <td>
-                                    @if ($hood->is_active && $hood->stock_quantity > 0)
+                                    @if (($hood->is_active ?? true) && ($hood->stock_quantity ?? 0) > 0)
                                         <span class="badge bg-success">Đang bán</span>
-                                    @elseif ($hood->is_active && $hood->stock_quantity <= 0)
+                                    @elseif (($hood->is_active ?? true) && ($hood->stock_quantity ?? 0) <= 0)
                                         <span class="badge bg-warning text-dark">Đang nhập</span>
                                     @else
                                         <span class="badge bg-danger">Ngừng bán</span>
@@ -140,9 +154,9 @@
                 </table>
             </div>
         </div>
-        @if ($hoods->hasPages())
+        @if (method_exists($hoods, 'hasPages') && $hoods->hasPages())
             <div class="card-footer bg-white pt-3">
-                {{ $hoods->links() }}
+                {{ $hoods->appends(request()->query())->links() }}
             </div>
         @endif
     </div>

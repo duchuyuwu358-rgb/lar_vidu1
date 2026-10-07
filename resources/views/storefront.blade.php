@@ -36,14 +36,15 @@
             <div class="col-md-3">
                 <label class="form-label fw-bold text-secondary small">Danh mục</label>
                 <select name="category" class="form-select bg-light">
-                    <option value="">-- Tất cả danh mục --</option>
-                    @if(isset($categories))
-                        @foreach($categories as $cat)
-                            <option value="{{ $cat->id }}" {{ (request('category') == $cat->id || request('category_id') == $cat->id) ? 'selected' : '' }}>
-                                {{ $cat->name }}
-                            </option>
-                        @endforeach
-                    @endif
+    <option value="">-- Tất cả danh mục --</option>
+    @if(isset($categories))
+        @foreach($categories as $cat)
+            <option value="{{ $cat->id }}" {{ (request('category') == $cat->id || request('category_id') == $cat->id) ? 'selected' : '' }}>
+                {{ $cat->name }}
+            </option>
+        @endforeach
+    @endif
+</select>
                 </select>
             </div>
 
@@ -87,7 +88,12 @@
                         }
                     @endphp
                     @if($imagePath)
-                        <img src="{{ \Illuminate\Support\Str::startsWith($imagePath, ['http://', 'https://']) ? $imagePath : asset('storage/' .$imagePath) }}" 
+                        @php
+                            $imageUrl = \Illuminate\Support\Str::startsWith($imagePath, ['http://', 'https://', 'uploads/']) 
+                                ? asset($imagePath) 
+                                : asset('storage/' . $imagePath);
+                        @endphp
+                        <img src="{{ $imageUrl }}" 
                              alt="{{ $hood->name }}" 
                              class="card-img-top rounded" 
                              style="height: 200px; object-fit: cover;"
@@ -211,7 +217,6 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = await response.json();
             loadedMessages = data.messages || data || [];
 
-            // Kiểm tra có tin nhắn cũ hay không
             const hasHistory = Array.isArray(loadedMessages) && loadedMessages.length > 0;
             renderBotMenu(hasHistory, loadedMessages);
         } catch (error) {

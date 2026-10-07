@@ -30,7 +30,7 @@
                 @method('PUT')
 
                 @php
-                    $currentStatus = $hood->is_active ? ($hood->stock_quantity > 0 ? 'selling' : 'importing') : 'sold_out';
+                    $currentStatus = $hood->is_active ? (($hood->stock_quantity ?? 0) > 0 ? 'selling' : 'importing') : 'sold_out';
                 @endphp
 
                 <div class="row">
@@ -49,28 +49,32 @@
                         <label for="category_id" class="form-label fw-bold">Danh Mục <span class="text-danger">*</span></label>
                         <select class="form-select @error('category_id') is-invalid @enderror" id="category_id" name="category_id" required onchange="updateColorOptions(false)">
                             <option value="">-- Chọn Danh Mục --</option>
-                            @foreach ($categories as $category)
-                                @php
-                                    $catColors = $category->colors ?? [];
-                                    if (is_string($catColors)) {
-                                        $catColors = json_decode($catColors, true) ?? [];
-                                    }
-                                @endphp
-                                <option value="{{ $category->id }}" 
-                                        data-colors='@json($catColors)' 
-                                        {{ old('category_id', $hood->category_id) == $category->id ? 'selected' : '' }}>
-                                    {{ $category->name }}
-                                </option>
-                            @endforeach
+                            @if(isset($categories))
+                                @foreach ($categories as $category)
+                                    @php
+                                        $catColors = $category->colors ?? [];
+                                        if (is_string($catColors)) {
+                                            $catColors = json_decode($catColors, true) ?? [];
+                                        }
+                                    @endphp
+                                    <option value="{{ $category->id }}" 
+                                            data-colors='@json($catColors)' 
+                                            {{ old('category_id', $hood->category_id) == $category->id ? 'selected' : '' }}>
+                                        {{ $category->name }}
+                                    </option>
+                                @endforeach
+                            @endif
                         </select>
                     </div>
 
                     <div class="col-md-6 mb-3">
                         <label for="type" class="form-label fw-bold">Loại Máy <span class="text-danger">*</span></label>
                         <select class="form-select @error('type') is-invalid @enderror" id="type" name="type" required>
-                            @foreach ($types as $value => $label)
-                                <option value="{{ $value }}" {{ old('type', $hood->type) == $value ? 'selected' : '' }}>{{ $label }}</option>
-                            @endforeach
+                            @if(isset($types) && is_array($types))
+                                @foreach ($types as $value => $label)
+                                    <option value="{{ $value }}" {{ old('type', $hood->type) == $value ? 'selected' : '' }}>{{ $label }}</option>
+                                @endforeach
+                            @endif
                         </select>
                     </div>
                 </div>
@@ -121,9 +125,17 @@
 
                 <div class="mb-3">
                     <label for="image" class="form-label fw-bold">Hình Ảnh Sản Phẩm</label>
-                    @if ($hood->image)
+                    @php
+                        $imagePath = $hood->image ?? $hood->image_url;
+                    @endphp
+                    @if ($imagePath)
+                        @php
+                            $imageUrl = \Illuminate\Support\Str::startsWith($imagePath, ['http://', 'https://']) 
+                                ? $imagePath 
+                                : asset('storage/' . ltrim($imagePath, '/'));
+                        @endphp
                         <div class="mb-2">
-                            <img src="{{ asset('storage/' . $hood->image) }}" alt="Ảnh hiện tại" width="100" class="img-thumbnail shadow-sm">
+                            <img src="{{ $imageUrl }}" alt="Ảnh hiện tại" width="100" class="img-thumbnail shadow-sm">
                         </div>
                     @endif
                     <input type="file" class="form-control @error('image') is-invalid @enderror" id="image" name="image" accept="image/*">
@@ -193,18 +205,19 @@
             opt.textContent = '-- Chọn Danh Mục để chọn Màu --';
             colorSelect.appendChild(opt);
         } else {
-            // Giữ lại màu hiện tại của sản phẩm nếu là lần đầu load trang
             if (isInitialLoad && initialColor && !allowedColors.includes(initialColor)) {
                 allowedColors.unshift(initialColor);
             }
 
-            allowedColors.forEach(color => {
+            allowedColors.forEach((color, index) => {
                 const cleanColor = String(color).trim();
                 const opt = document.createElement('option');
                 opt.value = cleanColor;
                 opt.textContent = cleanColor;
                 
                 if (isInitialLoad && cleanColor === initialColor) {
+                    opt.selected = true;
+                } else if (!isInitialLoad && index === 0) {
                     opt.selected = true;
                 }
                 colorSelect.appendChild(opt);

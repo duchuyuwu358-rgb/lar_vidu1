@@ -197,14 +197,13 @@ class HoodController extends Controller
             $validated['stock_quantity'] = 0;
         }
 
+        // Lưu ảnh trực tiếp vào public/uploads/hoods
         if ($request->hasFile('image')) {
-            $folder = 'hoods';
-            Storage::disk('public')->makeDirectory($folder);
-
             $image = $request->file('image');
             $imageName = time() . '-' . uniqid() . '.' . $image->getClientOriginalExtension();
-            $path = $image->storeAs($folder, $imageName, 'public');
-            $validated['image'] = $path;
+            
+            $image->move(public_path('uploads/hoods'), $imageName);
+            $validated['image'] = 'uploads/hoods/' . $imageName;
         }
 
         Hood::create($validated);
@@ -287,18 +286,19 @@ class HoodController extends Controller
             $validated['stock_quantity'] = 0;
         }
 
+        // Cập nhật và lưu ảnh vào public/uploads/hoods
         if ($request->hasFile('image')) {
-            if ($hood->image && Storage::disk('public')->exists($hood->image)) {
+            if ($hood->image && file_exists(public_path($hood->image))) {
+                @unlink(public_path($hood->image));
+            } elseif ($hood->image && Storage::disk('public')->exists($hood->image)) {
                 Storage::disk('public')->delete($hood->image);
             }
 
-            $folder = 'hoods';
-            Storage::disk('public')->makeDirectory($folder);
-
             $image = $request->file('image');
             $imageName = time() . '-' . uniqid() . '.' . $image->getClientOriginalExtension();
-            $path = $image->storeAs($folder, $imageName, 'public');
-            $validated['image'] = $path;
+            
+            $image->move(public_path('uploads/hoods'), $imageName);
+            $validated['image'] = 'uploads/hoods/' . $imageName;
         }
 
         $hood->update($validated);
@@ -311,7 +311,9 @@ class HoodController extends Controller
      */
     public function destroy(Hood $hood)
     {
-        if ($hood->image && Storage::disk('public')->exists($hood->image)) {
+        if ($hood->image && file_exists(public_path($hood->image))) {
+            @unlink(public_path($hood->image));
+        } elseif ($hood->image && Storage::disk('public')->exists($hood->image)) {
             Storage::disk('public')->delete($hood->image);
         }
 
