@@ -3,6 +3,8 @@
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
+use Illuminate\Support\Facades\Response;
+use Illuminate\Support\Facades\File;
 
 // Controllers
 use App\Http\Controllers\AuthController;
@@ -207,3 +209,22 @@ Route::middleware('auth')->group(function () {
             Route::get('/v2/services', [AdminServicePackageController::class, 'index'])->name('admin.services.v2.index');
         });
 });
+
+// ========================================================
+// 4. ROUTE ĐỌC ẢNH TRỰC TIẾP TỪ STORAGE (DÀNH CHO RENDER)
+// ========================================================
+Route::get('/storage/{path}', function ($path) {
+    $filePath = storage_path('app/public/' . $path);
+
+    if (!File::exists($filePath)) {
+        abort(404);
+    }
+
+    $file = File::get($filePath);
+    $type = File::mimeType($filePath);
+
+    $response = Response::make($file, 200);
+    $response->header("Content-Type", $type);
+
+    return $response;
+})->where('path', '.*');
