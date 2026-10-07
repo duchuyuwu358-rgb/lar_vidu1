@@ -36,15 +36,15 @@
             <div class="col-md-3">
                 <label class="form-label fw-bold text-secondary small">Danh mục</label>
                 <select name="category" class="form-select bg-light">
-                    <option value="">-- Tất cả danh mục --</option>
-                    @if(isset($categories))
-                        @foreach($categories as $cat)
-                            <option value="{{ $cat->id }}" {{ (request('category') == $cat->id \vert{}\vert{} request('category_id') ==$cat->id) ? 'selected' : '' }}>
-                                {{ $cat->name }}
-                            </option>
-                        @endforeach
-                    @endif
-                </select>
+    <option value="">-- Tất cả danh mục --</option>
+    @if(isset($categories))
+        @foreach($categories as $cat)
+            <option value="{{ $cat->id }}" {{ (request('category') == $cat->id || request('category_id') == $cat->id) ? 'selected' : '' }}>
+                {{ $cat->name }}
+            </option>
+        @endforeach
+    @endif
+</select>
             </div>
 
             <!-- Dropdown Khoảng giá -->
