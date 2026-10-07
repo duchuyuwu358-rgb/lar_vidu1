@@ -48,7 +48,9 @@
                         <option value="">-- Tất cả danh mục --</option>
                         @if(isset($categories))
                             @foreach ($categories as $cat)
-                                <option value="{{ $cat->id }}" {{ request('category', $category ?? '') == $cat->id ? 'selected' : '' }}>{{ $cat->name }}</option>
+                                <option value="{{ $cat->id }}" {{ (request('category', $category ?? '') == $cat->id || request('category_id') == $cat->id) ? 'selected' : '' }}>
+                                    {{ $cat->name }}
+                                </option>
                             @endforeach
                         @endif
                     </select>
@@ -102,15 +104,25 @@
                             <tr>
                                 <td>
                                     @php
-                                        $imagePath = $hood->image ?? $hood->image_url;
+                                        $imagePath = $hood->image ?? $hood->image_url ?? $hood->category?->image;
+                                        $imageUrl = null;
+                                        if ($imagePath) {
+                                            $imagePath = trim($imagePath);
+                                            if (\Illuminate\Support\Str::startsWith($imagePath, ['http://', 'https://'])) {
+                                                $imageUrl = $imagePath;
+                                            } else {
+                                                $imageUrl = asset('storage/' . ltrim($imagePath, '/'));
+                                            }
+                                        }
                                     @endphp
-                                    @if ($imagePath)
-                                        @php
-                                            $imageUrl = \Illuminate\Support\Str::startsWith($imagePath, ['http://', 'https://']) 
-                                                ? $imagePath 
-                                                : asset('storage/' . ltrim($imagePath, '/'));
-                                        @endphp
-                                        <img src="{{ $imageUrl }}" alt="{{ $hood->name }}" width="50" height="50" class="rounded object-fit-cover">
+                                    @if ($imageUrl)
+                                        <img src="{{ $imageUrl }}" 
+                                             alt="{{ $hood->name }}" 
+                                             width="50" 
+                                             height="50" 
+                                             class="rounded object-fit-cover"
+                                             referrerpolicy="no-referrer"
+                                             onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'bg-light rounded d-flex align-items-center justify-content-center text-muted\' style=\'width:50px;height:50px;font-size:0.7rem;\'>No pic</div>';">
                                     @else
                                         <div class="bg-light rounded d-flex align-items-center justify-content-center text-muted" style="width: 50px; height: 50px; font-size: 0.75rem;">
                                             No pic
