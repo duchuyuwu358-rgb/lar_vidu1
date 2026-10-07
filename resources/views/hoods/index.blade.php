@@ -104,17 +104,28 @@
                             <tr>
                                 <td>
                                     @php
-                                        $imagePath = $hood->image ?? $hood->image_url ?? $hood->category?->image;
+                                        // Kiểm tra tất cả các tên cột có thể dùng lưu ảnh
+                                        $rawImage = $hood->image 
+                                            ?? $hood->image_url 
+                                            ?? $hood->photo 
+                                            ?? $hood->thumbnail 
+                                            ?? $hood->img 
+                                            ?? $hood->picture 
+                                            ?? $hood->avatar 
+                                            ?? $hood->category?->image;
+
                                         $imageUrl = null;
-                                        if ($imagePath) {
-                                            $imagePath = trim($imagePath);
-                                            if (\Illuminate\Support\Str::startsWith($imagePath, ['http://', 'https://'])) {
-                                                $imageUrl = $imagePath;
+
+                                        if (!empty($rawImage)) {
+                                            $path = trim($rawImage);
+                                            if (\Illuminate\Support\Str::startsWith($path, ['http://', 'https://'])) {
+                                                $imageUrl = $path;
                                             } else {
-                                                $imageUrl = asset('storage/' . ltrim($imagePath, '/'));
+                                                $imageUrl = asset('storage/' . ltrim($path, '/'));
                                             }
                                         }
                                     @endphp
+
                                     @if ($imageUrl)
                                         <img src="{{ $imageUrl }}" 
                                              alt="{{ $hood->name }}" 
@@ -122,7 +133,7 @@
                                              height="50" 
                                              class="rounded object-fit-cover"
                                              referrerpolicy="no-referrer"
-                                             onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'bg-light rounded d-flex align-items-center justify-content-center text-muted\' style=\'width:50px;height:50px;font-size:0.7rem;\'>No pic</div>';">
+                                             onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\'bg-light rounded d-flex align-items-center justify-content-center text-muted\' style=\'width:50px;height:50px;font-size:0.75rem;\'>No pic</div>';">
                                     @else
                                         <div class="bg-light rounded d-flex align-items-center justify-content-center text-muted" style="width: 50px; height: 50px; font-size: 0.75rem;">
                                             No pic
