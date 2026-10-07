@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ServicePackage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 
 class AdminServicePackageController extends Controller
 {
@@ -31,11 +32,17 @@ class AdminServicePackageController extends Controller
         return view('admin.services.index', compact('services'));
     }
 
+    /**
+     * Trang thêm mới gói dịch vụ
+     */
     public function create()
     {
         return view('admin.services.create');
     }
 
+    /**
+     * Lưu thông tin gói dịch vụ mới
+     */
     public function store(Request $request)
     {
         $data = $request->validate([
@@ -60,27 +67,36 @@ class AdminServicePackageController extends Controller
             'image.max' => 'Dung lượng ảnh không được vượt quá 2MB.',
         ]);
 
-        if ($request->hasFile('image')) {
+        // Upload file ảnh nếu người dùng chọn file hợp lệ
+        if ($request->hasFile('image') && $request->file('image')->isValid()) {
             $data['image'] = $request->file('image')->store('services', 'public');
         }
 
         ServicePackage::create($data);
 
-        return redirect()->route('admin.services.index')->with('status', 'Thêm gói dịch vụ thành công!');
+        return redirect()->route('admin.services.index')
+            ->with('success', 'Thêm gói dịch vụ thành công!')
+            ->with('status', 'Thêm gói dịch vụ thành công!');
     }
 
+    /**
+     * Trang chỉnh sửa gói dịch vụ
+     */
     public function edit($id)
     {
         $service = ServicePackage::findOrFail($id);
         return view('admin.services.edit', compact('service'));
     }
 
+    /**
+     * Cập nhật thông tin gói dịch vụ
+     */
     public function update(Request $request, $id)
     {
         $service = ServicePackage::findOrFail($id);
 
         $data = $request->validate([
-            'name' => 'required|string|max:255|unique:service_packages,name,' . $id,
+            'name' => ['required', 'string', 'max:255', Rule::unique('service_packages', 'name')->ignore($id)],
             'price' => 'required|numeric|min:0|max:1000000000',
             'is_active' => 'required|in:0,1',
             'description' => 'nullable|string|max:2000',
@@ -101,7 +117,9 @@ class AdminServicePackageController extends Controller
             'image.max' => 'Dung lượng ảnh không được vượt quá 2MB.',
         ]);
 
-        if ($request->hasFile('image')) {
+        // Xử lý cập nhật ảnh mới
+        if ($request->hasFile('image') && $request->file('image')->isValid()) {
+            // Xóa file ảnh cũ nếu tồn tại trong ổ đĩa
             if ($service->image && Storage::disk('public')->exists($service->image)) {
                 Storage::disk('public')->delete($service->image);
             }
@@ -110,19 +128,27 @@ class AdminServicePackageController extends Controller
 
         $service->update($data);
 
-        return redirect()->route('admin.services.index')->with('status', 'Cập nhật dịch vụ thành công!');
+        return redirect()->route('admin.services.index')
+            ->with('success', 'Cập nhật dịch vụ thành công!')
+            ->with('status', 'Cập nhật dịch vụ thành công!');
     }
 
+    /**
+     * Xóa gói dịch vụ
+     */
     public function destroy($id)
     {
         $service = ServicePackage::findOrFail($id);
 
+        // Xóa tệp ảnh khỏi storage khi xóa dữ liệu
         if ($service->image && Storage::disk('public')->exists($service->image)) {
             Storage::disk('public')->delete($service->image);
         }
 
         $service->delete();
 
-        return redirect()->back()->with('status', 'Đã xóa dịch vụ thành công!');
+        return redirect()->back()
+            ->with('success', 'Đã xóa dịch vụ thành công!')
+            ->with('status', 'Đã xóa dịch vụ thành công!');
     }
 }
