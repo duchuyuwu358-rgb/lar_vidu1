@@ -25,6 +25,11 @@ return new class extends Migration
             $table->string('material')->nullable(); // Chất liệu
             $table->integer('warranty_months')->default(12); // Bảo hành (tháng)
             $table->enum('type', ['wall-mounted', 'under-cabinet', 'island', 'cooktop'])->default('wall-mounted'); // Loại hút mùi
+            
+            // BỔ SUNG CỘT LƯU ẢNH (Dùng longText để chứa link dài / dữ liệu Base64)
+            $table->longText('image')->nullable();
+            $table->longText('image_url')->nullable();
+
             $table->boolean('is_active')->default(true); // Kích hoạt/Ẩn
             $table->integer('stock_quantity')->default(0); // Số lượng tồn kho
             $table->timestamps();

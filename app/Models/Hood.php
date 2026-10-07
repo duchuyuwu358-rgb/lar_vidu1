@@ -25,6 +25,7 @@ class Hood extends Model
         'is_active',
         'stock_quantity',
         'image',
+        'image_url', // Bổ sung để cho phép lưu/cập nhật cột image_url
     ];
 
     public function category()
