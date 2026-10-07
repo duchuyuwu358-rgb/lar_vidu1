@@ -26,8 +26,8 @@ COPY . /var/www
 # 1. Cài đặt các gói vendor cho Laravel khi build
 RUN composer install --no-dev --optimize-autoloader --no-interaction
 
-# 2. Xóa thư mục/link storage cũ bị trùng và tạo lại storage:link
-RUN rm -rf /var/www/public/storage && php artisan storage:link
+# 2. Xóa link cũ và tạo lại symlink trực tiếp bằng Linux (tránh lỗi php artisan storage:link đã tồn tại)
+RUN rm -rf /var/www/public/storage && ln -sfn /var/www/storage/app/public /var/www/public/storage
 
 # 3. Phân quyền thư mục ghi log, cache & storage cho Laravel
 RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache /var/www/public
