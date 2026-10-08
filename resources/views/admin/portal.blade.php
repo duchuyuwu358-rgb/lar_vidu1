@@ -11,14 +11,6 @@
             <p class="text-muted small mb-0">Quản lý toàn bộ cửa hàng, báo cáo doanh thu & xuất dữ liệu</p>
         </div>
         <div class="d-flex flex-wrap gap-2">
-            <!-- Nút Quản lý Chat Khách hàng -->
-            @php
-                $chatRoute = Route::has('admin.chat') ? route('admin.chat') : (Route::has('admin.messages') ? route('admin.messages') : '#');
-            @endphp
-            <a href="{{ $chatRoute }}" class="btn btn-warning text-dark fw-bold shadow-sm px-3 py-2" title="Quản lý tin nhắn & tư vấn khách hàng">
-                <i class="fas fa-comments me-2"></i>Chat Khách hàng
-            </a>
-
             <!-- Nút mở Modal Báo Cáo Excel -->
             <button type="button" class="btn btn-success fw-bold shadow-sm px-3 py-2" 
                     data-bs-toggle="modal" data-bs-target="#exportExcelModal"
