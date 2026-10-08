@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Coupon;
+use App\Models\SupportRequest; // Bổ sung Model SupportRequest
 use App\Mail\PromotionMail;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -293,9 +294,6 @@ class AdminPortalController extends Controller
         return response()->stream($callback, 200, $headers);
     }
 
-    /**
-     * Bổ sung Giao diện Gửi Thư Hỗ Trợ Khách Hàng
-     */
     public function showPromotionForm()
     {
         $customers = User::where('role', 'customer')->get();
@@ -304,7 +302,7 @@ class AdminPortalController extends Controller
     }
 
     /**
-     * Gửi thư khuyến mãi & thông báo sử dụng HTML View (emails.promotion)
+     * Gửi thư khuyến mãi/thông báo: Vừa gửi Email vừa lưu vào CSDL cho Khách hàng xem trên Web
      */
     public function sendPromotionMail(Request $request)
     {
@@ -323,9 +321,10 @@ class AdminPortalController extends Controller
         $couponCode = $request->input('coupon_code') ?? null;
 
         $attachmentPath = null;
+        $relPath = null;
         if ($request->hasFile('attachment')) {
-            $path = $request->file('attachment')->store('temp_mail_attachments', 'public');
-            $attachmentPath = storage_path('app/public/' . $path);
+            $relPath        = $request->file('attachment')->store('temp_mail_attachments', 'public');
+            $attachmentPath = storage_path('app/public/' . $relPath);
         }
 
         try {
@@ -339,14 +338,30 @@ class AdminPortalController extends Controller
             }
 
             foreach ($emails as $email) {
+                // 1. Gửi Email thông báo
                 Mail::to($email)->send(new PromotionMail($subject, $content, $attachmentPath, $couponCode));
+
+                // 2. Tìm tài khoản khách hàng tương ứng để gán user_id
+                $targetUser = User::where('email', $email)->first();
+
+                // 3. Tự động lưu bản ghi vào CSDL để hiển thị trong mục "Thư phản hồi & Hỗ trợ" trên Web
+                SupportRequest::create([
+                    'name'            => $targetUser ? $targetUser->name : 'Khách hàng',
+                    'email'           => $email,
+                    'subject'         => $subject,
+                    'message'         => $content,
+                    'reply_content'   => $content,
+                    'status'          => 'replied', // Đặt trạng thái Đã phản hồi
+                    'user_id'         => $targetUser ? $targetUser->id : null,
+                    'attachment_path' => $relPath,
+                ]);
             }
 
             if ($attachmentPath && file_exists($attachmentPath)) {
                 @unlink($attachmentPath);
             }
 
-            return back()->with('success', 'Đã gửi thư hỗ trợ kèm tập tin đính kèm thành công đến ' . count($emails) . ' khách hàng!');
+            return back()->with('success', 'Đã gửi thư và lưu vào lịch sử hỗ trợ của ' . count($emails) . ' khách hàng thành công!');
         } catch (\Throwable $e) {
             if ($attachmentPath && file_exists($attachmentPath)) {
                 @unlink($attachmentPath);
