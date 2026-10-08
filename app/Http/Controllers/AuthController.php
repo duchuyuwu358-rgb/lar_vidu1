@@ -32,7 +32,34 @@ class AuthController extends Controller
         ]);
 
         if (Auth::attempt($credentials, $request->boolean('remember'))) {
+            $user = Auth::user();
+
+            // 1. Kiểm tra nếu tài khoản bị khóa (status = 0)
+            if (isset($user->status) && $user->status == 0) {
+                Auth::logout();
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+
+                return back()->withErrors([
+                    'email' => 'Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên.',
+                ])->onlyInput('email');
+            }
+
             $request->session()->regenerate();
+
+            // 2. Phân luồng chuyển hướng theo Role để tránh lỗi 403
+            if (in_array($user->role, ['admin', 'staff'])) {
+                // Nếu là Admin/Nhân viên: chuyển hướng vào trang Admin
+                return redirect()->intended(route('admin.dashboard')); 
+            }
+
+            // 3. Nếu là Khách hàng: Xóa url.intended nếu URL đó thuộc trang admin
+            $intendedUrl = session()->get('url.intended');
+            if ($intendedUrl && str_contains($intendedUrl, '/admin')) {
+                session()->forget('url.intended');
+            }
+
+            // Chuyển hướng Khách hàng về trang chủ
             return redirect()->intended(route('storefront'));
         }
 
@@ -60,7 +87,7 @@ class AuthController extends Controller
                 'string',
                 'min:2',
                 'max:50',
-                'regex:/^[\pL\s]+$/u', // Chấp nhận chữ cái có dấu, KHÔNG DẤU và khoảng trắng
+                'regex:/^[\pL\s]+$/u', // Chấp nhận chữ cái có dấu, không dấu và khoảng trắng
             ],
             'email' => [
                 'required',
@@ -83,7 +110,7 @@ class AuthController extends Controller
             'name.required'                  => 'Vui lòng nhập họ và tên.',
             'name.min'                       => 'Họ và tên phải có ít nhất 2 ký tự.',
             'name.max'                       => 'Họ và tên không được vượt quá 50 ký tự.',
-            'name.regex'                     => 'Họ và tên chỉ được chứa chữ cái (có dấu hoặc không dấu) và khoảng trắng.',
+            'name.regex'                     => 'Họ và tên chỉ được chứa chữ cái và khoảng trắng.',
 
             'email.required'                 => 'Vui lòng nhập địa chỉ Gmail.',
             'email.email'                    => 'Địa chỉ email không đúng định dạng.',
@@ -101,6 +128,8 @@ class AuthController extends Controller
             'name'     => $validated['name'],
             'email'    => $validated['email'],
             'password' => Hash::make($validated['password']),
+            'role'     => 'customer', // Mặc định tài khoản mới là Khách hàng
+            'status'   => 1,          // Mặc định trạng thái Hoạt động
         ]);
 
         Auth::login($user);

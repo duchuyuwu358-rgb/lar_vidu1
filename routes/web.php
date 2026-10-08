@@ -35,7 +35,7 @@ Route::get('/', fn () => redirect()->route('storefront'));
 Route::get('/storefront', [HoodController::class, 'storefront'])->name('storefront');
 Route::get('/storefront/{id}', [HoodController::class, 'storefrontShow'])->name('storefront.show');
 
-// Dịch vụ Vệ sinh & Lắp đặt (Hỗ trợ cả GET & POST, cả camelCase & snake_case)
+// Dịch vụ Vệ sinh & Lắp đặt
 Route::get('/dich-vu', [ServicePackageController::class, 'index'])->name('services.index');
 Route::match(['get', 'post'], '/dich-vu/add-to-cart/{id}', [ServicePackageController::class, 'addToCart'])->name('services.addToCart');
 Route::match(['get', 'post'], '/dich-vu/add-to-cart-alias/{id}', [ServicePackageController::class, 'addToCart'])->name('services.add_to_cart');
@@ -108,12 +108,9 @@ Route::middleware('auth')->group(function () {
         Route::get('/cart-alias', [CartController::class, 'index'])->name('cart');
         Route::post('/cart/add', [CartController::class, 'add'])->name('cart.add');
         
-        // Sửa hỗ trợ xóa theo {key} và mở rộng phương thức GET/POST/DELETE
         Route::match(['get', 'post', 'delete'], '/cart/remove/{key}', [CartController::class, 'remove'])->name('cart.remove');
         
         Route::get('/checkout', [CartController::class, 'checkout'])->name('cart.checkout');
-        
-        // Hỗ trợ cả 2 tên Route xử lý thanh toán
         Route::post('/checkout', [CartController::class, 'processCheckout'])->name('cart.checkout.process');
         Route::post('/checkout-alias', [CartController::class, 'processCheckout'])->name('cart.processCheckout');
 
@@ -148,6 +145,10 @@ Route::middleware('auth')->group(function () {
 
             // Admin Dashboard & Export
             Route::get('/portal', [AdminPortalController::class, 'index'])->name('admin.portal');
+            
+            // Bổ sung Alias admin.dashboard tương thích với AuthController
+            Route::get('/dashboard', fn() => redirect()->route('admin.portal'))->name('admin.dashboard');
+            
             Route::get('/portal/export-excel', [AdminPortalController::class, 'exportExcel'])->name('admin.portal.export');
 
             // Quản lý đơn hàng Admin
@@ -164,15 +165,13 @@ Route::middleware('auth')->group(function () {
             Route::post('/chat/send', [ChatController::class, 'sendAdminMessage'])->name('admin.chat.send');
             Route::get('/chat/unread-count', [ChatController::class, 'checkAdminUnread'])->name('admin.chat.unread');
 
-            // Resource Routes CRUD (Gắn prefix admin.*)
+            // Resource Routes CRUD
             Route::resource('categories', CategoryController::class)->names('admin.categories');
             Route::resource('users', UserController::class)->only(['index', 'store', 'update', 'destroy'])->names('admin.users');
             Route::resource('hoods', HoodController::class)->names('admin.hoods');
             Route::resource('services', AdminServicePackageController::class)->names('admin.services');
 
-            // ========================================================
-            // ROUTE ALIASES (Bổ sung tên route rút gọn không có prefix admin.)
-            // ========================================================
+            // ROUTE ALIASES (Tên route rút gọn)
             Route::name('categories.')->group(function () {
                 Route::get('/categories-alias', [CategoryController::class, 'index'])->name('index');
                 Route::get('/categories-alias/create', [CategoryController::class, 'create'])->name('create');
@@ -211,9 +210,14 @@ Route::middleware('auth')->group(function () {
 });
 
 // ========================================================
-// 4. ROUTE ĐỌC ẢNH TRỰC TIẾP TỪ STORAGE (DÀNH CHO RENDER)
+// 4. ROUTE ĐỌC ẢNH TRỰC TIẾP TỪ STORAGE (ĐÃ NÂNG CẤP BẢO MẬT)
 // ========================================================
 Route::get('/storage/{path}', function ($path) {
+    // Chặn nguy cơ Directory Traversal tấn công lấy file hệ thống
+    if (str_contains($path, '..')) {
+        abort(403, 'Forbidden');
+    }
+
     $filePath = storage_path('app/public/' . $path);
 
     if (!File::exists($filePath)) {

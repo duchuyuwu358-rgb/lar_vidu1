@@ -24,6 +24,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'email',
         'password',
         'role',
+        'status', // Bổ sung status để cho phép Mass Assignment khi tạo tài khoản
         'email_verified_at',
     ];
 
@@ -49,6 +50,14 @@ class User extends Authenticatable implements MustVerifyEmail
     public function isCustomer(): bool
     {
         return in_array($this->role, ['customer', 'user']);
+    }
+
+    /**
+     * Kiểm tra tài khoản có đang bị khóa hay không.
+     */
+    public function isBlocked(): bool
+    {
+        return isset($this->status) && (int) $this->status === 0;
     }
 
     /**
@@ -87,6 +96,7 @@ class User extends Authenticatable implements MustVerifyEmail
         return [
             'email_verified_at' => 'datetime',
             'password'          => 'hashed',
+            'status'            => 'integer',
         ];
     }
 }
