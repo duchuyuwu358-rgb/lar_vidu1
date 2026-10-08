@@ -133,27 +133,33 @@ class CartController extends Controller
     }
 
     /**
-     * 5. XỬ LÝ NÚT "XÁC NHẬN ĐẶT HÀNG"
+     * 5. XỬ LÝ NÚT "XÁC NHẬN ĐẶT HÀNG" (Đã bổ sung validation nghiêm ngặt SĐT & Địa chỉ)
      */
     public function processCheckout(Request $request)
     {
         $request->validate([
             'name'           => ['required', 'string', 'min:2', 'max:50', 'regex:/^[\pL\s]+$/u'],
-            'phone'          => ['required', 'string', 'regex:/^(0|\+84)[3|5|7|8|9][0-9]{8}$/'],
-            'province_id'    => ['required'],
-            'to_district_id' => ['required'],
-            'to_ward_code'   => ['required'],
-            'address'        => ['required', 'string', 'max:255'],
+            'phone'          => ['required', 'string', 'regex:/^(0|\+84)[35789][0-9]{8}$/'],
+            'province_id'    => ['required', 'numeric'],
+            'to_district_id' => ['required', 'numeric'],
+            'to_ward_code'   => ['required', 'string', 'max:20'],
+            'address'        => ['required', 'string', 'min:5', 'max:255'],
             'payment_method' => ['required', 'in:cod,momo'],
         ], [
             'name.required'           => 'Vui lòng nhập họ và tên người nhận.',
+            'name.min'                => 'Họ và tên phải chứa ít nhất 2 ký tự.',
+            'name.max'                => 'Họ và tên không được quá 50 ký tự.',
             'name.regex'              => 'Họ và tên chỉ chứa chữ cái và khoảng trắng.',
             'phone.required'          => 'Vui lòng nhập số điện thoại.',
-            'phone.regex'             => 'Số điện thoại không đúng định dạng (VD: 0987654321).',
+            'phone.regex'             => 'Số điện thoại không hợp lệ (phải từ 10 - 11 chữ số, không chứa chữ hoặc ký tự đặc biệt, bắt đầu bằng 0 hoặc +84).',
             'province_id.required'    => 'Vui lòng chọn Tỉnh/Thành phố.',
+            'province_id.numeric'     => 'Tỉnh/Thành phố không hợp lệ.',
             'to_district_id.required' => 'Vui lòng chọn Quận/Huyện.',
+            'to_district_id.numeric'  => 'Quận/Huyện không hợp lệ.',
             'to_ward_code.required'   => 'Vui lòng chọn Phường/Xã.',
-            'address.required'        => 'Vui lòng nhập địa chỉ cụ thể.',
+            'address.required'        => 'Vui lòng nhập địa chỉ giao hàng cụ thể.',
+            'address.min'             => 'Địa chỉ quá ngắn (tối thiểu 5 ký tự).',
+            'address.max'             => 'Địa chỉ giao hàng quá dài (tối đa 255 ký tự).',
             'payment_method.required' => 'Vui lòng chọn phương thức thanh toán.',
             'payment_method.in'       => 'Phương thức thanh toán không hợp lệ.',
         ]);
@@ -183,9 +189,9 @@ class CartController extends Controller
                 // Tạo đơn hàng chính
                 $order = Order::create([
                     'user_id'         => Auth::id(),
-                    'name'            => $request->name,
-                    'address'         => $request->address,
-                    'phone'           => $request->phone,
+                    'name'            => trim($request->name),
+                    'address'         => trim($request->address),
+                    'phone'           => trim($request->phone),
                     'total_price'     => $finalTotal,
                     'status'          => 'pending',
                     'to_district_id'  => (int)$request->to_district_id,
@@ -197,7 +203,6 @@ class CartController extends Controller
                 // Tạo chi tiết đơn hàng
                 foreach ($checkoutCart as $item) {
                     $isService = ($item['type'] ?? '') === 'service';
-                    
                     $productId = $isService ? null : $item['id'];
 
                     try {
@@ -209,7 +214,6 @@ class CartController extends Controller
                             'color'      => $item['color'] ?? null,
                         ]);
                     } catch (\Exception $ex) {
-                        // Trường hợp bảng OrderItem yêu cầu product_id NOT NULL
                         OrderItem::create([
                             'order_id'   => $order->id,
                             'product_id' => $item['id'],
@@ -219,7 +223,7 @@ class CartController extends Controller
                         ]);
                     }
 
-                    // Chỉ trừ kho đối với sản phẩm vật lý
+                    // Trừ kho đối với sản phẩm vật lý
                     if (!$isService) {
                         Hood::where('id', $item['id'])->decrement('stock_quantity', $item['quantity']);
                     }
@@ -391,6 +395,10 @@ class CartController extends Controller
 
     public function getDistricts($provinceId)
     {
+        if (!is_numeric($provinceId)) {
+            return response()->json(['code' => 400, 'message' => 'Province ID không hợp lệ'], 400);
+        }
+
         $baseUrl = $this->getGhnConfig('base_url');
         $token   = $this->getGhnConfig('token');
 
@@ -409,6 +417,10 @@ class CartController extends Controller
 
     public function getWards($districtId)
     {
+        if (!is_numeric($districtId)) {
+            return response()->json(['code' => 400, 'message' => 'District ID không hợp lệ'], 400);
+        }
+
         $baseUrl = $this->getGhnConfig('base_url');
         $token   = $this->getGhnConfig('token');
 
@@ -428,8 +440,8 @@ class CartController extends Controller
     public function getShippingFee(Request $request)
     {
         $request->validate([
-            'to_district_id' => 'required',
-            'to_ward_code'   => 'required'
+            'to_district_id' => ['required', 'numeric'],
+            'to_ward_code'   => ['required', 'string', 'max:20']
         ]);
 
         $baseUrl        = $this->getGhnConfig('base_url');

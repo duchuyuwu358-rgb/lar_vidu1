@@ -27,16 +27,30 @@
                     <!-- Input Họ và tên -->
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Họ và tên người nhận <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control @error('name') is-invalid @enderror" name="name" placeholder="Nhập đầy đủ họ và tên" required value="{{ old('name', auth()->user()->name ?? '') }}">
+                        <input type="text" 
+                               class="form-control @error('name') is-invalid @enderror" 
+                               name="name" 
+                               maxlength="50"
+                               placeholder="Nhập đầy đủ họ và tên" 
+                               required 
+                               value="{{ old('name', auth()->user()->name ?? '') }}">
                         @error('name')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
                     </div>
 
-                    <!-- Input Số điện thoại -->
+                    <!-- Input Số điện thoại (Chỉ cho phép gõ số và +, tối đa 11 chữ số) -->
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Số điện thoại <span class="text-danger">*</span></label>
-                        <input type="tel" class="form-control @error('phone') is-invalid @enderror" name="phone" placeholder="Nhập số điện thoại liên hệ" required value="{{ old('phone', auth()->user()->phone ?? '') }}">
+                        <input type="tel" 
+                               class="form-control @error('phone') is-invalid @enderror" 
+                               name="phone" 
+                               id="phone"
+                               placeholder="Nhập số điện thoại (10 - 11 số)" 
+                               maxlength="11"
+                               oninput="this.value = this.value.replace(/[^0-9+]/g, '')"
+                               required 
+                               value="{{ old('phone', auth()->user()->phone ?? '') }}">
                         @error('phone')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
@@ -75,10 +89,16 @@
                         </div>
                     </div>
 
-                    <!-- Input Địa chỉ giao hàng chi tiết -->
+                    <!-- Input Địa chỉ giao hàng chi tiết (Tối đa 255 ký tự) -->
                     <div class="mb-4">
                         <label class="form-label fw-semibold">Địa chỉ giao hàng chi tiết (Số nhà, tên đường...) <span class="text-danger">*</span></label>
-                        <textarea class="form-control @error('address') is-invalid @enderror" name="address" rows="2" placeholder="Ví dụ: Số 123 đường Lê Lợi" required>{{ old('address') }}</textarea>
+                        <textarea class="form-control @error('address') is-invalid @enderror" 
+                                  name="address" 
+                                  id="address"
+                                  rows="2" 
+                                  maxlength="255"
+                                  placeholder="Ví dụ: Số 123 đường Lê Lợi (Tối đa 255 ký tự)" 
+                                  required>{{ old('address') }}</textarea>
                         @error('address')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
@@ -126,7 +146,7 @@
             <div class="card-body p-4">
                 <ul class="list-group mb-3">
                     @if(isset($checkoutCart) && (is_array($checkoutCart) || is_object($checkoutCart)) && count($checkoutCart) > 0)
-                        @foreach ($checkoutCart as $itemKey => $details)
+                        @foreach ($checkoutCart as $itemKey =>$details)
                             @php
                                 $price = is_array($details) ? ($details['price'] ?? 0) : ($details->price ?? 0);
                                 $qty = is_array($details) ? ($details['quantity'] ?? 1) : ($details->quantity ?? 1);
@@ -186,7 +206,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
     const subtotal = parseInt(totalPriceInput ? totalPriceInput.value : 0) || 0;
 
-    // URL endpoints (Hỗ trợ linh hoạt cả Route Name lẫn URL mặc định)
     const provincesUrl = "{{ Route::has('locations.provinces') ? route('locations.provinces') : url('/cart/api/provinces') }}";
     const districtsBaseUrl = "{{ Route::has('locations.districts') ? route('locations.districts', ['provinceId' => '___ID___']) : url('/cart/api/districts/___ID___') }}";
     const wardsBaseUrl = "{{ Route::has('locations.wards') ? route('locations.wards', ['districtId' => '___ID___']) : url('/cart/api/wards/___ID___') }}";
