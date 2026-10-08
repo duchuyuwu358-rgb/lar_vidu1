@@ -3,162 +3,113 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
-use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Schema;
-use Laravel\Socialite\Facades\Socialite;
 use Illuminate\Support\Str;
+use Laravel\Socialite\Facades\Socialite;
 
 class AuthController extends Controller
 {
-    public function showLogin()
+    /**
+     * Hiển thị trang đăng nhập
+     */
+    public function showLoginForm()
     {
         return view('auth.login');
     }
 
+    /**
+     * Xử lý đăng nhập thông thường (Email & Mật khẩu)
+     */
     public function login(Request $request)
     {
         $credentials = $request->validate([
             'email'    => ['required', 'email'],
             'password' => ['required'],
-        ], [
-            'email.required'    => 'Vui lòng nhập địa chỉ email.',
-            'email.email'       => 'Email không đúng định dạng.',
-            'password.required' => 'Vui lòng nhập mật khẩu.',
         ]);
 
         if (Auth::attempt($credentials, $request->boolean('remember'))) {
-            $user = Auth::user();
-
-            // Kiểm tra trạng thái khóa tài khoản nếu CSDL có cột status
-            if (Schema::hasColumn('users', 'status') && isset($user->status) && $user->status == 0) {
-                Auth::logout();
-                $request->session()->invalidate();
-                $request->session()->regenerateToken();
-
-                return back()->withErrors([
-                    'email' => 'Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên.',
-                ])->onlyInput('email');
-            }
-
             $request->session()->regenerate();
-
-            if (in_array($user->role, ['admin', 'staff'])) {
-                return redirect()->intended(route('admin.portal')); 
-            }
-
-            $intendedUrl = session()->get('url.intended');
-            if ($intendedUrl && str_contains($intendedUrl, '/admin')) {
-                session()->forget('url.intended');
-            }
-
-            return redirect()->intended(route('storefront'));
+            return redirect()->intended('/')->with('status', 'Đăng nhập thành công!');
         }
 
         return back()->withErrors([
-            'email' => 'Địa chỉ email hoặc mật khẩu không chính xác.',
+            'email' => 'Thông tin đăng nhập không chính xác.',
         ])->onlyInput('email');
     }
 
-    public function showRegister()
-    {
-        return view('auth.register');
-    }
-
-    public function register(Request $request)
-    {
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'min:2', 'max:50'],
-            'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
-            'password_confirmation' => ['required'],
-        ], [
-            'name.required' => 'Vui lòng nhập họ và tên.',
-            'email.required' => 'Vui lòng nhập địa chỉ Gmail.',
-            'email.unique' => 'Địa chỉ Gmail này đã được đăng ký tài khoản.',
-            'password.required' => 'Vui lòng nhập mật khẩu.',
-            'password.confirmed' => 'Mật khẩu xác nhận không trùng khớp.',
-        ]);
-
-        $userData = [
-            'name'     => $validated['name'],
-            'email'    => $validated['email'],
-            'password' => Hash::make($validated['password']),
-            'role'     => 'customer',
-        ];
-
-        if (Schema::hasColumn('users', 'status')) {
-            $userData['status'] = 1;
-        }
-
-        $user = User::create($userData);
-
-        // Tự động đăng nhập
-        Auth::login($user);
-
-        // Gửi email xác thực
-        try {
-            event(new Registered($user));
-        } catch (\Throwable $e) {
-            Log::error('Lỗi gửi email xác thực khi đăng ký: ' . $e->getMessage());
-        }
-
-        // Chuyển hướng trực tiếp đến trang xác minh email
-        return redirect()->route('verification.notice')->with('success', 'Đăng ký tài khoản thành công! Vui lòng kiểm tra Gmail để xác minh tài khoản.');
-    }
-
+    /**
+     * Chuyển hướng người dùng sang trang xác thực của Google
+     */
     public function redirectToGoogle()
     {
-        return Socialite::driver('google')->redirect();
+        return Socialite::driver('google')->stateless()->redirect();
     }
 
+    /**
+     * Xử lý dữ liệu callback trả về từ Google
+     */
     public function handleGoogleCallback()
     {
         try {
-            $googleUser = Socialite::driver('google')->user();
-            $user = User::where('email', $googleUser->getEmail())->first();
+            // stateless() giúp khắc phục triệt để lỗi Session State / HTTPS Proxy trên Render
+            $googleUser = Socialite::driver('google')->stateless()->user();
 
-            if (!$user) {
-                $userData = [
-                    'name'              => $googleUser->getName(),
-                    'email'             => $googleUser->getEmail(),
-                    'google_id'         => $googleUser->getId(),
-                    'email_verified_at' => now(),
-                    'password'          => bcrypt(Str::random(16)),
-                    'role'              => 'customer',
-                ];
-
-                if (Schema::hasColumn('users', 'status')) {
-                    $userData['status'] = 1;
-                }
-
-                $user = User::create($userData);
-            } else {
-                if (Schema::hasColumn('users', 'google_id')) {
-                    $user->update(['google_id' => $googleUser->getId()]);
-                }
-                if (!$user->hasVerifiedEmail()) {
-                    $user->markEmailAsVerified();
-                }
+            if (!$googleUser || !$googleUser->getEmail()) {
+                return redirect()->route('login')->with('error', 'Không lấy được thông tin email từ Google.');
             }
 
-            Auth::login($user);
-            return redirect()->route('storefront')->with('success', 'Đăng nhập thành công bằng tài khoản Google!');
-        } catch (\Throwable $e) {
+            // Tìm tài khoản theo email hoặc google_id
+            $user = User::where('email', $googleUser->getEmail())
+                ->orWhere('google_id', $googleUser->getId())
+                ->first();
+
+            if (!$user) {
+                // Tạo tài khoản mới nếu chưa tồn tại
+                $user = User::create([
+                    'name'              => $googleUser->getName() ?? 'Khách hàng Google',
+                    'email'             => $googleUser->getEmail(),
+                    'google_id'         => $googleUser->getId(),
+                    'password'          => Hash::make(Str::random(16)), // Mật khẩu ngẫu nhiên tránh lỗi NOT NULL trong CSDL
+                    'email_verified_at' => now(),                        // Tự động xác minh email
+                    'role'              => 'customer',
+                    'status'            => 1,
+                ]);
+            } else {
+                // Cập nhật google_id và email_verified_at nếu người dùng đã có tài khoản từ trước
+                $user->update([
+                    'google_id'         => $googleUser->getId(),
+                    'email_verified_at' => $user->email_verified_at ?? now(),
+                ]);
+            }
+
+            // Kiểm tra nếu tài khoản bị khóa
+            if ($user->isBlocked()) {
+                return redirect()->route('login')->with('error', 'Tài khoản của bạn đã bị khóa.');
+            }
+
+            // Đăng nhập người dùng vào phiên làm việc
+            Auth::login($user, true);
+
+            return redirect()->intended('/')->with('status', 'Đăng nhập bằng Google thành công!');
+
+        } catch (\Exception $e) {
             Log::error('Google Auth Error: ' . $e->getMessage());
-            return redirect()->route('login')->withErrors(['email' => 'Không thể đăng nhập bằng Google. Vui lòng thử lại.']);
+            return redirect()->route('login')->with('error', 'Không thể đăng nhập bằng Google. Vui lòng thử lại.');
         }
     }
 
+    /**
+     * Đăng xuất người dùng
+     */
     public function logout(Request $request)
     {
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect()->route('login');
+        return redirect('/')->with('status', 'Đã đăng xuất thành công!');
     }
 }
