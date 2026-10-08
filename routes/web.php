@@ -5,6 +5,7 @@ use Illuminate\Http\Request;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
 
 // Controllers
 use App\Http\Controllers\AuthController;
@@ -99,12 +100,19 @@ Route::middleware('auth')->group(function () {
         return redirect()->route($isAdminOrStaff ? 'admin.portal' : 'storefront');
     })->middleware('signed')->name('verification.verify');
 
+    // Bọc try-catch tránh treo / nghẽn kết nối SMTP khi gửi lại mail xác thực
     Route::post('/email/verification-notification', function (Request $request) {
         if ($request->user()->hasVerifiedEmail()) {
             return redirect()->route('storefront');
         }
-        $request->user()->sendEmailVerificationNotification();
-        return back()->with('status', 'Đã gửi lại email xác minh.');
+
+        try {
+            $request->user()->sendEmailVerificationNotification();
+            return back()->with('success', 'Đã gửi lại email xác minh! Vui lòng kiểm tra hộp thư.');
+        } catch (\Exception $e) {
+            Log::error('Lỗi gửi lại mail xác minh: ' . $e->getMessage());
+            return back()->with('warning', 'Hệ thống chưa thể kết nối tới máy chủ gửi thư lúc này. Vui lòng thử lại sau.');
+        }
     })->middleware('throttle:6,1')->name('verification.send');
 
     // CHỨC NĂNG NGƯỜI DÙNG (Yêu cầu xác minh Email)
