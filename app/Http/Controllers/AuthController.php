@@ -7,6 +7,7 @@ use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 
 class AuthController extends Controller
 {
@@ -132,14 +133,24 @@ class AuthController extends Controller
             'status'   => 1,
         ]);
 
-        // 1. Phát sự kiện gửi email xác thực tới địa chỉ Gmail vừa đăng ký
-        event(new Registered($user));
+        // Xử lý gửi email xác thực an toàn bằng try-catch
+        $mailSent = true;
+        try {
+            event(new Registered($user));
+        } catch (\Exception $e) {
+            Log::error('Lỗi gửi email xác thực: ' . $e->getMessage());
+            $mailSent = false;
+        }
 
-        // 2. Tự động đăng nhập phiên làm việc cho user
+        // Tự động đăng nhập phiên làm việc cho user
         Auth::login($user);
 
-        // 3. Chuyển hướng sang trang thông báo yêu cầu xác thực Email
-        return redirect()->route('verification.notice')->with('success', 'Đăng ký thành công! Vui lòng kiểm tra Gmail để xác thực tài khoản.');
+        // Thông báo tùy theo trạng thái gửi thư
+        if ($mailSent) {
+            return redirect()->route('verification.notice')->with('success', 'Đăng ký thành công! Vui lòng kiểm tra Gmail để xác thực tài khoản.');
+        }
+
+        return redirect()->route('verification.notice')->with('warning', 'Đăng ký tài khoản thành công! Tuy nhiên hệ thống chưa thể gửi email xác thực lúc này. Bạn có thể nhấn gửi lại sau.');
     }
 
     /**
