@@ -38,19 +38,24 @@ class PromotionMail extends Mailable
         return new Content(
             view: 'emails.promotion',
             with: [
-                'mailTitle'   => $this->subjectText,
-                'mailContent' => $this->contentBody,
-                'couponCode'  => $this->couponCode,
+                'mailTitle'      => $this->subjectText,
+                'mailContent'    => $this->contentBody,
+                'couponCode'     => $this->couponCode,
+                'attachmentPath' => $this->attachmentPath,
             ],
         );
     }
 
     public function attachments(): array
     {
+        // Nếu là tài liệu (PDF, DOCX...), đính kèm dạng file tải về ở chân thư
         if ($this->attachmentPath && file_exists($this->attachmentPath)) {
-            return [
-                Attachment::fromPath($this->attachmentPath)
-            ];
+            $ext = strtolower(pathinfo($this->attachmentPath, PATHINFO_EXTENSION));
+            if (!in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
+                return [
+                    Attachment::fromPath($this->attachmentPath)
+                ];
+            }
         }
 
         return [];

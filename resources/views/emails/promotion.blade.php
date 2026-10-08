@@ -27,21 +27,30 @@
                                 {{ $mailTitle ?? $subjectTitle ?? $subject ?? 'Thông báo từ XFAN Store' }}
                             </h3>
                             
+                            <!-- Nội dung chữ -->
                             <div style="color: #334155; font-size: 15px; margin-bottom: 20px;">
                                 {!! nl2br(e($mailContent ?? $contentMessage ?? $content ?? $message ?? '')) !!}
                             </div>
 
+                            <!-- Nhúng hình ảnh trực tiếp vào giữa thân thư (Nếu có upload ảnh) -->
+                            @if(!empty($attachmentPath) && file_exists($attachmentPath) && in_array(strtolower(pathinfo($attachmentPath, PATHINFO_EXTENSION)), ['jpg', 'jpeg', 'png', 'gif', 'webp']))
+                                <div style="text-align: center; margin: 20px 0;">
+                                    <img src="{{ $message->embed($attachmentPath) }}" alt="Hình ảnh đính kèm" style="max-width: 100%; height: auto; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 2px 6px rgba(0,0,0,0.08);">
+                                </div>
+                            @endif
+
+                            <!-- Ô Mã ưu đãi + Nút đến Cửa hàng (Chỉ hiển thị khi gửi kèm Mã Khuyến Mãi) -->
                             @if(!empty($couponCode))
                                 <div style="background-color: #eff6ff; border: 2px dashed #2563eb; padding: 16px; text-align: center; border-radius: 8px; margin: 20px 0;">
                                     <div style="font-size: 14px; color: #1e293b; margin-bottom: 6px;">Mã ưu đãi dành riêng cho bạn:</div>
                                     <div style="font-size: 24px; font-weight: bold; color: #2563eb; letter-spacing: 2px;">{{ $couponCode }}</div>
                                     <small style="color: #64748b; display: block; margin-top: 6px;">Nhập mã này tại bước thanh toán để nhận giảm giá!</small>
                                 </div>
-                            @endif
 
-                            <div style="text-align: center; margin-top: 25px; margin-bottom: 10px;">
-                                <a href="{{ url('/storefront') }}" style="display: inline-block; background-color: #2563eb; color: #ffffff !important; text-decoration: none; padding: 12px 26px; border-radius: 6px; font-weight: bold; font-size: 14px;">Khám Phá Cửa Hàng Ngay</a>
-                            </div>
+                                <div style="text-align: center; margin-top: 20px; margin-bottom: 10px;">
+                                    <a href="{{ url('/storefront') }}" style="display: inline-block; background-color: #2563eb; color: #ffffff !important; text-decoration: none; padding: 12px 26px; border-radius: 6px; font-weight: bold; font-size: 14px;">Khám Phá Cửa Hàng Ngay</a>
+                                </div>
+                            @endif
                         </td>
                     </tr>
 
