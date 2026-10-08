@@ -13,11 +13,19 @@ use Laravel\Socialite\Facades\Socialite;
 class AuthController extends Controller
 {
     /**
-     * Hiển thị trang đăng nhập
+     * Hiển thị trang đăng nhập (Khớp với route showLogin)
+     */
+    public function showLogin()
+    {
+        return view('auth.login');
+    }
+
+    /**
+     * Hỗ trợ tên hàm showLoginForm nếu route khác gọi đến
      */
     public function showLoginForm()
     {
-        return view('auth.login');
+        return $this->showLogin();
     }
 
     /**
