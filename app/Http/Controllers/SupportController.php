@@ -53,11 +53,8 @@ class SupportController extends Controller
             'message'         => $validated['message'],
             'attachment_path' => $attachmentPath,
             'status'          => 'pending',
+            'user_id'         => auth()->id(), // Gán ID của tài khoản đang đăng nhập
         ];
-
-        if (auth()->check() && Schema::hasColumn('support_requests', 'user_id')) {
-            $data['user_id'] = auth()->id();
-        }
 
         SupportRequest::create($data);
 
@@ -71,18 +68,14 @@ class SupportController extends Controller
     {
         $user = auth()->user();
 
-        $query = SupportRequest::query();
-        if (Schema::hasColumn('support_requests', 'user_id')) {
-            $query->where(function ($q) use ($user) {
+        $requests = SupportRequest::where(function ($q) use ($user) {
+            if (Schema::hasColumn('support_requests', 'user_id')) {
                 $q->where('user_id', $user->id)->orWhere('email', $user->email);
-            });
-        } else {
-            $query->where('email', $user->email);
-        }
+            } else {
+                $q->where('email', $user->email);
+            }
+        })->orderBy('id', 'desc')->paginate(10);
 
-        $requests = $query->orderBy('id', 'desc')->paginate(10);
-
-        // Gọi chính xác file resources/views/user/history.blade.php
         return view('user.history', compact('requests'));
     }
 
@@ -139,14 +132,12 @@ class SupportController extends Controller
                 $tempPath = storage_path('app/public/' . $relPath);
             }
 
-            // 1. Luôn lưu nội dung câu trả lời vào CSDL
             if (Schema::hasColumn('support_requests', 'reply_content')) {
                 $supportRequest->reply_content = $request->reply_message;
             }
             $supportRequest->status = 'replied';
             $supportRequest->save();
 
-            // 2. Gửi Email mẫu HTML đẹp cho khách hàng
             try {
                 Mail::to($supportRequest->email)->send(
                     new SupportReplyMail($supportRequest, $request->reply_message, $tempPath)
@@ -161,7 +152,7 @@ class SupportController extends Controller
                 }
                 Log::error('Lỗi gửi mail phản hồi: ' . $e->getMessage());
 
-                return back()->with('success', 'Đã lưu phản hồi vào CSDL! (Lưu ý: Chưa gửi được Email do chưa cấu hình xong SMTP: ' . $e->getMessage() . ')');
+                return back()->with('success', 'Đã lưu phản hồi vào CSDL! (Chưa gửi được Email do chưa cấu hình xong SMTP: ' . $e->getMessage() . ')');
             }
         } else {
             $supportRequest->status = $request->status;

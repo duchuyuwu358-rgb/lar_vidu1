@@ -38,10 +38,6 @@ Route::get('/', fn () => redirect()->route('storefront'));
 Route::get('/storefront', [HoodController::class, 'storefront'])->name('storefront');
 Route::get('/storefront/{id}', [HoodController::class, 'storefrontShow'])->name('storefront.show');
 
-// CHỨC NĂNG GỬI THƯ HỖ TRỢ PHÍA KHÁCH HÀNG
-Route::get('/ho-tro', [SupportController::class, 'showForm'])->name('user.support.form');
-Route::post('/ho-tro/send', [SupportController::class, 'sendSupport'])->name('user.support.send');
-
 // Dịch vụ Vệ sinh & Lắp đặt
 Route::get('/dich-vu', [ServicePackageController::class, 'index'])->name('services.index');
 Route::match(['get', 'post'], '/dich-vu/add-to-cart/{id}', [ServicePackageController::class, 'addToCart'])->name('services.addToCart');
@@ -64,7 +60,7 @@ Route::post('/ghn/webhook', [OrderController::class, 'handleGhnWebhook'])
     ->name('ghn.webhook');
 
 // ==========================================
-// 1. GUEST ROUTES (Chưa đăng nhập)
+// 1. GUEST ROUTES (Khách chưa đăng nhập)
 // ==========================================
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -85,9 +81,6 @@ Route::middleware('guest')->group(function () {
 Route::middleware('auth')->group(function () {
 
     Route::match(['get', 'post'], '/logout', [AuthController::class, 'logout'])->name('logout');
-
-    // Xem lịch sử hòm thư phản hồi phía khách hàng
-    Route::get('/ho-tro/lich-su', [SupportController::class, 'userHistory'])->name('user.support.history');
 
     // Livechat Khách hàng
     Route::prefix('user/chat')->name('user.chat.')->group(function () {
@@ -127,14 +120,23 @@ Route::middleware('auth')->group(function () {
         }
     })->middleware('throttle:6,1')->name('verification.send');
 
-    // CHỨC NĂNG NGƯỜI DÙNG CÓ XÁC MINH EMAIL
+    // ========================================================
+    // CHỨC NĂNG BẮT BUỘC ĐÃ ĐĂNG NHẬP & ĐÃ XÁC MINH EMAIL (Verified)
+    // ========================================================
     Route::middleware('verified')->group(function () {
+
+        // HÒM THƯ HỖ TRỢ & THƯ PHẢN HỒI (Chỉ tài khoản đã xác minh Email mới truy cập được)
+        Route::get('/ho-tro', [SupportController::class, 'showForm'])->name('user.support.form');
+        Route::post('/ho-tro/send', [SupportController::class, 'sendSupport'])->name('user.support.send');
+        Route::get('/ho-tro/lich-su', [SupportController::class, 'userHistory'])->name('user.support.history');
+
+        // Giỏ hàng & Thanh toán
         Route::get('/cart', [CartController::class, 'index'])->name('cart.index');
         Route::get('/cart-alias', [CartController::class, 'index'])->name('cart');
         Route::post('/cart/add', [CartController::class, 'add'])->name('cart.add');
         Route::match(['get', 'post', 'delete'], '/cart/remove/{key}', [CartController::class, 'remove'])->name('cart.remove');
         
-        // ROUTE ÁP DỤNG & HỦY MÃ GIẢM GIÁ
+        // Áp dụng & Hủy mã giảm giá
         Route::post('/cart/apply-coupon', [CartController::class, 'applyCoupon'])->name('cart.applyCoupon');
         Route::post('/cart/remove-coupon', [CartController::class, 'removeCoupon'])->name('cart.removeCoupon');
 
@@ -184,14 +186,14 @@ Route::middleware('auth')->group(function () {
             Route::post('/orders/{id}/sync-ghn', [OrderController::class, 'syncGhnStatus'])->name('admin.orders.syncGhn');
             Route::post('/orders/{id}/push-ghn', [OrderController::class, 'pushToGhn'])->name('admin.orders.pushGhn');
 
-            // Livechat
+            // Livechat Admin
             Route::get('/chat', [ChatController::class, 'index'])->name('admin.chat');
             Route::get('/chat/users', [ChatController::class, 'getAdminUsers'])->name('admin.chat.users');
             Route::get('/chat/messages/{userId}', [ChatController::class, 'getAdminMessages'])->name('admin.chat.messages');
             Route::post('/chat/send', [ChatController::class, 'sendAdminMessage'])->name('admin.chat.send');
             Route::get('/chat/unread-count', [ChatController::class, 'checkAdminUnread'])->name('admin.chat.unread');
 
-            // Resource hỗ trợ 100% cả 2 kiểu đặt tên route
+            // Resource quản lý danh mục, sản phẩm, dịch vụ, coupon
             Route::resource('categories', CategoryController::class)->names('admin.categories');
             Route::resource('categories-short', CategoryController::class)->names('categories');
 
