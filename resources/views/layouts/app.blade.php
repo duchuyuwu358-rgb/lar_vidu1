@@ -29,9 +29,7 @@
             padding: 0;
         }
 
-        /* ========================================================= */
-        /* ADMIN SIDEBAR CẤU TRÚC PHỦ KÍN CHIỀU DỌC - ẨN THANH CUỘN */
-        /* ========================================================= */
+        /* ADMIN SIDEBAR */
         body.admin-body { padding-left: var(--sidebar-width) !important; }
         .admin-sidebar {
             width: var(--sidebar-width) !important;
@@ -66,45 +64,51 @@
             flex-grow: 1 !important; 
             display: flex !important;
             flex-direction: column !important;
-            justify-content: space-evenly !important; /* Tự động chia đều khoảng cách phủ kín chiều dọc xuống sát nút Đăng xuất */
+            justify-content: space-evenly !important;
             overflow-y: auto !important; 
             min-height: 0 !important;
-            /* Ẩn hoàn toàn thanh kéo cuộn */
-            scrollbar-width: none !important; /* Firefox */
-            -ms-overflow-style: none !important;  /* IE and Edge */
+            scrollbar-width: none !important;
+            -ms-overflow-style: none !important;
         }
-        .sidebar-menu::-webkit-scrollbar {
-            display: none !important; /* Chrome, Safari, Opera */
-        }
+        .sidebar-menu::-webkit-scrollbar { display: none !important; }
         .sidebar-menu .nav-link {
             padding: 0.5rem 1.25rem; color: var(--sidebar-color);
             display: flex; align-items: center; gap: 12px; font-size: 0.92rem; text-decoration: none;
-            transition: all 0.2s ease;
-            font-weight: 500;
+            transition: all 0.2s ease; font-weight: 500;
         }
-        .sidebar-menu .nav-link i {
-            font-size: 1.05rem;
-        }
+        .sidebar-menu .nav-link i { font-size: 1.05rem; }
         .sidebar-menu .nav-link:hover, .sidebar-menu .nav-link.active {
             color: var(--sidebar-active-color); background-color: var(--sidebar-active-bg); border-left: 4px solid #3b82f6;
         }
         .sidebar-footer { 
             padding: 0.75rem 1.25rem; border-top: 1px solid rgba(255, 255, 255, 0.1); 
-            flex-shrink: 0 !important;
-            background-color: var(--sidebar-bg);
+            flex-shrink: 0 !important; background-color: var(--sidebar-bg);
         }
-        .sidebar-footer .btn {
-            padding: 0.45rem 0.75rem;
-            font-size: 0.875rem;
-            font-weight: 600;
-        }
+        .sidebar-footer .btn { padding: 0.45rem 0.75rem; font-size: 0.875rem; font-weight: 600; }
         .admin-main-content { width: 100% !important; min-height: 100vh; padding: 1.25rem 1.75rem; }
 
-        /* USER NAVBAR */
-        .user-navbar { background-color: #ffffff; border-bottom: 1px solid #e5e7eb; }
+        /* USER NAVBAR - TỐI ƯU HÀNG NGANG CHỐNG RỚT DÒNG VÀ VỠ KHUNG */
+        .user-navbar { 
+            background-color: #ffffff; 
+            border-bottom: 1px solid #e5e7eb;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        }
         .user-nav-link {
-            color: #4b5563; text-decoration: none; font-weight: 500; padding: 0.5rem 0.75rem;
-            border-radius: 8px; transition: all 0.2s ease; display: inline-flex; align-items: center; gap: 6px;
+            color: #4b5563; 
+            text-decoration: none; 
+            font-weight: 500; 
+            padding: 0.5rem 0.75rem;
+            font-size: 0.88rem;
+            border-radius: 8px; 
+            transition: all 0.2s ease; 
+            display: inline-flex; 
+            align-items: center; 
+            gap: 6px;
+            white-space: nowrap !important; /* CỐ ĐỊNH CHỮ TRÊN 1 HÀNG */
+            line-height: 1.2;
+        }
+        .user-nav-link i {
+            font-size: 1rem;
         }
         .user-nav-link:hover { color: #2563eb; background-color: #f1f5f9; }
         .user-nav-link.active { color: #2563eb; font-weight: 600; background-color: #eff6ff; }
@@ -114,7 +118,6 @@
             position: fixed !important; bottom: 24px !important; right: 24px !important;
             z-index: 99999 !important; cursor: pointer;
         }
-
         .custom-chat-panel {
             position: fixed !important; bottom: 85px !important; right: 24px !important;
             width: 380px !important; max-width: 92vw !important; height: 560px !important;
@@ -123,32 +126,20 @@
             display: none; flex-direction: column; overflow: hidden; border: 1px solid #e2e8f0;
         }
         .custom-chat-panel.active { display: flex !important; }
-
         .chat-header-dark {
             background-color: #0f172a; color: white; padding: 14px 18px;
             display: flex; justify-content: space-between; align-items: center;
         }
-
         .chat-option-btn {
             background: #ffffff; color: #334155; border: 1px solid #e2e8f0;
             border-radius: 20px; padding: 10px 16px; font-size: 0.88rem; font-weight: 500;
             text-align: center; margin-bottom: 8px; width: 100%; transition: all 0.2s ease;
             cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
-        .chat-option-btn:hover {
-            background-color: #f1f5f9; border-color: #cbd5e1; color: #0284c7; transform: translateY(-1px);
-        }
-
-        .btn-resume-chat {
-            background: #eff6ff !important;
-            color: #2563eb !important;
-            border: 1.5px solid #3b82f6 !important;
-            font-weight: 700 !important;
-        }
+        .chat-option-btn:hover { background-color: #f1f5f9; border-color: #cbd5e1; color: #0284c7; transform: translateY(-1px); }
+        .btn-resume-chat { background: #eff6ff !important; color: #2563eb !important; border: 1.5px solid #3b82f6 !important; font-weight: 700 !important; }
         .btn-resume-chat:hover { background: #dbeafe !important; }
-
         .chat-date-badge { text-align: center; font-size: 0.75rem; color: #64748b; margin: 10px 0; font-weight: 500; }
-
         .msg-bubble-sent {
             background-color: #2563eb; color: white; border-radius: 14px 14px 0px 14px;
             max-width: 82%; margin-left: auto; padding: 10px 14px; margin-bottom: 10px; font-size: 0.9rem; word-break: break-word;
@@ -248,29 +239,22 @@
                         <i class="bi bi-wrench-adjustable-circle"></i><span>Gói dịch vụ</span>
                     </a>
                 </li>
-
-                {{-- MỤC QUẢN LÝ KHUYẾN MẠI --}}
                 <li class="nav-item">
                     <a href="{{ Route::has('admin.coupons.index') ? route('admin.coupons.index') : (Route::has('coupons.index') ? route('coupons.index') : url('/admin/coupons')) }}" class="nav-link {{ request()->routeIs('*coupons*') ? 'active' : '' }}">
                         <i class="bi bi-ticket-perforated"></i><span>Khuyến mại</span>
                     </a>
                 </li>
-
-                {{-- MỤC 1: HÒM THƯ HỖ TRỢ --}}
                 <li class="nav-item">
                     <a href="{{ Route::has('admin.support.index') ? route('admin.support.index') : url('/admin/support-requests') }}" class="nav-link {{ request()->routeIs('*support-requests*') ? 'active' : '' }}">
                         <i class="bi bi-inbox-fill text-warning"></i><span>Hòm Thư Hỗ Trợ</span>
                     </a>
                 </li>
-
-                {{-- MỤC 2: GỬI THƯ HỖ TRỢ BÁN HÀNG --}}
                 <li class="nav-item">
                     <a href="{{ Route::has('admin.promotion.form') ? route('admin.promotion.form') : url('/admin/send-promotion-mail') }}" class="nav-link {{ request()->routeIs('*promotion*') ? 'active' : '' }}">
                         <i class="bi bi-envelope-paper"></i><span>Gửi Thư Hỗ Trợ</span>
                     </a>
                 </li>
 
-                {{-- MỤC NGƯỜI DÙNG --}}
                 @if((method_exists(Auth::user(), 'isAdmin') && Auth::user()->isAdmin()) || Auth::user()->role === 'admin')
                     <li class="nav-item">
                         <a href="{{ Route::has('admin.users.index') ? route('admin.users.index') : (Route::has('users.index') ? route('users.index') : url('/admin/users')) }}" class="nav-link {{ request()->routeIs('*users*') ? 'active' : '' }}">
@@ -286,7 +270,6 @@
                 </li>
             </ul>
 
-            <!-- CỐ ĐỊNH NÚT ĐĂNG XUẤT Ở CHÂN SIDEBAR -->
             <div class="sidebar-footer">
                 <form action="{{ Route::has('logout') ? route('logout') : url('/logout') }}" method="POST">
                     @csrf
@@ -297,7 +280,6 @@
             </div>
         </aside>
 
-        <!-- NÚT & KHUNG CHAT QUẢN TRỊ -->
         <button type="button" id="btnAdminChatToggle" class="btn btn-dark rounded-pill shadow-lg px-3 py-2 floating-chat-btn position-relative">
             <i class="bi bi-chat-dots-fill text-warning me-1"></i>
             <span class="fw-bold">Chat Khách hàng</span>
@@ -324,23 +306,28 @@
         </div>
     @endif
 
-    {{-- NAVBAR TOPBAR CỬA HÀNG KHÁCH HÀNG --}}
+    {{-- NAVBAR TOPBAR CỬA HÀNG KHÁCH HÀNG - CĂN THẲNG MỘT HÀNG THẨM MỸ --}}
     @if (!$isAdminManagementPage)
-        <nav class="navbar navbar-expand-lg navbar-light user-navbar py-2 shadow-sm mb-4">
-            <div class="{{ $isAdminOrStaff ? 'container-fluid px-4' : 'container' }} d-flex align-items-center justify-content-between">
-                <div class="d-flex align-items-center gap-3">
-                    <a class="navbar-brand fw-bold text-primary fs-4 m-0 d-flex align-items-center" href="{{ Route::has('storefront') ? route('storefront') : url('/') }}">
+        <nav class="navbar navbar-expand-lg navbar-light user-navbar py-2 mb-4">
+            <div class="{{ $isAdminOrStaff ? 'container-fluid px-4' : 'container' }} d-flex align-items-center justify-content-between flex-nowrap">
+                
+                {{-- LOGO + DANH SÁCH MENU --}}
+                <div class="d-flex align-items-center gap-2 me-3 overflow-hidden">
+                    <a class="navbar-brand fw-bold text-primary fs-5 m-0 d-flex align-items-center me-3 text-nowrap" href="{{ Route::has('storefront') ? route('storefront') : url('/') }}">
                         <i class="fas fa-fan me-2"></i>XFAN STORE
                     </a>
-                    <div class="d-flex align-items-center gap-1 ms-2 border-start ps-3" style="border-color: #e5e7eb !important;">
+                    <div class="d-flex align-items-center gap-1 border-start ps-3" style="border-color: #e5e7eb !important;">
                         <a href="{{ Route::has('storefront') ? route('storefront') : url('/') }}" class="user-nav-link {{ request()->routeIs('storefront*') || request()->is('/') ? 'active' : '' }}">
                             <i class="bi bi-shop"></i><span>Cửa hàng</span>
                         </a>
                         <a href="{{ Route::has('services.index') ? route('services.index') : url('/dich-vu') }}" class="user-nav-link {{ request()->routeIs('*services*') ? 'active' : '' }}">
                             <i class="bi bi-tools"></i><span>Dịch vụ & Lắp đặt</span>
                         </a>
-                        <a href="{{ Route::has('user.support.form') ? route('user.support.form') : url('/ho-tro') }}" class="user-nav-link {{ request()->routeIs('*support*') || request()->is('ho-tro*') ? 'active' : '' }}">
+                        <a href="{{ Route::has('user.support.form') ? route('user.support.form') : url('/ho-tro') }}" class="user-nav-link {{ (request()->routeIs('user.support.form') || request()->is('ho-tro')) && !request()->is('ho-tro/lich-su*') ? 'active' : '' }}">
                             <i class="bi bi-headset"></i><span>Gửi thư hỗ trợ</span>
+                        </a>
+                        <a href="{{ Route::has('user.support.history') ? route('user.support.history') : url('/ho-tro/lich-su') }}" class="user-nav-link {{ request()->routeIs('user.support.history') || request()->is('ho-tro/lich-su*') ? 'active' : '' }}">
+                            <i class="bi bi-inbox-fill"></i><span>Thư phản hồi</span>
                         </a>
                         <a href="{{ auth()->check() ? (Route::has('cart.index') ? route('cart.index') : url('/cart')) : (Route::has('login') ? route('login') : url('/login')) }}" class="user-nav-link {{ request()->routeIs('*cart*') ? 'active' : '' }}">
                             <i class="bi bi-cart3"></i><span>Giỏ hàng</span>
@@ -351,14 +338,15 @@
                     </div>
                 </div>
 
-                <div class="d-flex align-items-center gap-2">
+                {{-- THÔNG TIN TÀI KHOẢN & ĐĂNG XUẤT --}}
+                <div class="d-flex align-items-center gap-2 text-nowrap flex-shrink-0">
                     @auth
                         @if (!$isAdminOrStaff)
                             <span class="text-secondary small me-1">Xin chào, <strong>{{ Auth::user()->name }}</strong></span>
                             
                             @if(!Auth::user()->hasVerifiedEmail())
                                 <a href="{{ Route::has('verification.notice') ? route('verification.notice') : url('/email/verify') }}" 
-                                   class="badge bg-warning text-dark border border-warning-subtle px-2 py-1 me-2 text-decoration-none" 
+                                   class="badge bg-warning text-dark border border-warning-subtle px-2 py-1 me-1 text-decoration-none" 
                                    style="font-size: 0.75rem;" 
                                    title="Bấm để mở trang xác minh email">
                                     ⚠️ Chưa xác minh
@@ -367,12 +355,12 @@
 
                             <form action="{{ Route::has('logout') ? route('logout') : url('/logout') }}" method="POST" class="d-inline m-0">
                                 @csrf
-                                <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-box-arrow-right me-1"></i> Đăng xuất</button>
+                                <button type="submit" class="btn btn-sm btn-outline-danger px-3 rounded-pill"><i class="bi bi-box-arrow-right me-1"></i> Đăng xuất</button>
                             </form>
                         @endif
                     @else
-                        <a href="{{ Route::has('login') ? route('login') : url('/login') }}" class="btn btn-sm {{ request()->is('login') ? 'btn-primary' : 'btn-outline-primary' }} px-3">Đăng nhập</a>
-                        <a href="{{ Route::has('register') ? route('register') : url('/register') }}" class="btn btn-sm {{ request()->is('register') ? 'btn-primary' : 'btn-outline-primary' }} px-3">Đăng ký</a>
+                        <a href="{{ Route::has('login') ? route('login') : url('/login') }}" class="btn btn-sm {{ request()->is('login') ? 'btn-primary' : 'btn-outline-primary' }} px-3 rounded-pill">Đăng nhập</a>
+                        <a href="{{ Route::has('register') ? route('register') : url('/register') }}" class="btn btn-sm {{ request()->is('register') ? 'btn-primary' : 'btn-outline-primary' }} px-3 rounded-pill">Đăng ký</a>
                     @endauth
                 </div>
             </div>
@@ -433,14 +421,12 @@
         </div>
     @endif
 
-    <!-- KHUNG NỘI DUNG CHÍNH -->
     <div class="{{ $isAdminOrStaff ? 'admin-main-content' : ($isAuthPage ? 'container py-4 d-flex justify-content-center align-items-center' : 'container pb-5') }}">
         @yield('content')
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
-    <!-- JAVASCRIPT LOGIC CHATBOT & ADMIN CHAT -->
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
@@ -460,7 +446,6 @@
                 dateElem.innerText = now.toLocaleDateString('vi-VN', options);
             }
 
-            // --- ADMIN CHAT LOGIC ---
             const btnAdminToggle = document.getElementById('btnAdminChatToggle');
             const adminPanel = document.getElementById('adminChatPanel');
             const btnAdminClose = document.getElementById('btnAdminChatClose');
@@ -566,7 +551,6 @@
                 });
             }
 
-            // --- USER CHAT LOGIC ---
             const btnUserToggle = document.getElementById('btnUserChatToggle');
             const userPanel = document.getElementById('userChatPanel');
             const btnUserClose = document.getElementById('btnUserChatClose');

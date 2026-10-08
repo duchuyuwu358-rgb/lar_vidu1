@@ -7,6 +7,7 @@ use App\Models\SupportRequest;
 use App\Mail\SupportReplyMail;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class SupportController extends Controller
 {
@@ -29,7 +30,7 @@ class SupportController extends Controller
             'phone'      => 'nullable|string|max:20',
             'subject'    => 'required|string|max:255',
             'message'    => 'required|string',
-            'attachment' => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240', // Tối đa 10MB
+            'attachment' => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
         ], [
             'name.required'    => 'Vui lòng nhập họ và tên.',
             'email.required'   => 'Vui lòng nhập email liên hệ.',
@@ -44,8 +45,7 @@ class SupportController extends Controller
             $attachmentPath = $request->file('attachment')->store('support_attachments', 'public');
         }
 
-        // Lưu thông tin vào CSDL
-        SupportRequest::create([
+        $data = [
             'name'            => $validated['name'],
             'email'           => $validated['email'],
             'phone'           => $validated['phone'] ?? null,
@@ -53,13 +53,41 @@ class SupportController extends Controller
             'message'         => $validated['message'],
             'attachment_path' => $attachmentPath,
             'status'          => 'pending',
-        ]);
+        ];
+
+        if (auth()->check() && Schema::hasColumn('support_requests', 'user_id')) {
+            $data['user_id'] = auth()->id();
+        }
+
+        SupportRequest::create($data);
 
         return back()->with('success', 'Yêu cầu hỗ trợ đã được gửi thành công! Ban quản trị sẽ kiểm tra và phản hồi sớm nhất.');
     }
 
     /**
-     * 3. Phía Admin & Nhân viên: Thống kê số lượng + Danh sách hòm thư
+     * 3. Phía Khách hàng: Xem danh sách thư hỗ trợ & Phản hồi 2 chiều từ Admin
+     */
+    public function userHistory()
+    {
+        $user = auth()->user();
+
+        $query = SupportRequest::query();
+        if (Schema::hasColumn('support_requests', 'user_id')) {
+            $query->where(function ($q) use ($user) {
+                $q->where('user_id', $user->id)->orWhere('email', $user->email);
+            });
+        } else {
+            $query->where('email', $user->email);
+        }
+
+        $requests = $query->orderBy('id', 'desc')->paginate(10);
+
+        // Gọi chính xác file resources/views/user/history.blade.php
+        return view('user.history', compact('requests'));
+    }
+
+    /**
+     * 4. Phía Admin & Nhân viên: Thống kê số lượng + Danh sách hòm thư
      */
     public function adminIndex(Request $request)
     {
@@ -80,7 +108,6 @@ class SupportController extends Controller
             $query->where('status', $status);
         }
 
-        // Thống kê số lượng thư
         $totalCount   = SupportRequest::count();
         $pendingCount = SupportRequest::where('status', 'pending')->count();
         $repliedCount = SupportRequest::where('status', 'replied')->count();
@@ -91,16 +118,18 @@ class SupportController extends Controller
     }
 
     /**
-     * 4. Phía Admin & Nhân viên: Phản hồi thư trực tiếp + Đính kèm tệp/hình ảnh gửi Mail cho khách
+     * 5. Phía Admin & Nhân viên: Phản hồi thư, lưu CSDL 2 chiều & Gửi Mail
      */
     public function adminReply(Request $request, $id)
     {
         $supportRequest = SupportRequest::findOrFail($id);
 
         $request->validate([
-            'reply_message' => 'nullable|string',
+            'reply_message' => 'required_if:status,replied|nullable|string',
             'status'        => 'required|in:pending,replied',
             'attachment'    => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
+        ], [
+            'reply_message.required_if' => 'Vui lòng nhập nội dung câu trả lời trước khi chuyển sang trạng thái Đã phản hồi.',
         ]);
 
         if ($request->filled('reply_message')) {
@@ -110,13 +139,18 @@ class SupportController extends Controller
                 $tempPath = storage_path('app/public/' . $relPath);
             }
 
+            // 1. Luôn lưu nội dung câu trả lời vào CSDL
+            if (Schema::hasColumn('support_requests', 'reply_content')) {
+                $supportRequest->reply_content = $request->reply_message;
+            }
+            $supportRequest->status = 'replied';
+            $supportRequest->save();
+
+            // 2. Gửi Email mẫu HTML đẹp cho khách hàng
             try {
-                $subjectText = '[PHẢN HỒI HỖ TRỢ] ' . $supportRequest->subject;
-                $contentBody = "Kính gửi {$supportRequest->name},\n\n" . $request->reply_message . "\n\nTrân trọng,\nBan quản trị XFAN Store";
-
-                Mail::to($supportRequest->email)->send(new SupportReplyMail($subjectText, $contentBody, $tempPath));
-
-                $supportRequest->status = 'replied';
+                Mail::to($supportRequest->email)->send(
+                    new SupportReplyMail($supportRequest, $request->reply_message, $tempPath)
+                );
 
                 if ($tempPath && file_exists($tempPath)) {
                     @unlink($tempPath);
@@ -126,19 +160,19 @@ class SupportController extends Controller
                     @unlink($tempPath);
                 }
                 Log::error('Lỗi gửi mail phản hồi: ' . $e->getMessage());
-                return back()->with('error', 'Lỗi khi gửi email phản hồi: ' . $e->getMessage());
+
+                return back()->with('success', 'Đã lưu phản hồi vào CSDL! (Lưu ý: Chưa gửi được Email do chưa cấu hình xong SMTP: ' . $e->getMessage() . ')');
             }
         } else {
             $supportRequest->status = $request->status;
+            $supportRequest->save();
         }
 
-        $supportRequest->save();
-
-        return back()->with('success', 'Đã cập nhật trạng thái và gửi phản hồi email thành công!');
+        return back()->with('success', 'Đã lưu câu trả lời và gửi thông báo Gmail cho khách hàng thành công!');
     }
 
     /**
-     * 5. Phía Admin & Nhân viên: Xóa thư hỗ trợ
+     * 6. Phía Admin & Nhân viên: Xóa thư hỗ trợ
      */
     public function destroy($id)
     {

@@ -86,6 +86,9 @@ Route::middleware('auth')->group(function () {
 
     Route::match(['get', 'post'], '/logout', [AuthController::class, 'logout'])->name('logout');
 
+    // Xem lịch sử hòm thư phản hồi phía khách hàng
+    Route::get('/ho-tro/lich-su', [SupportController::class, 'userHistory'])->name('user.support.history');
+
     // Livechat Khách hàng
     Route::prefix('user/chat')->name('user.chat.')->group(function () {
         Route::get('/messages', [ChatController::class, 'getUserMessages'])->name('messages');
@@ -188,7 +191,7 @@ Route::middleware('auth')->group(function () {
             Route::post('/chat/send', [ChatController::class, 'sendAdminMessage'])->name('admin.chat.send');
             Route::get('/chat/unread-count', [ChatController::class, 'checkAdminUnread'])->name('admin.chat.unread');
 
-            // Khai báo trọn bộ Resource hỗ trợ 100% cả 2 kiểu đặt tên route
+            // Resource hỗ trợ 100% cả 2 kiểu đặt tên route
             Route::resource('categories', CategoryController::class)->names('admin.categories');
             Route::resource('categories-short', CategoryController::class)->names('categories');
 

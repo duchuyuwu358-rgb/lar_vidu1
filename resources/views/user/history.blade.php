@@ -1,0 +1,139 @@
+@extends('layouts.app')
+
+@section('title', 'Hòm Thư Phản Hồi - XFAN Store')
+
+@section('content')
+<div class="container py-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 pb-3 border-bottom">
+        <div>
+            <h3 class="fw-bold text-primary mb-1">
+                <i class="bi bi-inbox-fill me-2"></i>Thư Phản Hồi & Hỗ Trợ
+            </h3>
+            <p class="text-muted small mb-0">Lịch sử trao đổi 2 chiều giữa bạn và Ban quản trị XFAN Store</p>
+        </div>
+        <a href="{{ route('user.support.form') }}" class="btn btn-primary rounded-pill px-3 shadow-sm">
+            <i class="bi bi-pencil-square me-1"></i> Gửi thư hỗ trợ mới
+        </a>
+    </div>
+
+    @if(session('success'))
+        <div class="alert alert-success alert-dismissible fade show rounded-3 mb-4 shadow-sm" role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i>{{ session('success') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    @endif
+
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light text-uppercase small text-muted">
+                        <tr>
+                            <th class="ps-4 py-3">Mã Thư</th>
+                            <th class="py-3">Tiêu đề / Nội dung đã gửi</th>
+                            <th class="py-3 text-center">Ngày gửi</th>
+                            <th class="py-3 text-center">Trạng thái</th>
+                            <th class="pe-4 py-3 text-end">Chi tiết hội thoại</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($requests as $req)
+                            <tr>
+                                <td class="ps-4 fw-bold text-primary">#{{ $req->id }}</td>
+                                <td>
+                                    <div class="fw-bold text-dark mb-1">{{ $req->subject ?? 'Yêu cầu hỗ trợ' }}</div>
+                                    <div class="text-muted small text-truncate" style="max-width: 300px;">
+                                        {{ $req->message ?? $req->content }}
+                                    </div>
+                                </td>
+                                <td class="text-center text-muted small">
+                                    <i class="bi bi-clock me-1"></i>{{ $req->created_at ? $req->created_at->format('H:i - d/m/Y') : '' }}
+                                </td>
+                                <td class="text-center">
+                                    @if(!empty($req->reply_content) || $req->status === 'replied')
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 rounded-pill">
+                                            <i class="bi bi-check-circle-fill me-1"></i>Đã phản hồi
+                                        </span>
+                                    @else
+                                        <span class="badge bg-warning-subtle text-warning border border-warning-subtle px-3 py-2 rounded-pill">
+                                            <i class="bi bi-hourglass-split me-1"></i>Đang chờ xử lý
+                                        </span>
+                                    @endif
+                                </td>
+                                <td class="pe-4 text-end">
+                                    <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#viewReplyModal{{ $req->id }}">
+                                        <i class="bi bi-chat-dots-fill me-1"></i>Xem hội thoại
+                                    </button>
+
+                                    <!-- Modal Chi Tiết Hội Thoại 2 Chiều -->
+                                    <div class="modal fade text-start" id="viewReplyModal{{ $req->id }}" tabindex="-1">
+                                        <div class="modal-dialog modal-dialog-centered modal-lg">
+                                            <div class="modal-content rounded-4 border-0 shadow">
+                                                <div class="modal-header bg-primary text-white rounded-top-4">
+                                                    <h5 class="modal-title fw-bold">
+                                                        <i class="bi bi-chat-left-text-fill me-2"></i>Chi Tiết Yêu Cầu Hỗ Trợ #{{ $req->id }}
+                                                    </h5>
+                                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                                </div>
+                                                <div class="modal-body p-4">
+                                                    <!-- Nội dung khách gửi -->
+                                                    <div class="mb-4 p-3 bg-light rounded-3 border">
+                                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                                            <strong class="text-dark"><i class="bi bi-person-circle me-1 text-primary"></i>Bạn đã gửi:</strong>
+                                                            <small class="text-muted">{{ $req->created_at ? $req->created_at->format('H:i d/m/Y') : '' }}</small>
+                                                        </div>
+                                                        <div class="fw-bold text-primary mb-1">Tiêu đề: {{ $req->subject }}</div>
+                                                        <p class="mb-0 text-dark small" style="white-space: pre-wrap;">{{ $req->message ?? $req->content }}</p>
+                                                        
+                                                        @if($req->attachment_path)
+                                                            <div class="mt-2 pt-2 border-top">
+                                                                <a href="{{ asset('storage/' . $req->attachment_path) }}" target="_blank" class="btn btn-sm btn-outline-secondary">
+                                                                    <i class="bi bi-paperclip me-1"></i>Xem tệp bạn đã đính kèm
+                                                                </a>
+                                                            </div>
+                                                        @endif
+                                                    </div>
+
+                                                    <!-- Nội dung Admin trả lời -->
+                                                    @if(!empty($req->reply_content))
+                                                        <div class="p-3 bg-success-subtle rounded-3 border border-success-subtle">
+                                                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                                <strong class="text-success"><i class="bi bi-shield-check me-1"></i>Ban Quản Trị XFAN Store Trả Lời:</strong>
+                                                                <small class="text-muted">{{ $req->updated_at ? $req->updated_at->format('H:i d/m/Y') : '' }}</small>
+                                                            </div>
+                                                            <p class="mb-0 text-dark fw-semibold small" style="white-space: pre-wrap;">{{ $req->reply_content }}</p>
+                                                        </div>
+                                                    @else
+                                                        <div class="p-3 bg-warning-subtle text-warning-emphasis rounded-3 border border-warning-subtle text-center">
+                                                            <i class="bi bi-clock-history me-1"></i>Yêu cầu của bạn đang được Ban quản trị xử lý. Vui lòng quay lại sau!
+                                                        </div>
+                                                    @endif
+                                                </div>
+                                                <div class="modal-footer bg-light border-0 rounded-bottom-4">
+                                                    <button type="button" class="btn btn-secondary btn-sm rounded-pill px-3" data-bs-dismiss="modal">Đóng</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="5" class="text-center text-muted py-5">
+                                    <i class="bi bi-inbox fs-1 text-secondary opacity-50 d-block mb-2"></i>
+                                    <span>Bạn chưa gửi thư hỗ trợ nào.</span>
+                                </td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        @if(method_exists($requests, 'hasPages') && $requests->hasPages())
+            <div class="card-footer bg-white border-top-0 py-3">
+                {{ $requests->links() }}
+            </div>
+        @endif
+    </div>
+</div>
+@endsection

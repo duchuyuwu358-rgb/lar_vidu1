@@ -12,19 +12,12 @@
 
     @if(session('success'))
         <div class="alert alert-success alert-dismissible fade show mb-3" role="alert">
-            {{ session('success') }}
+            <i class="bi bi-check-circle-fill me-1"></i>{{ session('success') }}
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     @endif
 
-    @if(session('error'))
-        <div class="alert alert-danger alert-dismissible fade show mb-3" role="alert">
-            {{ session('error') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    @endif
-
-    <!-- 1. KHỐI THỐNG KÊ SỐ LƯỢNG THƯ -->
+    <!-- KHỐI THỐNG KÊ SỐ LƯỢNG THƯ -->
     <div class="row g-3 mb-4">
         <div class="col-md-4">
             <div class="card border-0 shadow-sm rounded-3 bg-primary text-white">
@@ -61,7 +54,7 @@
         </div>
     </div>
 
-    <!-- 2. BỘ LỌC TÌM KIẾM -->
+    <!-- BỘ LỌC TÌM KIẾM -->
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-body">
             <form method="GET" action="{{ route('admin.support.index') }}" class="row g-3">
@@ -83,7 +76,7 @@
         </div>
     </div>
 
-    <!-- 3. BẢNG DANH SÁCH THƯ -->
+    <!-- BẢNG DANH SÁCH THƯ -->
     <div class="card border-0 shadow-sm rounded-3">
         <div class="card-body p-0">
             <div class="table-responsive">
@@ -120,7 +113,7 @@
                                     @endif
                                 </td>
                                 <td class="text-center">
-                                    @if($req->status === 'replied')
+                                    @if($req->status === 'replied' || !empty($req->reply_content))
                                         <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
                                             <i class="bi bi-check-circle-fill me-1"></i>Đã phản hồi
                                         </span>
@@ -141,7 +134,7 @@
                                         <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
                                     </form>
 
-                                    <!-- MODAL XEM CHI TIẾT THƯ VÀ PHẢN HỒI KÈM TỆP -->
+                                    <!-- MODAL XEM CÂU HỎI & CÂU TRẢ LỜI -->
                                     <div class="modal fade text-start" id="viewSupportModal{{ $req->id }}" tabindex="-1">
                                         <div class="modal-dialog modal-lg">
                                             <div class="modal-content">
@@ -155,18 +148,18 @@
                                                         <div class="row mb-3">
                                                             <div class="col-md-6"><strong>Họ tên:</strong> {{ $req->name }}</div>
                                                             <div class="col-md-6"><strong>Email:</strong> {{ $req->email }}</div>
-                                                            <div class="col-md-6 mt-2"><strong>Số điện thoại:</strong> {{ $req->phone ?? 'Không có' }}</div>
+                                                            <div class="col-md-6 mt-2"><strong>Số điện thoại:</strong> {{ $req->phone ?? 'Chưa có' }}</div>
                                                             <div class="col-md-6 mt-2"><strong>Thời gian gửi:</strong> {{ $req->created_at ? $req->created_at->format('H:i d/m/Y') : '' }}</div>
                                                         </div>
 
                                                         <div class="mb-3">
                                                             <label class="form-label fw-bold">Tiêu đề thư:</label>
-                                                            <div class="p-2 bg-light rounded border">{{ $req->subject }}</div>
+                                                            <div class="p-2 bg-light rounded border fw-semibold">{{ $req->subject }}</div>
                                                         </div>
 
                                                         <div class="mb-3">
-                                                            <label class="form-label fw-bold">Nội dung khách hàng viết:</label>
-                                                            <div class="p-3 bg-light rounded border mb-2" style="white-space: pre-wrap;">{{ $req->message }}</div>
+                                                            <label class="form-label fw-bold text-dark"><i class="bi bi-person-fill me-1"></i>Nội dung khách hàng viết:</label>
+                                                            <div class="p-3 bg-light rounded border mb-2" style="white-space: pre-wrap;">{{ $req->message ?? $req->content }}</div>
 
                                                             @if($req->attachment_path)
                                                                 <div class="p-2 bg-light rounded border d-flex align-items-center justify-content-between">
@@ -180,24 +173,23 @@
 
                                                         <hr class="my-4">
 
-                                                        <h6 class="fw-bold text-primary mb-3"><i class="bi bi-reply-fill me-1"></i>Gửi Email Phản Hồi Cho Khách Hang</h6>
+                                                        <h6 class="fw-bold text-primary mb-3"><i class="bi bi-reply-fill me-1"></i>Nội dung câu trả lời gửi cho khách</h6>
 
                                                         <div class="mb-3">
                                                             <label class="form-label fw-bold">Nội dung câu trả lời gửi về {{ $req->email }}:</label>
-                                                            <textarea name="reply_message" class="form-control" rows="4" placeholder="Nhập câu trả lời cho khách hàng..."></textarea>
+                                                            <textarea name="reply_message" class="form-control" rows="4" placeholder="Nhập câu trả lời cho khách hàng...">{{ old('reply_message', $req->reply_content) }}</textarea>
                                                         </div>
 
                                                         <div class="mb-3">
                                                             <label class="form-label fw-bold">Gửi kèm Tệp / Hình ảnh cho khách (PDF, Word, Ảnh...):</label>
                                                             <input type="file" name="attachment" class="form-control" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
-                                                            <div class="form-text text-muted">Tệp đính kèm này sẽ được gửi thẳng vào hòm thư Email của khách hàng.</div>
                                                         </div>
 
                                                         <div class="mb-3">
                                                             <label class="form-label fw-bold">Trạng thái xử lý:</label>
                                                             <select name="status" class="form-select">
                                                                 <option value="pending" {{ $req->status === 'pending' ? 'selected' : '' }}>Chờ xử lý</option>
-                                                                <option value="replied" {{ $req->status === 'replied' ? 'selected' : '' }}>Đã phản hồi</option>
+                                                                <option value="replied" {{ $req->status === 'replied' || !empty($req->reply_content) ? 'selected' : '' }}>Đã phản hồi</option>
                                                             </select>
                                                         </div>
                                                     </div>
