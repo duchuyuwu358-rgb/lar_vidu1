@@ -24,9 +24,32 @@ class User extends Authenticatable implements MustVerifyEmail
         'email',
         'password',
         'role',
-        'status', // Bổ sung status để cho phép Mass Assignment khi tạo tài khoản
-        'email_verified_at',
+        'status',
     ];
+
+    /**
+     * Các thuộc tính cần ẩn khi chuyển đổi thành Array/JSON.
+     *
+     * @var list<string>
+     */
+    protected $hidden = [
+        'password',
+        'remember_token',
+    ];
+
+    /**
+     * Chuyển đổi kiểu dữ liệu (Type casting).
+     *
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'email_verified_at' => 'datetime',
+            'password'          => 'hashed',
+            'status'            => 'integer',
+        ];
+    }
 
     /**
      * Kiểm tra người dùng có phải Admin hay không.
@@ -74,29 +97,5 @@ class User extends Authenticatable implements MustVerifyEmail
     public function chatMessages(): HasMany
     {
         return $this->hasMany(ChatMessage::class, 'sender_id');
-    }
-
-    /**
-     * Các thuộc tính cần ẩn khi chuyển đổi thành Array/JSON.
-     *
-     * @var list<string>
-     */
-    protected $hidden = [
-        'password',
-        'remember_token',
-    ];
-
-    /**
-     * Chuyển đổi kiểu dữ liệu (Type casting).
-     *
-     * @return array<string, string>
-     */
-    protected function casts(): array
-    {
-        return [
-            'email_verified_at' => 'datetime',
-            'password'          => 'hashed',
-            'status'            => 'integer',
-        ];
     }
 }

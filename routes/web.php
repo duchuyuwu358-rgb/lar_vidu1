@@ -84,7 +84,13 @@ Route::middleware('auth')->group(function () {
     });
 
     // Email Verification (Xác minh Email)
-    Route::get('/email/verify', fn () => view('auth.verify-email'))->name('verification.notice');
+    // Tối ưu: Nếu user đã xác minh email rồi thì tự động chuyển hướng về storefront
+    Route::get('/email/verify', function (Request $request) {
+        return $request->user()->hasVerifiedEmail()
+            ? redirect()->route('storefront')
+            : view('auth.verify-email');
+    })->name('verification.notice');
+
     Route::get('/email/verify/{id}/{hash}', function (EmailVerificationRequest $request) {
         $request->fulfill();
         $user = $request->user();

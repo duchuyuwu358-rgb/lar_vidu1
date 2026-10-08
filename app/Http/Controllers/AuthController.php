@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -47,19 +48,18 @@ class AuthController extends Controller
 
             $request->session()->regenerate();
 
-            // 2. Phân luồng chuyển hướng theo Role để tránh lỗi 403
+            // 2. Phân luồng chuyển hướng theo Role
             if (in_array($user->role, ['admin', 'staff'])) {
-                // Nếu là Admin/Nhân viên: chuyển hướng vào trang Admin
                 return redirect()->intended(route('admin.dashboard')); 
             }
 
-            // 3. Nếu là Khách hàng: Xóa url.intended nếu URL đó thuộc trang admin
+            // 3. Xóa url.intended nếu thuộc trang admin
             $intendedUrl = session()->get('url.intended');
             if ($intendedUrl && str_contains($intendedUrl, '/admin')) {
                 session()->forget('url.intended');
             }
 
-            // Chuyển hướng Khách hàng về trang chủ
+            // Chuyển hướng Khách hàng
             return redirect()->intended(route('storefront'));
         }
 
@@ -87,7 +87,7 @@ class AuthController extends Controller
                 'string',
                 'min:2',
                 'max:50',
-                'regex:/^[\pL\s]+$/u', // Chấp nhận chữ cái có dấu, không dấu và khoảng trắng
+                'regex:/^[\pL\s]+$/u',
             ],
             'email' => [
                 'required',
@@ -95,13 +95,13 @@ class AuthController extends Controller
                 'email',
                 'max:255',
                 'unique:users,email',
-                'regex:/^[a-zA-Z0-9._%+-]+@gmail\.com$/i', // Định dạng @gmail.com
+                'regex:/^[a-zA-Z0-9._%+-]+@gmail\.com$/i',
             ],
             'password' => [
                 'required',
                 'string',
                 'min:8',
-                'confirmed', // Khớp với password_confirmation
+                'confirmed',
             ],
             'password_confirmation' => [
                 'required',
@@ -128,13 +128,18 @@ class AuthController extends Controller
             'name'     => $validated['name'],
             'email'    => $validated['email'],
             'password' => Hash::make($validated['password']),
-            'role'     => 'customer', // Mặc định tài khoản mới là Khách hàng
-            'status'   => 1,          // Mặc định trạng thái Hoạt động
+            'role'     => 'customer',
+            'status'   => 1,
         ]);
 
+        // 1. Phát sự kiện gửi email xác thực tới địa chỉ Gmail vừa đăng ký
+        event(new Registered($user));
+
+        // 2. Tự động đăng nhập phiên làm việc cho user
         Auth::login($user);
 
-        return redirect()->route('storefront')->with('success', 'Đăng ký tài khoản thành công!');
+        // 3. Chuyển hướng sang trang thông báo yêu cầu xác thực Email
+        return redirect()->route('verification.notice')->with('success', 'Đăng ký thành công! Vui lòng kiểm tra Gmail để xác thực tài khoản.');
     }
 
     /**
