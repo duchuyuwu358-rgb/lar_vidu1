@@ -183,7 +183,6 @@
 
                             @forelse($items as $item)
                                 @php 
-                                    // Tên sản phẩm/dịch vụ an toàn sử dụng Accessor & Nullsafe
                                     $pName = $item->display_name 
                                         ?? $item->service?->title 
                                         ?? $item->service?->name 
@@ -228,17 +227,41 @@
                         </tbody>
                         <tfoot class="border-top">
                             @php 
-                                $grandTotal = $order->total_price ?? $order->total_amount ?? $subtotal;
-                                $shippingFee = max(0, $grandTotal - $subtotal);
+                                $discountAmount = $order->discount_amount ?? 0;
+                                $couponCode     = $order->coupon_code ?? null;
+                                $shippingFee    = $order->ghn_total_fee ?? max(0, ($order->total_price ?? $subtotal) - ($subtotal - $discountAmount));
+                                $grandTotal     = $order->total_price ?? ($subtotal - $discountAmount + $shippingFee);
                             @endphp
+                            <!-- Tạm tính tiền hàng -->
                             <tr>
                                 <td colspan="3" class="text-end text-muted">Tiền hàng:</td>
                                 <td class="text-end pe-3 fw-bold">{{ number_format($subtotal) }}đ</td>
                             </tr>
+
+                            <!-- HIỂN THỊ MÃ GIẢM GIÁ VÀ SỐ TIỀN GIẢM -->
+                            @if($discountAmount > 0 || !empty($couponCode))
+                                <tr class="text-success">
+                                    <td colspan="3" class="text-end fw-semibold">
+                                        <i class="fas fa-ticket-alt me-1"></i>Mã giảm giá 
+                                        @if(!empty($couponCode))
+                                            (<strong class="text-uppercase">{{ $couponCode }}</strong>):
+                                        @else
+                                            :
+                                        @endif
+                                    </td>
+                                    <td class="text-end pe-3 fw-bold">
+                                        -{{ number_format($discountAmount) }}đ
+                                    </td>
+                                </tr>
+                            @endif
+
+                            <!-- Phí vận chuyển -->
                             <tr>
                                 <td colspan="3" class="text-end text-muted">Phí vận chuyển (Shipping):</td>
                                 <td class="text-end pe-3 text-primary fw-bold">+{{ number_format($shippingFee) }}đ</td>
                             </tr>
+
+                            <!-- Tổng tiền thanh toán -->
                             <tr class="table-light">
                                 <td colspan="3" class="text-end fw-bold h6 mb-0">TỔNG TIỀN THANH TOÁN:</td>
                                 <td class="text-end pe-3 fw-bold h5 text-danger mb-0">

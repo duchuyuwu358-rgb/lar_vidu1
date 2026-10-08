@@ -33,7 +33,7 @@
                     </div>
                 @endif
 
-                <!-- FORM ĐĂNG NHẬP -->
+                <!-- FORM ĐĂNG NHẬP THƯỜNG -->
                 <form method="POST" action="{{ route('login') }}">
                     @csrf
 
@@ -89,11 +89,22 @@
                         @endif
                     </div>
 
-                    <!-- NÚT BẤM ĐĂNG NHẬP -->
+                    <!-- NÚT BẤM ĐĂNG NHẬP THƯỜNG -->
                     <button class="btn btn-primary w-100 py-2.5 fw-bold rounded-3 shadow-sm" type="submit">
                         <i class="bi bi-box-arrow-in-right me-1"></i> Đăng nhập
                     </button>
                 </form>
+
+                <!-- ĐƯỜNG PHÂN CÁCH HOẶC -->
+                <div class="position-relative text-center my-4">
+                    <hr class="text-secondary opacity-25 m-0">
+                    <span class="position-absolute top-50 start-50 translate-middle bg-white px-3 small text-muted">HOẶC</span>
+                </div>
+
+                <!-- NÚT ĐĂNG NHẬP BẰNG GOOGLE -->
+                <a href="{{ route('auth.google') }}" class="btn btn-outline-danger w-100 py-2.5 fw-semibold rounded-3 shadow-sm d-flex align-items-center justify-content-center gap-2">
+                    <i class="fab fa-google fs-5"></i> Đăng nhập bằng Google
+                </a>
 
                 <!-- FOOTER ĐĂNG KÝ -->
                 <div class="text-center mt-4 pt-3 border-top">

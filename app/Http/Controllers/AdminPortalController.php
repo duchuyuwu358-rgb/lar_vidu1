@@ -8,15 +8,16 @@ use App\Models\Category;
 use App\Models\User;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\Coupon;
+use App\Mail\PromotionMail;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
 class AdminPortalController extends Controller
 {
-    /**
-     * Danh sách trạng thái đơn hàng dùng chung hệ thống
-     */
     private array $paidStatuses = ['completed', 'paid', 'success', 'da_thanh_toan', 'đã thanh toán', 'thành công', 'shipping', 'processing'];
     private array $pendingStatuses = ['pending', 'unpaid', 'cho_thanh_toan', 'chờ thanh toán'];
     private array $failedStatuses = ['cancelled', 'canceled', 'failed', 'da_huy', 'đã hủy', 'thất bại'];
@@ -26,33 +27,26 @@ class AdminPortalController extends Controller
         $period = $request->get('period', '1day');
         $selectedProductId = $request->get('product_id', 'all');
 
-        // Tự động nhận diện tên cột trong Database (tránh lỗi lệch tên cột)
         $productFk = Schema::hasColumn('order_items', 'hood_id') ? 'hood_id' : 'product_id';
         $amountCol = Schema::hasColumn('orders', 'total_amount') ? 'total_amount' : 'total_price';
 
-        // 1. Thống kê số lượng tổng quan
         $totalProducts   = Hood::count();
         $totalCategories = Category::count();
         $totalCustomers  = User::where('role', '!=', 'admin')->count();
 
-        // Tổng số lượng sản phẩm đã bán (từ các đơn đã thanh toán/hoàn thành)
         $totalSold = OrderItem::whereHas('order', function ($q) {
             $q->whereIn(DB::raw('LOWER(status)'), $this->paidStatuses);
         })->sum('quantity');
 
-        // Tổng doanh thu thực tế
         $totalRevenue = Order::whereIn(DB::raw('LOWER(status)'), $this->paidStatuses)->sum($amountCol);
 
-        // 2. Thống kê trạng thái đơn hàng
         $totalOrdersCount   = Order::count();
         $paidOrdersCount    = Order::whereIn(DB::raw('LOWER(status)'), $this->paidStatuses)->count();
         $pendingOrdersCount = Order::whereIn(DB::raw('LOWER(status)'), $this->pendingStatuses)->count();
         $failedOrdersCount  = Order::whereIn(DB::raw('LOWER(status)'), $this->failedStatuses)->count();
 
-        // 3. Danh sách sản phẩm dùng cho Dropdown lọc biểu đồ
         $allProducts = Hood::select('id', 'name')->orderBy('name')->get();
 
-        // 4. Bảng Top 10 Sản Phẩm Bán Chạy
         $topProducts = OrderItem::select(
             DB::raw("{$productFk} as product_id_fk"),
             DB::raw('SUM(quantity) as total_qty'),
@@ -69,7 +63,6 @@ class AdminPortalController extends Controller
             $item->hood = Hood::find($item->product_id_fk);
         }
 
-        // 5. Dữ liệu Biểu đồ Doanh thu
         $chartData   = $this->getChartData($period, $selectedProductId, $productFk, $amountCol);
         $chartLabels = $chartData['labels'];
         $chartValues = $chartData['values'];
@@ -94,7 +87,6 @@ class AdminPortalController extends Controller
         $chartTitle    = "Doanh thu: {$productName}";
         $chartSubtitle = "Thống kê theo {$periodText}";
 
-        // 6. ĐƠN HÀNG GẦN ĐÂY: Sắp xếp ID GIẢM DẦN (Mới nhất lên đầu: #25 -> #24 -> #23)
         $recentOrders = Order::with('user')
             ->orderBy('id', 'desc')
             ->take(10)
@@ -122,9 +114,6 @@ class AdminPortalController extends Controller
         ));
     }
 
-    /**
-     * Dữ liệu vẽ biểu đồ doanh thu theo khoảng thời gian
-     */
     private function getChartData(string $period, string $productId, string $productFk, string $amountCol): array
     {
         $labels = [];
@@ -162,7 +151,7 @@ class AdminPortalController extends Controller
                 $end      = $month->copy()->endOfMonth();
                 $values[] = $this->getRevenueBetween($start, $end, $productId, $productFk, $amountCol);
             }
-        } else { // 'all'
+        } else {
             for ($i = 4; $i >= 0; $i--) {
                 $year     = $now->copy()->subYears($i);
                 $labels[] = $year->format('Y');
@@ -175,9 +164,6 @@ class AdminPortalController extends Controller
         return ['labels' => $labels, 'values' => $values];
     }
 
-    /**
-     * Tính tổng doanh thu trong khoảng thời gian cụ thể
-     */
     private function getRevenueBetween($start, $end, string $productId, string $productFk, string $amountCol)
     {
         if ($productId === 'all') {
@@ -194,38 +180,40 @@ class AdminPortalController extends Controller
             ->sum(DB::raw('price * quantity'));
     }
 
-    /**
-     * Xuất Báo cáo Đơn hàng & Doanh thu ra file CSV/Excel (Chuẩn mã hóa UTF-8 BOM)
-     */
     public function exportExcel(Request $request)
     {
         $status    = $request->get('status', 'all');
         $productId = $request->get('product_id', 'all');
         $startDate = $request->get('start_date');
         $endDate   = $request->get('end_date');
-        $search    = $request->get('search');
+        $search    = trim($request->get('search', ''));
 
         $productFk = Schema::hasColumn('order_items', 'hood_id') ? 'hood_id' : 'product_id';
         $amountCol = Schema::hasColumn('orders', 'total_amount') ? 'total_amount' : 'total_price';
 
-        // Xuất file sắp xếp mới nhất lên đầu
         $query = Order::with(['user', 'orderItems.hood', 'orderItems.product'])->orderBy('id', 'desc');
 
-        // 1. Tìm kiếm theo Từ khóa
-        if ($search) {
+        if (!empty($search)) {
             $query->where(function ($q) use ($search) {
-                $q->where('id', 'like', "%{$search}%")
-                  ->orWhere('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%")
-                  ->orWhere('phone', 'like', "%{$search}%")
-                  ->orWhereHas('user', function ($uq) use ($search) {
-                      $uq->where('name', 'like', "%{$search}%")
-                        ->orWhere('email', 'like', "%{$search}%");
-                  });
+                $q->where('id', 'like', "%{$search}%");
+
+                if (Schema::hasColumn('orders', 'name')) {
+                    $q->orWhere('name', 'like', "%{$search}%");
+                }
+                if (Schema::hasColumn('orders', 'email')) {
+                    $q->orWhere('email', 'like', "%{$search}%");
+                }
+                if (Schema::hasColumn('orders', 'phone')) {
+                    $q->orWhere('phone', 'like', "%{$search}%");
+                }
+
+                $q->orWhereHas('user', function ($uq) use ($search) {
+                    $uq->where('name', 'like', "%{$search}%")
+                      ->orWhere('email', 'like', "%{$search}%");
+                });
             });
         }
 
-        // 2. Lọc theo Trạng thái
         if ($status === 'paid') {
             $query->whereIn(DB::raw('LOWER(status)'), $this->paidStatuses);
         } elseif ($status === 'pending') {
@@ -234,14 +222,12 @@ class AdminPortalController extends Controller
             $query->whereIn(DB::raw('LOWER(status)'), $this->failedStatuses);
         }
 
-        // 3. Lọc theo Sản phẩm
         if ($productId !== 'all') {
             $query->whereHas('orderItems', function ($q) use ($productId, $productFk) {
                 $q->where($productFk, $productId);
             });
         }
 
-        // 4. Lọc theo khoảng ngày
         if ($startDate) {
             $query->whereDate('created_at', '>=', $startDate);
         }
@@ -262,7 +248,7 @@ class AdminPortalController extends Controller
 
         $callback = function () use ($orders, $amountCol) {
             $file = fopen('php://output', 'w');
-            fputs($file, "\xEF\xBB\xBF"); // BOM chống lỗi font tiếng Việt trên Microsoft Excel
+            fputs($file, "\xEF\xBB\xBF");
 
             fputcsv($file, ['Mã đơn', 'Khách hàng', 'Email', 'Sản phẩm mua', 'Số lượng', 'Tổng tiền (VNĐ)', 'Trạng thái', 'Ngày đặt']);
 
@@ -270,8 +256,8 @@ class AdminPortalController extends Controller
             $grandQty   = 0;
 
             foreach ($orders as $order) {
-                $customerName  = $order->name ?? $order->user->name ?? $order->customer_name ?? 'Khách lẻ';
-                $customerEmail = $order->user->email ?? $order->email ?? $order->customer_email ?? '';
+                $customerName  = $order->name ?? $order->user->name ?? 'Khách lẻ';
+                $customerEmail = $order->user->email ?? $order->email ?? '';
 
                 $itemsList = [];
                 $orderQty  = 0;
@@ -282,7 +268,7 @@ class AdminPortalController extends Controller
                     $orderQty   += $item->quantity;
                 }
 
-                $totalAmount = $order->{$amountCol} ?? $order->total_amount ?? $order->total_price ?? 0;
+                $totalAmount = $order->{$amountCol} ?? 0;
                 $grandTotal += $totalAmount;
                 $grandQty   += $orderQty;
 
@@ -305,5 +291,68 @@ class AdminPortalController extends Controller
         };
 
         return response()->stream($callback, 200, $headers);
+    }
+
+    /**
+     * Bổ sung Giao diện Gửi Thư Hỗ Trợ Khách Hàng
+     */
+    public function showPromotionForm()
+    {
+        $customers = User::where('role', 'customer')->get();
+
+        return view('admin.promotion_mail', compact('customers'));
+    }
+
+    /**
+     * Thực hiện Gửi Email Hàng Loạt kèm Tệp đính kèm (PDF, DOC, DOCX, Hình ảnh)
+     */
+    public function sendPromotionMail(Request $request)
+    {
+        $request->validate([
+            'subject'    => 'required|string|max:255',
+            'content'    => 'required|string',
+            'target'     => 'required|string',
+            'attachment' => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240', // Tối đa 10MB
+        ], [
+            'subject.required' => 'Vui lòng nhập tiêu đề thư.',
+            'content.required' => 'Vui lòng nhập nội dung thư.',
+            'attachment.mimes' => 'Tập tin đính kèm phải có định dạng PDF, DOC, DOCX, JPG, JPEG hoặc PNG.',
+            'attachment.max'   => 'Tập tin đính kèm không được vượt quá 10MB.',
+        ]);
+
+        $subject = $request->input('subject');
+        $content = $request->input('content');
+        $target  = $request->input('target');
+
+        $attachmentPath = null;
+        if ($request->hasFile('attachment')) {
+            $path = $request->file('attachment')->store('temp_mail_attachments', 'public');
+            $attachmentPath = storage_path('app/public/' . $path);
+        }
+
+        try {
+            if ($target === 'all') {
+                $emails = User::where('role', 'customer')->pluck('email')->filter()->toArray();
+            } else {
+                $emails = [$target];
+            }
+
+            foreach ($emails as $email) {
+                Mail::to($email)->send(new PromotionMail($subject, $content, $attachmentPath));
+            }
+
+            // Xóa tập tin tạm sau khi đã gửi email hoàn tất
+            if ($attachmentPath && file_exists($attachmentPath)) {
+                @unlink($attachmentPath);
+            }
+
+            return back()->with('success', 'Đã gửi thư hỗ trợ kèm tập tin đính kèm thành công đến ' . count($emails) . ' khách hàng!');
+        } catch (\Throwable $e) {
+            if ($attachmentPath && file_exists($attachmentPath)) {
+                @unlink($attachmentPath);
+            }
+            Log::error('Lỗi gửi thư hàng loạt: ' . $e->getMessage());
+            return back()->with('error', 'Lỗi khi gửi mail: ' . $e->getMessage());
+        }
     }
 }

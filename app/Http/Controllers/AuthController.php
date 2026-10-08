@@ -8,20 +8,17 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
+use Laravel\Socialite\Facades\Socialite;
+use Illuminate\Support\Str;
 
 class AuthController extends Controller
 {
-    /**
-     * Hiển thị giao diện đăng nhập
-     */
     public function showLogin()
     {
         return view('auth.login');
     }
 
-    /**
-     * Xử lý đăng nhập
-     */
     public function login(Request $request)
     {
         $credentials = $request->validate([
@@ -36,8 +33,8 @@ class AuthController extends Controller
         if (Auth::attempt($credentials, $request->boolean('remember'))) {
             $user = Auth::user();
 
-            // 1. Kiểm tra nếu tài khoản bị khóa (status = 0)
-            if (isset($user->status) && $user->status == 0) {
+            // Kiểm tra trạng thái khóa tài khoản nếu CSDL có cột status
+            if (Schema::hasColumn('users', 'status') && isset($user->status) && $user->status == 0) {
                 Auth::logout();
                 $request->session()->invalidate();
                 $request->session()->regenerateToken();
@@ -49,18 +46,15 @@ class AuthController extends Controller
 
             $request->session()->regenerate();
 
-            // 2. Phân luồng chuyển hướng theo Role
             if (in_array($user->role, ['admin', 'staff'])) {
-                return redirect()->intended(route('admin.dashboard')); 
+                return redirect()->intended(route('admin.portal')); 
             }
 
-            // 3. Xóa url.intended nếu thuộc trang admin
             $intendedUrl = session()->get('url.intended');
             if ($intendedUrl && str_contains($intendedUrl, '/admin')) {
                 session()->forget('url.intended');
             }
 
-            // Chuyển hướng Khách hàng
             return redirect()->intended(route('storefront'));
         }
 
@@ -69,107 +63,102 @@ class AuthController extends Controller
         ])->onlyInput('email');
     }
 
-    /**
-     * Hiển thị giao diện đăng ký
-     */
     public function showRegister()
     {
         return view('auth.register');
     }
 
-    /**
-     * Xử lý đăng ký tài khoản
-     */
     public function register(Request $request)
     {
         $validated = $request->validate([
-            'name' => [
-                'required',
-                'string',
-                'min:2',
-                'max:50',
-                'regex:/^[\pL\s]+$/u',
-            ],
-            'email' => [
-                'required',
-                'string',
-                'email',
-                'max:255',
-                'unique:users,email',
-                'regex:/^[a-zA-Z0-9._%+-]+@gmail\.com$/i',
-            ],
-            'password' => [
-                'required',
-                'string',
-                'min:8',
-                'confirmed',
-            ],
-            'password_confirmation' => [
-                'required',
-            ],
+            'name' => ['required', 'string', 'min:2', 'max:50'],
+            'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
+            'password_confirmation' => ['required'],
         ], [
-            'name.required'                  => 'Vui lòng nhập họ và tên.',
-            'name.min'                       => 'Họ và tên phải có ít nhất 2 ký tự.',
-            'name.max'                       => 'Họ và tên không được vượt quá 50 ký tự.',
-            'name.regex'                     => 'Họ và tên chỉ được chứa chữ cái và khoảng trắng.',
-
-            'email.required'                 => 'Vui lòng nhập địa chỉ Gmail.',
-            'email.email'                    => 'Địa chỉ email không đúng định dạng.',
-            'email.unique'                   => 'Địa chỉ Gmail này đã được đăng ký tài khoản.',
-            'email.regex'                    => 'Vui lòng nhập đúng định dạng Gmail (ví dụ: example@gmail.com).',
-
-            'password.required'              => 'Vui lòng nhập mật khẩu.',
-            'password.min'                   => 'Mật khẩu phải có tối thiểu 8 ký tự.',
-            'password.confirmed'             => 'Mật khẩu xác nhận không trùng khớp.',
-
-            'password_confirmation.required' => 'Vui lòng xác nhận lại mật khẩu.',
+            'name.required' => 'Vui lòng nhập họ và tên.',
+            'email.required' => 'Vui lòng nhập địa chỉ Gmail.',
+            'email.unique' => 'Địa chỉ Gmail này đã được đăng ký tài khoản.',
+            'password.required' => 'Vui lòng nhập mật khẩu.',
+            'password.confirmed' => 'Mật khẩu xác nhận không trùng khớp.',
         ]);
 
-        $user = User::create([
+        $userData = [
             'name'     => $validated['name'],
             'email'    => $validated['email'],
             'password' => Hash::make($validated['password']),
             'role'     => 'customer',
-            'status'   => 1,
-        ]);
+        ];
 
-        // Xử lý gửi email xác thực an toàn bằng try-catch
-        $mailSent = true;
-        $errorMessage = null;
+        if (Schema::hasColumn('users', 'status')) {
+            $userData['status'] = 1;
+        }
 
+        $user = User::create($userData);
+
+        // Tự động đăng nhập
+        Auth::login($user);
+
+        // Gửi email xác thực
         try {
             event(new Registered($user));
         } catch (\Throwable $e) {
             Log::error('Lỗi gửi email xác thực khi đăng ký: ' . $e->getMessage());
-            $mailSent = false;
-            $errorMessage = $e->getMessage();
         }
 
-        // Tự động đăng nhập phiên làm việc cho user
-        Auth::login($user);
-
-        // Thông báo tùy theo trạng thái gửi thư
-        if ($mailSent) {
-            return redirect()->route('verification.notice')->with('success', 'Đăng ký tài khoản thành công! Vui lòng kiểm tra hòm thư Gmail để xác minh.');
-        }
-
-        return redirect()->route('verification.notice')->with('error', $errorMessage ?? 'Hệ thống không thể kết nối tới máy chủ gửi mail lúc này.');
+        // Chuyển hướng trực tiếp đến trang xác minh email
+        return redirect()->route('verification.notice')->with('success', 'Đăng ký tài khoản thành công! Vui lòng kiểm tra Gmail để xác minh tài khoản.');
     }
 
-    /**
-     * Xử lý đăng xuất
-     */
+    public function redirectToGoogle()
+    {
+        return Socialite::driver('google')->redirect();
+    }
+
+    public function handleGoogleCallback()
+    {
+        try {
+            $googleUser = Socialite::driver('google')->user();
+            $user = User::where('email', $googleUser->getEmail())->first();
+
+            if (!$user) {
+                $userData = [
+                    'name'              => $googleUser->getName(),
+                    'email'             => $googleUser->getEmail(),
+                    'google_id'         => $googleUser->getId(),
+                    'email_verified_at' => now(),
+                    'password'          => bcrypt(Str::random(16)),
+                    'role'              => 'customer',
+                ];
+
+                if (Schema::hasColumn('users', 'status')) {
+                    $userData['status'] = 1;
+                }
+
+                $user = User::create($userData);
+            } else {
+                if (Schema::hasColumn('users', 'google_id')) {
+                    $user->update(['google_id' => $googleUser->getId()]);
+                }
+                if (!$user->hasVerifiedEmail()) {
+                    $user->markEmailAsVerified();
+                }
+            }
+
+            Auth::login($user);
+            return redirect()->route('storefront')->with('success', 'Đăng nhập thành công bằng tài khoản Google!');
+        } catch (\Throwable $e) {
+            Log::error('Google Auth Error: ' . $e->getMessage());
+            return redirect()->route('login')->withErrors(['email' => 'Không thể đăng nhập bằng Google. Vui lòng thử lại.']);
+        }
+    }
+
     public function logout(Request $request)
     {
         Auth::logout();
-
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect()->route('login')->withHeaders([
-            'Cache-Control' => 'no-cache, no-store, max-age=0, must-revalidate',
-            'Pragma'        => 'no-cache',
-            'Expires'       => 'Sat, 01 Jan 1990 00:00:00 GMT',
-        ]);
+        return redirect()->route('login');
     }
 }

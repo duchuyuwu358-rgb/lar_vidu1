@@ -18,13 +18,18 @@
                     </div>
                 @endif
 
+                @if(session('success'))
+                    <div class="alert alert-success alert-dismissible fade show mb-4" role="alert">
+                        {{ session('success') }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                @endif
+
                 <form action="{{ Route::has('cart.processCheckout') ? route('cart.processCheckout') : (Route::has('cart.checkout.process') ? route('cart.checkout.process') : url('/cart/checkout')) }}" method="POST" id="checkout-form">
                     @csrf
                     
-                    <!-- Input ẩn lưu Phí Vận Chuyển -->
                     <input type="hidden" name="shipping_fee" id="shipping_fee_input" value="0">
 
-                    <!-- Input Họ và tên -->
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Họ và tên người nhận <span class="text-danger">*</span></label>
                         <input type="text" 
@@ -39,7 +44,6 @@
                         @enderror
                     </div>
 
-                    <!-- Input Số điện thoại (Chỉ cho phép gõ số và +, tối đa 11 chữ số) -->
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Số điện thoại <span class="text-danger">*</span></label>
                         <input type="tel" 
@@ -56,7 +60,6 @@
                         @enderror
                     </div>
 
-                    <!-- 3 Dropdown chọn địa chỉ GHN -->
                     <div class="row">
                         <div class="col-md-4 mb-3">
                             <label class="form-label fw-semibold">Tỉnh / Thành phố <span class="text-danger">*</span></label>
@@ -89,7 +92,6 @@
                         </div>
                     </div>
 
-                    <!-- Input Địa chỉ giao hàng chi tiết (Tối đa 255 ký tự) -->
                     <div class="mb-4">
                         <label class="form-label fw-semibold">Địa chỉ giao hàng chi tiết (Số nhà, tên đường...) <span class="text-danger">*</span></label>
                         <textarea class="form-control @error('address') is-invalid @enderror" 
@@ -97,7 +99,7 @@
                                   id="address"
                                   rows="2" 
                                   maxlength="255"
-                                  placeholder="Ví dụ: Số 123 đường Lê Lợi (Tối đa 255 ký tự)" 
+                                  placeholder="Ví dụ: Số 123 đường Lê Lợi" 
                                   required>{{ old('address') }}</textarea>
                         @error('address')
                             <div class="invalid-feedback">{{ $message }}</div>
@@ -106,7 +108,6 @@
 
                     <h5 class="fw-bold mb-3"><i class="fas fa-wallet text-primary me-2"></i> Hình thức thanh toán</h5>
                     
-                    <!-- Radio Thanh toán COD -->
                     <div class="card p-3 mb-2 border">
                         <div class="form-check">
                             <input class="form-check-input" type="radio" name="payment_method" id="payment_cod" value="cod" {{ old('payment_method', 'cod') === 'cod' ? 'checked' : '' }}>
@@ -116,7 +117,6 @@
                         </div>
                     </div>
 
-                    <!-- Radio Thanh toán MoMo -->
                     <div class="card p-3 mb-4 border">
                         <div class="form-check">
                             <input class="form-check-input" type="radio" name="payment_method" id="payment_momo" value="momo" {{ old('payment_method') === 'momo' ? 'checked' : '' }}>
@@ -137,8 +137,35 @@
         </div>
     </div>
 
-    <!-- Cột phải: Tóm tắt các sản phẩm đã chọn -->
+    <!-- Cột phải: Tóm tắt đơn hàng & Nhập Mã Giảm Giá -->
     <div class="col-md-5">
+        <!-- Khung Nhập Mã Giảm Giá -->
+        <div class="card shadow-sm border-0 bg-white mb-3">
+            <div class="card-body p-3">
+                <h6 class="fw-bold mb-2 text-dark"><i class="bi bi-ticket-perforated text-primary me-2"></i>Mã giảm giá / Khuyến mại</h6>
+                
+                @if(session()->has('applied_coupon'))
+                    @php $applied = session('applied_coupon'); @endphp
+                    <div class="d-flex justify-content-between align-items-center p-2 bg-success-subtle border border-success-subtle rounded text-success">
+                        <div>
+                            <i class="bi bi-check-circle-fill me-1"></i>
+                            Mã <strong>{{ $applied['code'] }}</strong>: <strong>-{{ number_format($applied['discount'], 0, ',', '.') }} đ</strong>
+                        </div>
+                        <form action="{{ Route::has('cart.removeCoupon') ? route('cart.removeCoupon') : url('/cart/remove-coupon') }}" method="POST" class="m-0">
+                            @csrf
+                            <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-2 fw-semibold">Hủy</button>
+                        </form>
+                    </div>
+                @else
+                    <form action="{{ Route::has('cart.applyCoupon') ? route('cart.applyCoupon') : url('/cart/apply-coupon') }}" method="POST" class="d-flex gap-2">
+                        @csrf
+                        <input type="text" name="coupon_code" class="form-control form-control-sm text-uppercase fw-bold" placeholder="Nhập mã ưu đãi bất kỳ..." required>
+                        <button type="submit" class="btn btn-sm btn-primary px-3 text-nowrap">Áp dụng</button>
+                    </form>
+                @endif
+            </div>
+        </div>
+
         <div class="card shadow-sm border-0 bg-light">
             <div class="card-header bg-light border-bottom py-3">
                 <h5 class="mb-0 fw-bold"><i class="fas fa-receipt me-2"></i> Đơn hàng đã chọn</h5>
@@ -170,12 +197,25 @@
                     @endif
                 </ul>
 
-                <!-- Khối Bổ Sung Chi Tiết Phí GHN & Tổng Tiền -->
+                @php
+                    $appliedDiscount = session()->has('applied_coupon') ? (session('applied_coupon')['discount'] ?? 0) : 0;
+                    $finalCalcTotal = max(0, ($totalAmount ?? 0) - $appliedDiscount);
+                @endphp
+
+                <!-- Chi tiết Phí & Tổng Tiền -->
                 <div class="border-top pt-3 mt-3">
                     <div class="d-flex justify-content-between mb-2">
                         <span class="text-muted">Tạm tính (Tiền hàng):</span>
                         <strong id="subtotal_text" class="text-dark">{{ number_format($totalAmount ?? 0, 0, ',', '.') }} đ</strong>
                     </div>
+
+                    @if($appliedDiscount > 0)
+                        <div class="d-flex justify-content-between mb-2 text-success">
+                            <span>Giảm giá (Mã ưu đãi):</span>
+                            <strong id="discount_text">-{{ number_format($appliedDiscount, 0, ',', '.') }} đ</strong>
+                        </div>
+                    @endif
+
                     <div class="d-flex justify-content-between mb-2">
                         <span class="text-muted">Phí vận chuyển (GHN):</span>
                         <strong class="text-primary" id="shipping_fee_text">0 đ</strong>
@@ -183,11 +223,12 @@
                     <hr>
                     <div class="d-flex justify-content-between align-items-center fw-bold fs-5">
                         <span>Tổng tiền thanh toán:</span>
-                        <span class="text-danger fs-3" id="final_total_text">{{ number_format($totalAmount ?? 0, 0, ',', '.') }} đ</span>
+                        <span class="text-danger fs-3" id="final_total_text">{{ number_format($finalCalcTotal, 0, ',', '.') }} đ</span>
                     </div>
                 </div>
 
-                <input type="hidden" id="total_price_input" value="{{ $totalAmount ?? 0 }}">
+                <input type="hidden" id="subtotal_price_input" value="{{ $totalAmount ?? 0 }}">
+                <input type="hidden" id="discount_amount_input" value="{{ $appliedDiscount }}">
             </div>
         </div>
     </div>
@@ -202,16 +243,17 @@ document.addEventListener("DOMContentLoaded", function () {
     const shippingFeeText = document.getElementById('shipping_fee_text');
     const shippingFeeInput = document.getElementById('shipping_fee_input');
     const finalTotalText = document.getElementById('final_total_text');
-    const totalPriceInput = document.getElementById('total_price_input');
+    const subtotalInput = document.getElementById('subtotal_price_input');
+    const discountInput = document.getElementById('discount_amount_input');
 
-    const subtotal = parseInt(totalPriceInput ? totalPriceInput.value : 0) || 0;
+    const subtotal = parseInt(subtotalInput ? subtotalInput.value : 0) || 0;
+    const discount = parseInt(discountInput ? discountInput.value : 0) || 0;
 
     const provincesUrl = "{{ Route::has('locations.provinces') ? route('locations.provinces') : url('/cart/api/provinces') }}";
     const districtsBaseUrl = "{{ Route::has('locations.districts') ? route('locations.districts', ['provinceId' => '___ID___']) : url('/cart/api/districts/___ID___') }}";
     const wardsBaseUrl = "{{ Route::has('locations.wards') ? route('locations.wards', ['districtId' => '___ID___']) : url('/cart/api/wards/___ID___') }}";
     const feeUrl = "{{ Route::has('locations.fee') ? route('locations.fee') : url('/cart/api/shipping-fee') }}";
 
-    // 1. Load Tỉnh/Thành từ GHN
     fetch(provincesUrl)
         .then(res => res.json())
         .then(res => {
@@ -226,7 +268,6 @@ document.addEventListener("DOMContentLoaded", function () {
         })
         .catch(err => console.error("Lỗi tải tỉnh/thành:", err));
 
-    // 2. Chọn Tỉnh -> Load Quận/Huyện
     provinceSelect.addEventListener('change', function () {
         districtSelect.innerHTML = '<option value="">-- Đang tải... --</option>';
         districtSelect.disabled = true;
@@ -252,7 +293,6 @@ document.addEventListener("DOMContentLoaded", function () {
             .catch(err => console.error("Lỗi tải quận/huyện:", err));
     });
 
-    // 3. Chọn Quận/Huyện -> Load Phường/Xã
     districtSelect.addEventListener('change', function () {
         wardSelect.innerHTML = '<option value="">-- Đang tải... --</option>';
         wardSelect.disabled = true;
@@ -276,7 +316,6 @@ document.addEventListener("DOMContentLoaded", function () {
             .catch(err => console.error("Lỗi tải phường/xã:", err));
     });
 
-    // 4. Chọn Phường/Xã -> Gọi GHN tính phí vận chuyển
     wardSelect.addEventListener('change', function () {
         if (!this.value || !districtSelect.value) return;
         shippingFeeText.innerText = 'Đang tính cước...';
@@ -314,7 +353,7 @@ document.addEventListener("DOMContentLoaded", function () {
         if (shippingFeeInput) {
             shippingFeeInput.value = fee;
         }
-        const finalAmount = subtotal + fee;
+        const finalAmount = Math.max(0, subtotal - discount) + fee;
         finalTotalText.innerText = new Intl.NumberFormat('vi-VN').format(finalAmount) + ' đ';
     }
 });

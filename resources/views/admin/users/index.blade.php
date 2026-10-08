@@ -1,181 +1,236 @@
 @extends('layouts.app')
 
-@section('title', 'Quản Lý Tài Khoản')
+@section('title', 'Quản Lý Tài Khoản - XFAN Store')
 
 @section('content')
-<div class="card shadow-sm mt-4 border-0">
-    <!-- HEADER & NÚT THÊM TÀI KHOẢN -->
-    <div class="card-header bg-white d-flex justify-content-between align-items-center py-3 border-bottom">
-        <h5 class="mb-0 fw-bold text-dark"><i class="fas fa-users me-2 text-primary"></i>Danh Sách Tài Khoản</h5>
-        @if(auth()->user()->role === 'admin')
-            <button class="btn btn-primary fw-bold" data-bs-toggle="modal" data-bs-target="#addUserModal">
-                <i class="fas fa-user-plus me-1"></i> Thêm Tài Khoản
-            </button>
-        @endif
+<div class="container-fluid py-3">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="fw-bold mb-0 text-primary">
+            <i class="bi bi-people-fill me-2"></i>Danh Sách Tài Khoản
+        </h4>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createUserModal">
+            <i class="bi bi-person-plus-fill me-1"></i> Thêm Tài Khoản
+        </button>
     </div>
-    
-    <div class="card-body">
-        <!-- BỘ LỌC TÌM KIẾM -->
-        <form method="GET" action="{{ route('users.index') }}" class="row g-2 mb-3">
-            <div class="col-md-6">
-                <div class="input-group input-group-sm">
-                    <span class="input-group-text bg-light"><i class="fas fa-search text-muted"></i></span>
-                    <input type="text" name="search" class="form-control" placeholder="Tìm tên hoặc email..." value="{{ request('search') }}">
+
+    @if(session('success'))
+        <div class="alert alert-success alert-dismissible fade show mb-3" role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i>{{ session('success') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    @endif
+
+    @if(session('error'))
+        <div class="alert alert-danger alert-dismissible fade show mb-3" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>{{ session('error') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    @endif
+
+    <!-- Bộ lọc & Tìm kiếm -->
+    <div class="card mb-4 border-0 shadow-sm rounded-3">
+        <div class="card-body p-3">
+            <form action="{{ route('admin.users.index') }}" method="GET" class="row g-2">
+                <div class="col-md-5">
+                    <div class="input-group">
+                        <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                        <input type="text" name="search" class="form-control" value="{{ $search }}" placeholder="Tìm theo tên hoặc email...">
+                    </div>
                 </div>
-            </div>
-            <div class="col-md-4">
-                <select name="role" class="form-select form-select-sm">
-                    <option value="">-- Tất cả vai trò --</option>
-                    <option value="admin" {{ request('role') == 'admin' ? 'selected' : '' }}>Quản trị viên (Admin)</option>
-                    <option value="staff" {{ request('role') == 'staff' ? 'selected' : '' }}>Nhân viên (Staff)</option>
-                    <option value="customer" {{ request('role') == 'customer' ? 'selected' : '' }}>Khách hàng (Customer)</option>
-                </select>
-            </div>
-            <div class="col-md-2 d-flex gap-1">
-                <button type="submit" class="btn btn-sm btn-primary w-100 fw-semibold">Lọc</button>
-                <a href="{{ route('users.index') }}" class="btn btn-sm btn-outline-secondary" title="Tải lại"><i class="fas fa-redo"></i></a>
-            </div>
-        </form>
-
-        <!-- THÔNG BÁO THÀNH CÔNG / LỖI -->
-        @if(session('success'))
-            <div class="alert alert-success alert-dismissible fade show py-2" role="alert">
-                <i class="fas fa-check-circle me-1"></i> {{ session('success') }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        @endif
-        @if(session('error'))
-            <div class="alert alert-danger alert-dismissible fade show py-2" role="alert">
-                <i class="fas fa-exclamation-circle me-1"></i> {{ session('error') }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        @endif
-
-        <!-- BẢNG DANH SÁCH -->
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0 border">
-                <thead class="bg-light">
-                    <tr>
-                        <th class="ps-3" width="60">ID</th>
-                        <th>Tên người dùng</th>
-                        <th>Email</th>
-                        <th>Trạng thái xác minh</th>
-                        <th>Quyền (Role)</th>
-                        <th class="text-center pe-3" width="120">Hành động</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @forelse($users as $user)
-                        <tr>
-                            <td class="ps-3">{{ $user->id }}</td>
-                            <td class="fw-bold">{{ $user->name }}</td>
-                            <td>{{ $user->email }}</td>
-                            <td>
-                                @if($user->hasVerifiedEmail())
-                                    <span class="badge bg-success-subtle text-success border border-success"><i class="fas fa-check-circle me-1"></i>Đã xác minh</span>
-                                @else
-                                    <span class="badge bg-warning-subtle text-dark border border-warning"><i class="fas fa-clock me-1"></i>Chưa xác minh</span>
-                                @endif
-                            </td>
-                            <td>
-                                @if(auth()->user()->role === 'admin')
-                                    <!-- Form thay đổi quyền dành cho Admin -->
-                                    <form action="{{ route('users.update', $user) }}" method="POST" class="d-flex align-items-center">
-                                        @csrf
-                                        @method('PUT')
-                                        <select name="role" class="form-select form-select-sm me-2" style="width: 130px;" {{ auth()->id() === $user->id ? 'disabled' : '' }}>
-                                            <option value="customer" {{ ($user->role === 'customer' || $user->role === 'user') ? 'selected' : '' }}>Khách hàng</option>
-                                            <option value="staff" {{ $user->role === 'staff' ? 'selected' : '' }}>Nhân viên</option>
-                                            <option value="admin" {{ $user->role === 'admin' ? 'selected' : '' }}>Quản trị viên</option>
-                                        </select>
-                                        @if(auth()->id() !== $user->id)
-                                            <button type="submit" class="btn btn-sm btn-primary">Lưu</button>
-                                        @endif
-                                    </form>
-                                @else
-                                    <!-- Hiển thị tĩnh dành cho Nhân viên (Chỉ xem) -->
-                                    @if($user->role === 'admin')
-                                        <span class="badge bg-danger">Quản trị viên</span>
-                                    @elseif($user->role === 'staff')
-                                        <span class="badge bg-info text-dark">Nhân viên</span>
-                                    @else
-                                        <span class="badge bg-secondary">Khách hàng</span>
-                                    @endif
-                                @endif
-                            </td>
-                            <td class="text-center pe-3">
-                                @if(auth()->user()->role === 'admin')
-                                    @if(auth()->id() !== $user->id)
-                                        <form action="{{ route('users.destroy', $user) }}" method="POST" class="d-inline" onsubmit="return confirm('Bạn có chắc chắn muốn xóa tài khoản này?');">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Xóa tài khoản">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
-                                        </form>
-                                    @else
-                                        <span class="badge bg-secondary">Tài khoản bạn</span>
-                                    @endif
-                                @else
-                                    <span class="badge bg-light text-muted border">Chỉ xem</span>
-                                @endif
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="6" class="text-center text-muted py-4">Không tìm thấy tài khoản nào phù hợp.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
+                <div class="col-md-4">
+                    <select name="role" class="form-select">
+                        <option value="all">-- Tất cả vai trò --</option>
+                        <option value="admin" {{ $role === 'admin' ? 'selected' : '' }}>Quản trị viên (Admin)</option>
+                        <option value="staff" {{ $role === 'staff' ? 'selected' : '' }}>Nhân viên (Staff)</option>
+                        <option value="user" {{ $role === 'user' ? 'selected' : '' }}>Khách hàng (User)</option>
+                    </select>
+                </div>
+                <div class="col-md-3 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary w-100">Lọc</button>
+                    <a href="{{ route('admin.users.index') }}" class="btn btn-outline-secondary"><i class="bi bi-arrow-counterclockwise"></i></a>
+                </div>
+            </form>
         </div>
     </div>
-    
-    <div class="card-footer bg-white py-3 border-top">
-        {{ $users->links('pagination::bootstrap-5') }}
+
+    <!-- Bảng danh sách tài khoản -->
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-3">ID</th>
+                            <th>Tên người dùng</th>
+                            <th>Email</th>
+                            <th>Ngày đăng ký</th>
+                            <th>Xác minh</th>
+                            <th>Quyền (Role)</th>
+                            <th class="text-end pe-4">Hành động</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($users as $u)
+                            <tr>
+                                <td class="ps-3 fw-bold">#{{ $u->id }}</td>
+                                <td class="fw-semibold">{{ $u->name }}</td>
+                                <td>{{ $u->email }}</td>
+                                <td class="text-muted small">
+                                    <i class="bi bi-calendar3 me-1"></i>{{ $u->created_at ? $u->created_at->format('d/m/Y H:i') : 'Chưa rõ' }}
+                                </td>
+                                <td>
+                                    @if($u->email_verified_at)
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
+                                            <i class="bi bi-check-circle me-1"></i>Đã xác minh
+                                        </span>
+                                    @else
+                                        <span class="badge bg-warning-subtle text-warning border border-warning-subtle px-2 py-1">
+                                            <i class="bi bi-clock me-1"></i>Chưa xác minh
+                                        </span>
+                                    @endif
+                                </td>
+                                <td>
+                                    <form action="{{ route('admin.users.update', $u->id) }}" method="POST" class="d-flex align-items-center gap-1">
+                                        @csrf
+                                        @method('PUT')
+                                        <input type="hidden" name="name" value="{{ $u->name }}">
+                                        <input type="hidden" name="email" value="{{ $u->email }}">
+                                        
+                                        @if($u->id === auth()->id())
+                                            <span class="badge bg-primary px-3 py-2">Tài khoản bạn</span>
+                                        @else
+                                            <select name="role" class="form-select form-select-sm" style="width: 130px;">
+                                                <option value="user" {{ $u->role === 'user' ? 'selected' : '' }}>Khách hàng</option>
+                                                <option value="staff" {{ $u->role === 'staff' ? 'selected' : '' }}>Nhân viên</option>
+                                                <option value="admin" {{ $u->role === 'admin' ? 'selected' : '' }}>Admin</option>
+                                            </select>
+                                            <button type="submit" class="btn btn-sm btn-primary py-1 px-2" title="Lưu vai trò"><i class="bi bi-save"></i></button>
+                                        @endif
+                                    </form>
+                                </td>
+                                <td class="text-end pe-3">
+                                    <div class="d-inline-flex gap-1">
+                                        <!-- Nút Sửa & Đổi mật khẩu -->
+                                        <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editUserModal{{ $u->id }}">
+                                            <i class="bi bi-pencil-square me-1"></i>Sửa / Đổi MK
+                                        </button>
+
+                                        <!-- Nút Xóa (cho phép xóa bất kỳ tài khoản nào trừ chính tài khoản đang đăng nhập) -->
+                                        @if($u->id !== auth()->id())
+                                            <form action="{{ route('admin.users.destroy', $u->id) }}" method="POST" onsubmit="return confirm('Bạn có chắc chắn muốn xóa tài khoản {{ $u->email }} không?');">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Xóa tài khoản">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </form>
+                                        @endif
+                                    </div>
+
+                                    <!-- Modal Sửa & Đổi mật khẩu cho user #{{ $u->id }} -->
+                                    <div class="modal fade text-start" id="editUserModal{{ $u->id }}" tabindex="-1">
+                                        <div class="modal-dialog">
+                                            <div class="modal-content">
+                                                <form action="{{ route('admin.users.update', $u->id) }}" method="POST">
+                                                    @csrf
+                                                    @method('PUT')
+                                                    <div class="modal-header">
+                                                        <h5 class="modal-title fw-bold text-primary">
+                                                            <i class="bi bi-person-gear me-2"></i>Sửa & Đặt Lại Mật Khẩu #{{ $u->id }}
+                                                        </h5>
+                                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                    </div>
+                                                    <div class="modal-body">
+                                                        <div class="mb-3">
+                                                            <label class="form-label fw-bold">Tên người dùng</label>
+                                                            <input type="text" name="name" class="form-control" value="{{ $u->name }}" required>
+                                                        </div>
+                                                        <div class="mb-3">
+                                                            <label class="form-label fw-bold">Địa chỉ Email</label>
+                                                            <input type="email" name="email" class="form-control" value="{{ $u->email }}" required>
+                                                        </div>
+                                                        <div class="mb-3">
+                                                            <label class="form-label fw-bold">Vai trò (Role)</label>
+                                                            <select name="role" class="form-select" {{ $u->id === auth()->id() ? 'disabled' : '' }}>
+                                                                <option value="user" {{ $u->role === 'user' ? 'selected' : '' }}>Khách hàng (User)</option>
+                                                                <option value="staff" {{ $u->role === 'staff' ? 'selected' : '' }}>Nhân viên (Staff)</option>
+                                                                <option value="admin" {{ $u->role === 'admin' ? 'selected' : '' }}>Quản trị viên (Admin)</option>
+                                                            </select>
+                                                            @if($u->id === auth()->id())
+                                                                <input type="hidden" name="role" value="{{ $u->role }}">
+                                                            @endif
+                                                        </div>
+                                                        <div class="mb-3">
+                                                            <label class="form-label fw-bold text-danger">Đặt Lại Mật Khẩu Mới</label>
+                                                            <input type="password" name="password" class="form-control" placeholder="Nhập mật khẩu mới (để trống nếu không đổi)...">
+                                                            <small class="text-muted d-block mt-1">Mật khẩu lưu trong CSDL mã hóa 1 chiều. Nhập mật khẩu mới tại đây nếu muốn thiết lập lại mật khẩu mới cho người dùng.</small>
+                                                        </div>
+                                                    </div>
+                                                    <div class="modal-footer">
+                                                        <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
+                                                        <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i> Cập nhật</button>
+                                                    </div>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="7" class="text-center text-muted py-4">Không tìm thấy tài khoản nào.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        @if($users->hasPages())
+            <div class="card-footer bg-white py-3">
+                {{ $users->links() }}
+            </div>
+        @endif
     </div>
 </div>
 
-<!-- MODAL THÊM TÀI KHOẢN MỚI (CHỈ ADMIN THẤY) -->
-@if(auth()->user()->role === 'admin')
-<div class="modal fade" id="addUserModal" tabindex="-1" aria-labelledby="addUserModalLabel" aria-hidden="true">
+<!-- Modal Thêm Tài Khoản Mới -->
+<div class="modal fade" id="createUserModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form action="{{ route('users.store') }}" method="POST">
+            <form action="{{ route('admin.users.store') }}" method="POST">
                 @csrf
-                <div class="modal-header bg-primary text-white py-3">
-                    <h5 class="modal-title fw-bold" id="addUserModalLabel"><i class="fas fa-user-plus me-2"></i>Thêm Tài Khoản Mới</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                <div class="modal-header">
+                    <h5 class="modal-title fw-bold text-primary"><i class="bi bi-person-plus-fill me-2"></i>Thêm Tài Khoản Mới</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label fw-semibold">Họ và tên <span class="text-danger">*</span></label>
-                        <input type="text" name="name" class="form-control" required placeholder="Nhập tên người dùng...">
+                        <label class="form-label fw-bold">Tên người dùng <span class="text-danger">*</span></label>
+                        <input type="text" name="name" class="form-control" placeholder="Nhập họ và tên..." required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-semibold">Địa chỉ Email <span class="text-danger">*</span></label>
-                        <input type="email" name="email" class="form-control" required placeholder="name@example.com">
+                        <label class="form-label fw-bold">Email <span class="text-danger">*</span></label>
+                        <input type="email" name="email" class="form-control" placeholder="nhanvien@gmail.com" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-semibold">Mật khẩu <span class="text-danger">*</span></label>
-                        <input type="password" name="password" class="form-control" required placeholder="Tối thiểu 6 ký tự...">
+                        <label class="form-label fw-bold">Mật khẩu <span class="text-danger">*</span></label>
+                        <input type="password" name="password" class="form-control" placeholder="Tối thiểu 6 ký tự..." required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-semibold">Phân quyền <span class="text-danger">*</span></label>
+                        <label class="form-label fw-bold">Vai trò (Role) <span class="text-danger">*</span></label>
                         <select name="role" class="form-select" required>
-                            <option value="customer">Khách hàng (Customer)</option>
+                            <option value="user">Khách hàng (User)</option>
                             <option value="staff">Nhân viên (Staff)</option>
                             <option value="admin">Quản trị viên (Admin)</option>
                         </select>
                     </div>
                 </div>
-                <div class="modal-footer bg-light">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
-                    <button type="submit" class="btn btn-primary fw-bold">Tạo Tài Khoản</button>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-light border" data-bs-dismiss="modal">Hủy</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-plus-circle me-1"></i> Tạo tài khoản</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
-@endif
 @endsection

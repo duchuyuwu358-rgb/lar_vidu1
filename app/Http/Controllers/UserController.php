@@ -10,58 +10,47 @@ use Illuminate\Validation\Rule;
 class UserController extends Controller
 {
     /**
-     * 1. Hiển thị danh sách người dùng (có tìm kiếm & lọc phân trang)
+     * Danh sách tài khoản
      */
     public function index(Request $request)
     {
-        $query = User::latest();
+        $search = trim($request->get('search', ''));
+        $role   = $request->get('role', 'all');
 
-        // Tìm theo tên hoặc email
-        if ($request->filled('search')) {
-            $search = trim($request->search);
-            $query->where(function ($q) use ($search) {
+        $query = User::query();
+
+        if (!empty($search)) {
+            $query->where(function($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
                   ->orWhere('email', 'like', "%{$search}%");
             });
         }
 
-        // Lọc theo vai trò (role)
-        if ($request->filled('role')) {
-            $query->where('role', $request->role);
+        if ($role !== 'all' && !empty($role)) {
+            $query->where('role', $role);
         }
 
-        $users = $query->paginate(10)->appends($request->all());
+        $users = $query->orderBy('id', 'desc')->paginate(10)->withQueryString();
 
-        return view('admin.users.index', compact('users'));
+        return view('admin.users.index', compact('users', 'search', 'role'));
     }
 
     /**
-     * 2. Thêm tài khoản mới (Tự động xác minh email để truy cập ngay)
+     * Thêm tài khoản mới
      */
     public function store(Request $request)
     {
-        // Kiểm tra quyền Admin an toàn
-        if (!auth()->check() || auth()->user()->role !== 'admin') {
-            return back()->with('error', 'Bạn không có quyền thêm tài khoản!');
-        }
-
         $validated = $request->validate([
-            'name'     => ['required', 'string', 'min:2', 'max:50', 'regex:/^[\pL\s]+$/u'],
-            'email'    => ['required', 'string', 'email:rfc,dns', 'max:255', 'unique:users,email'],
-            'password' => ['required', 'string', 'min:8'],
-            'role'     => ['required', Rule::in(['admin', 'staff', 'customer', 'user'])],
+            'name'     => 'required|string|max:255',
+            'email'    => 'required|email|max:255|unique:users,email',
+            'password' => 'required|string|min:6',
+            'role'     => 'required|in:admin,staff,user',
         ], [
-            'name.required'     => 'Vui lòng nhập họ và tên.',
-            'name.min'          => 'Họ và tên phải có ít nhất 2 ký tự.',
-            'name.max'          => 'Họ và tên không được vượt quá 50 ký tự.',
-            'name.regex'        => 'Họ và tên chỉ được chứa chữ cái và khoảng trắng.',
-            'email.required'    => 'Vui lòng nhập địa chỉ email.',
-            'email.email'       => 'Địa chỉ email không đúng định dạng.',
-            'email.unique'      => 'Địa chỉ email này đã tồn tại trên hệ thống.',
+            'name.required'     => 'Vui lòng nhập tên người dùng.',
+            'email.required'    => 'Vui lòng nhập email.',
+            'email.unique'      => 'Email này đã tồn tại trên hệ thống.',
             'password.required' => 'Vui lòng nhập mật khẩu.',
-            'password.min'      => 'Mật khẩu phải từ 8 ký tự trở lên.',
-            'role.required'     => 'Vui lòng chọn vai trò cho người dùng.',
-            'role.in'           => 'Vai trò được chọn không hợp lệ.',
+            'password.min'      => 'Mật khẩu phải chứa ít nhất 6 ký tự.',
         ]);
 
         User::create([
@@ -69,75 +58,57 @@ class UserController extends Controller
             'email'             => $validated['email'],
             'password'          => Hash::make($validated['password']),
             'role'              => $validated['role'],
-            'email_verified_at' => now(), // Tự động xác minh ngay
+            'email_verified_at' => now(), // Tự động xác minh tài khoản do Admin tạo
         ]);
 
-        return back()->with('success', 'Thêm tài khoản thành công! Tài khoản đã được tự động xác minh.');
+        return redirect()->route('admin.users.index')->with('success', 'Thêm tài khoản mới thành công!');
     }
 
     /**
-     * 3. Cập nhật thông tin / vai trò người dùng
+     * Cập nhật thông tin / Đặt lại mật khẩu mới
      */
     public function update(Request $request, User $user)
     {
-        if (!auth()->check() || auth()->user()->role !== 'admin') {
-            return back()->with('error', 'Bạn không có quyền chỉnh sửa tài khoản!');
-        }
-
-        if (auth()->id() === $user->id && $request->filled('role') && $request->role !== $user->role) {
-            return back()->with('error', 'Bạn không thể tự thay đổi quyền của chính mình!');
-        }
-
-        $rules = [
-            'role' => ['required', Rule::in(['admin', 'staff', 'customer', 'user'])],
-        ];
-
-        if ($request->has('name')) {
-            $rules['name'] = ['required', 'string', 'min:2', 'max:50', 'regex:/^[\pL\s]+$/u'];
-        }
-        if ($request->has('email')) {
-            $rules['email'] = ['required', 'string', 'email:rfc,dns', 'max:255', Rule::unique('users', 'email')->ignore($user->id)];
-        }
-        if ($request->filled('password')) {
-            $rules['password'] = ['nullable', 'string', 'min:8'];
-        }
-
-        $validated = $request->validate($rules, [
-            'name.required'  => 'Vui lòng nhập họ và tên.',
-            'name.regex'     => 'Họ và tên chỉ chứa chữ cái và khoảng trắng.',
-            'email.required' => 'Vui lòng nhập email.',
-            'email.email'    => 'Địa chỉ email không đúng định dạng.',
-            'email.unique'   => 'Email này đã thuộc về tài khoản khác.',
-            'password.min'   => 'Mật khẩu mới phải từ 8 ký tự trở lên.',
-            'role.required'  => 'Vui lòng chọn vai trò.',
-            'role.in'        => 'Vai trò được chọn không hợp lệ.',
+        $validated = $request->validate([
+            'name'     => 'required|string|max:255',
+            'email'    => ['required', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
+            'role'     => 'required|in:admin,staff,user',
+            'password' => 'nullable|string|min:6',
+        ], [
+            'name.required' => 'Vui lòng nhập tên người dùng.',
+            'email.required'=> 'Vui lòng nhập email.',
+            'email.unique'  => 'Email này đã thuộc về tài khoản khác.',
+            'password.min'  => 'Mật khẩu mới phải từ 6 ký tự trở lên.',
         ]);
 
-        $dataToUpdate = ['role' => $validated['role']];
-        if (isset($validated['name'])) $dataToUpdate['name'] = $validated['name'];
-        if (isset($validated['email'])) $dataToUpdate['email'] = $validated['email'];
-        if (!empty($validated['password'])) $dataToUpdate['password'] = Hash::make($validated['password']);
+        $updateData = [
+            'name'  => $validated['name'],
+            'email' => $validated['email'],
+            'role'  => $validated['role'],
+        ];
 
-        $user->update($dataToUpdate);
+        // Nếu Admin nhập mật khẩu mới thì tiến hành cập nhật mã hóa mới
+        if (!empty($validated['password'])) {
+            $updateData['password'] = Hash::make($validated['password']);
+        }
 
-        return back()->with('success', 'Đã cập nhật thông tin người dùng thành công!');
+        $user->update($updateData);
+
+        return redirect()->route('admin.users.index')->with('success', "Cập nhật tài khoản {$user->email} thành công!");
     }
 
     /**
-     * 4. Xóa tài khoản
+     * Xóa tài khoản
      */
     public function destroy(User $user)
     {
-        if (!auth()->check() || auth()->user()->role !== 'admin') {
-            return back()->with('error', 'Bạn không có quyền xóa tài khoản!');
-        }
-
-        if (auth()->id() === $user->id) {
-            return back()->with('error', 'Bạn không thể tự xóa tài khoản của chính mình!');
+        // Ràng buộc bảo vệ: Không cho phép Admin tự xóa tài khoản đang đăng nhập
+        if ($user->id === auth()->id()) {
+            return redirect()->route('admin.users.index')->with('error', 'Bạn không thể tự xóa tài khoản đang đăng nhập của chính mình!');
         }
 
         $user->delete();
 
-        return back()->with('success', 'Đã xóa tài khoản thành công!');
+        return redirect()->route('admin.users.index')->with('success', "Đã xóa tài khoản {$user->email} thành công!");
     }
 }

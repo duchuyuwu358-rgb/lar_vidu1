@@ -4,13 +4,52 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ChatMessage;
+use App\Models\Hood;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\View;
 
 class ChatController extends Controller
 {
+    /**
+     * Lấy ID tài khoản Admin mặc định cho Bot / Admin gửi tin nhắn
+     */
+    private function getAdminSenderId()
+    {
+        $admin = User::where('role', 'admin')->first();
+        return $admin ? $admin->id : 2; // Mặc định Admin ID = 2 từ CSDL lar_vidu1
+    }
+
+    /**
+     * Lấy trạng thái chế độ Chat (Bot hay Admin)
+     */
+    private function getIsAdminMode($userId)
+    {
+        if (Schema::hasTable('chat_sessions')) {
+            $session = \App\Models\ChatSession::where('user_id', $userId)->first();
+            if ($session) {
+                return (bool) $session->is_admin_chat;
+            }
+        }
+        return (bool) session("is_admin_chat_{$userId}", false);
+    }
+
+    /**
+     * Cập nhật trạng thái chế độ Chat (Bot hay Admin)
+     */
+    private function setIsAdminMode($userId, bool $status)
+    {
+        if (Schema::hasTable('chat_sessions')) {
+            \App\Models\ChatSession::updateOrCreate(
+                ['user_id' => $userId],
+                ['is_admin_chat' => $status]
+            );
+        }
+        session(["is_admin_chat_{$userId}" => $status]);
+    }
+
     /**
      * ==========================================
      * 0. HIỂN THỊ GIAO DIỆN CHAT ADMIN
@@ -47,14 +86,17 @@ class ChatController extends Controller
               ->orWhere('receiver_id', $userId);
         })->orderBy('created_at', 'asc')->get();
 
+        $isAdminMode = $this->getIsAdminMode($userId);
+
         return response()->json([
-            'status' => 'success',
-            'messages' => $messages
+            'status'   => 'success',
+            'messages' => $messages,
+            'is_admin' => $isAdminMode
         ]);
     }
 
     /**
-     * Khách hàng gửi tin nhắn cho Admin
+     * Khách hàng gửi tin nhắn (XFAN Bot + Kết nối Admin + Lệnh exit)
      */
     public function sendUserMessage(Request $request)
     {
@@ -70,16 +112,124 @@ class ChatController extends Controller
             return response()->json(['error' => 'Chưa đăng nhập'], 401);
         }
 
-        $admin = User::where('role', 'admin')->first();
+        $text      = trim($request->message);
+        $textLower = mb_strtolower($text);
+        $adminId   = $this->getAdminSenderId();
 
-        $chat = ChatMessage::create([
+        // 1. Kiểm tra Lệnh EXIT để thoát khỏi Chat Admin quay lại XFAN Bot
+        if (in_array($textLower, ['exit', '/exit', 'thoát', 'thoat', 'quit'])) {
+            $this->setIsAdminMode($userId, false);
+
+            $userMsg = ChatMessage::create([
+                'sender_id'   => $userId,
+                'receiver_id' => $adminId,
+                'content'     => $text,
+                'is_read'     => false,
+            ]);
+
+            $reply = "🤖 **XFAN Bot:** Đã thoát cuộc trò chuyện với Admin! XFAN Bot sẵn sàng hỗ trợ bạn tư vấn sản phẩm, dịch vụ. Bạn cần giúp gì tiếp theo?";
+
+            ChatMessage::create([
+                'sender_id'   => $adminId,
+                'receiver_id' => $userId,
+                'content'     => $reply,
+                'is_read'     => false,
+            ]);
+
+            return response()->json([
+                'status' => 'success',
+                'mode'   => 'bot',
+                'reply'  => $reply,
+                'data'   => $userMsg
+            ]);
+        }
+
+        // 2. Nếu đang trong chế độ Chat trực tiếp với Admin
+        if ($this->getIsAdminMode($userId)) {
+            $userMsg = ChatMessage::create([
+                'sender_id'   => $userId,
+                'receiver_id' => $adminId,
+                'content'     => $text,
+                'is_read'     => false,
+            ]);
+
+            return response()->json([
+                'status' => 'success',
+                'mode'   => 'admin',
+                'data'   => $userMsg
+            ]);
+        }
+
+        // 3. Chế độ XFAN Bot tự động
+        $userMsg = ChatMessage::create([
             'sender_id'   => $userId,
-            'receiver_id' => $admin ? $admin->id : null,
-            'content'     => $request->message,
+            'receiver_id' => $adminId,
+            'content'     => $text,
             'is_read'     => false,
         ]);
 
-        return response()->json(['status' => 'success', 'data' => $chat]);
+        // Yêu cầu chuyển sang tư vấn viên Admin
+        if (str_contains($textLower, 'tư vấn viên') || str_contains($textLower, 'gặp admin') || str_contains($textLower, 'kết nối admin')) {
+            $this->setIsAdminMode($userId, true);
+
+            $reply = "🎧 **Hệ thống:** Đã kết nối với Tư vấn viên Admin! (Bạn có thể gõ **'exit'** bất kỳ lúc nào để quay lại XFAN Bot).";
+
+            ChatMessage::create([
+                'sender_id'   => $adminId,
+                'receiver_id' => $userId,
+                'content'     => $reply,
+                'is_read'     => false,
+            ]);
+
+            return response()->json([
+                'status' => 'success',
+                'mode'   => 'admin',
+                'reply'  => $reply,
+                'data'   => $userMsg
+            ]);
+        }
+
+        // Phản hồi tự động thông minh từ XFAN Bot
+        $reply = $this->generateSmartBotReply($text);
+
+        ChatMessage::create([
+            'sender_id'   => $adminId,
+            'receiver_id' => $userId,
+            'content'     => $reply,
+            'is_read'     => false,
+        ]);
+
+        return response()->json([
+            'status' => 'success',
+            'mode'   => 'bot',
+            'reply'  => $reply,
+            'data'   => $userMsg
+        ]);
+    }
+
+    /**
+     * Sinh câu trả lời tự động cho XFAN Bot
+     */
+    private function generateSmartBotReply(string $text): string
+    {
+        $textLower = mb_strtolower($text);
+
+        if (str_contains($textLower, 'máy hút mùi') || str_contains($textLower, 'giá') || str_contains($textLower, 'sản phẩm')) {
+            $hoods = Hood::where('name', 'like', "%{$text}%")->orWhere('model', 'like', "%{$text}%")->take(3)->get();
+            if ($hoods->count() > 0) {
+                $reply = "🤖 **XFAN Bot tìm thấy sản phẩm gợi ý:**\n";
+                foreach ($hoods as $hood) {
+                    $reply .= "• **{$hood->name}** - Giá: " . number_format($hood->price) . "đ\n";
+                }
+                return $reply;
+            }
+        }
+
+        if (str_contains($textLower, 'chào') || str_contains($textLower, 'hi') || str_contains($textLower, 'hello')) {
+            return "🤖 **XFAN Bot:** Xin chào! Tôi là trợ lý ảo XFAN. Bạn muốn tìm hiểu dòng máy hút mùi nào hay dịch vụ lắp đặt của chúng tôi?";
+        }
+
+        return "🤖 **XFAN Bot:** Cảm ơn bạn đã nhắn tin: '{$text}'. Tôi có thể hỗ trợ bạn chọn máy hút mùi cao cấp hoặc đặt lịch vệ sinh. Để trò chuyện trực tiếp với nhân viên hỗ trợ, bạn vui lòng gõ **'Tư vấn viên'**.";
     }
 
     /**
@@ -214,6 +364,9 @@ class ChatController extends Controller
             'content'     => $request->message,
             'is_read'     => false,
         ]);
+
+        // Kích hoạt chế độ Chat Admin cho User đó
+        $this->setIsAdminMode($request->user_id, true);
 
         return response()->json(['status' => 'success', 'data' => $chat]);
     }

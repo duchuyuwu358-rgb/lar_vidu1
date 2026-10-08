@@ -6,14 +6,14 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', config('app.name', 'XFAN Store'))</title>
 
-    <!-- Bootstrap 5 CSS & FontAwesome -->
+    <!-- Bootstrap 5 CSS & FontAwesome & Bootstrap Icons -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
 
     <style>
         :root {
-            --sidebar-width: 260px;
+            --sidebar-width: 250px;
             --sidebar-bg: #111827;
             --sidebar-color: #9ca3af;
             --sidebar-active-bg: #1f2937;
@@ -29,7 +29,9 @@
             padding: 0;
         }
 
-        /* ADMIN SIDEBAR */
+        /* ========================================================= */
+        /* ADMIN SIDEBAR CẤU TRÚC PHỦ KÍN CHIỀU DỌC - ẨN THANH CUỘN */
+        /* ========================================================= */
         body.admin-body { padding-left: var(--sidebar-width) !important; }
         .admin-sidebar {
             width: var(--sidebar-width) !important;
@@ -39,30 +41,64 @@
             background-color: var(--sidebar-bg);
             color: var(--sidebar-color);
             z-index: 1040;
-            display: flex; flex-direction: column; justify-content: space-between;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: space-between !important;
             box-shadow: 2px 0 10px rgba(0, 0, 0, 0.15);
+            overflow: hidden !important;
         }
         .sidebar-brand {
-            padding: 1.25rem 1.5rem; font-size: 1.25rem; font-weight: 700; color: #ffffff;
+            padding: 0.85rem 1.25rem; font-size: 1.15rem; font-weight: 700; color: #ffffff;
             border-bottom: 1px solid rgba(255, 255, 255, 0.1); display: flex; align-items: center;
+            flex-shrink: 0;
         }
-        .sidebar-user { padding: 1.25rem 1.5rem; text-align: center; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
+        .sidebar-user { 
+            padding: 0.65rem 1rem; text-align: center; border-bottom: 1px solid rgba(255, 255, 255, 0.1); 
+            flex-shrink: 0;
+        }
         .sidebar-user .avatar {
-            width: 48px; height: 48px; background-color: #374151; color: #fff;
+            width: 42px; height: 42px; background-color: #374151; color: #fff;
             border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
-            font-weight: bold; font-size: 1.2rem; margin: 0 auto 8px auto;
+            font-weight: bold; font-size: 1.05rem; margin: 0 auto 4px auto;
         }
-        .sidebar-menu { list-style: none; padding: 1rem 0; margin: 0; flex-grow: 1; overflow-y: auto; }
+        .sidebar-menu { 
+            list-style: none; padding: 0.35rem 0; margin: 0; 
+            flex-grow: 1 !important; 
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: space-evenly !important; /* Tự động chia đều khoảng cách phủ kín chiều dọc xuống sát nút Đăng xuất */
+            overflow-y: auto !important; 
+            min-height: 0 !important;
+            /* Ẩn hoàn toàn thanh kéo cuộn */
+            scrollbar-width: none !important; /* Firefox */
+            -ms-overflow-style: none !important;  /* IE and Edge */
+        }
+        .sidebar-menu::-webkit-scrollbar {
+            display: none !important; /* Chrome, Safari, Opera */
+        }
         .sidebar-menu .nav-link {
-            padding: 0.75rem 1.5rem; color: var(--sidebar-color);
-            display: flex; align-items: center; gap: 12px; font-size: 0.95rem; text-decoration: none;
+            padding: 0.5rem 1.25rem; color: var(--sidebar-color);
+            display: flex; align-items: center; gap: 12px; font-size: 0.92rem; text-decoration: none;
             transition: all 0.2s ease;
+            font-weight: 500;
+        }
+        .sidebar-menu .nav-link i {
+            font-size: 1.05rem;
         }
         .sidebar-menu .nav-link:hover, .sidebar-menu .nav-link.active {
             color: var(--sidebar-active-color); background-color: var(--sidebar-active-bg); border-left: 4px solid #3b82f6;
         }
-        .sidebar-footer { padding: 1rem 1.5rem; border-top: 1px solid rgba(255, 255, 255, 0.1); }
-        .admin-main-content { width: 100% !important; min-height: 100vh; padding: 1.5rem 2rem; }
+        .sidebar-footer { 
+            padding: 0.75rem 1.25rem; border-top: 1px solid rgba(255, 255, 255, 0.1); 
+            flex-shrink: 0 !important;
+            background-color: var(--sidebar-bg);
+        }
+        .sidebar-footer .btn {
+            padding: 0.45rem 0.75rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+        .admin-main-content { width: 100% !important; min-height: 100vh; padding: 1.25rem 1.75rem; }
 
         /* USER NAVBAR */
         .user-navbar { background-color: #ffffff; border-bottom: 1px solid #e5e7eb; }
@@ -109,13 +145,9 @@
             border: 1.5px solid #3b82f6 !important;
             font-weight: 700 !important;
         }
-        .btn-resume-chat:hover {
-            background: #dbeafe !important;
-        }
+        .btn-resume-chat:hover { background: #dbeafe !important; }
 
-        .chat-date-badge {
-            text-align: center; font-size: 0.75rem; color: #64748b; margin: 10px 0; font-weight: 500;
-        }
+        .chat-date-badge { text-align: center; font-size: 0.75rem; color: #64748b; margin: 10px 0; font-weight: 500; }
 
         .msg-bubble-sent {
             background-color: #2563eb; color: white; border-radius: 14px 14px 0px 14px;
@@ -138,12 +170,14 @@
         in_array(auth()->user()->role ?? '', ['admin', 'staff'])
     );
     
-    $isAuthPage = request()->is('login') || request()->is('register');$isAdminManagementPage = request()->is('admin*') || request()->routeIs('admin.*');
+    $isAuthPage = request()->is('login') || request()->is('register');
+    $isAdminManagementPage = request()->is('admin*') || request()->routeIs('admin.*');
 
-    $bestSeller = \App\Models\Hood::first();$minPrice = \App\Models\Hood::min('price') ?? 0;
+    $bestSeller = \App\Models\Hood::first();
+    $minPrice = \App\Models\Hood::min('price') ?? 0;
     $maxPrice = \App\Models\Hood::max('price') ?? 0;
 
-    $bestSellerName =$bestSeller->name ?? 'Máy Hút Mùi Cao Cấp XFAN';
+    $bestSellerName = $bestSeller->name ?? 'Máy Hút Mùi Cao Cấp XFAN';
     $bestSellerPrice = isset($bestSeller->price) ? number_format($bestSeller->price, 0, ',', '.') . 'đ' : 'Liên hệ';
     $minPriceFormatted = number_format($minPrice, 0, ',', '.') . 'đ';
     $maxPriceFormatted = number_format($maxPrice, 0, ',', '.') . 'đ';
@@ -151,7 +185,8 @@
     $latestOrderInfo = null;
     if (auth()->check()) {
         $latestOrder = \App\Models\Order::where('user_id', auth()->id())->latest()->first();
-        if ($latestOrder) {$latestOrderInfo = [
+        if ($latestOrder) {
+            $latestOrderInfo = [
                 'id' => $latestOrder->id,
                 'status' => $latestOrder->status ?? 'Đang xử lý',
                 'created_at' => $latestOrder->created_at ? $latestOrder->created_at->format('H:i - d/m/Y') : 'Mới đây',
@@ -166,70 +201,92 @@
     {{-- SIDEBAR ADMIN / NHÂN VIÊN --}}
     @if ($isAdminOrStaff)
         <aside class="admin-sidebar">
-            <div>
-                <div class="sidebar-brand">
-                    <i class="fas fa-fan text-primary fs-4 me-2"></i>
-                    <span class="fw-bold">XFAN STORE</span>
-                </div>
-                
-                <div class="sidebar-user">
-                    <div class="avatar">{{ strtoupper(substr(Auth::user()->name ?? 'U', 0, 1)) }}</div>
-                    <div class="fw-bold text-white small">{{ Auth::user()->name ?? 'Tài khoản' }}</div>
-                    
-                    <div class="text-info extra-small mt-1" style="font-size: 0.8rem; font-weight: 600;">
-                        <i class="bi bi-person-badge me-1"></i>
-                        @if((method_exists(Auth::user(), 'isStaff') && Auth::user()->isStaff()) || Auth::user()->role === 'staff')
-                            Nhân viên
-                        @elseif((method_exists(Auth::user(), 'isAdmin') && Auth::user()->isAdmin()) || Auth::user()->role === 'admin')
-                            Quản trị viên
-                        @else
-                            {{ ucfirst(Auth::user()->role ?? 'Admin') }}
-                        @endif
-                    </div>
-                </div>
-
-                <ul class="sidebar-menu">
-                    <li class="nav-item">
-                        <a href="{{ Route::has('admin.portal') ? route('admin.portal') : url('/admin') }}" class="nav-link {{ request()->routeIs('admin.portal') ? 'active' : '' }}">
-                            <i class="bi bi-speedometer2"></i><span>Dashboard</span>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="{{ Route::has('storefront') ? route('storefront') : url('/') }}" class="nav-link {{ request()->routeIs('storefront*') ? 'active' : '' }}">
-                            <i class="bi bi-shop"></i><span>Xem Cửa Hàng</span>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="{{ Route::has('admin.hoods.index') ? route('admin.hoods.index') : (Route::has('hoods.index') ? route('hoods.index') : url('/admin/hoods')) }}" class="nav-link {{ request()->routeIs('*hoods*') ? 'active' : '' }}">
-                            <i class="bi bi-box-seam"></i><span>Sản phẩm</span>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="{{ Route::has('admin.categories.index') ? route('admin.categories.index') : (Route::has('categories.index') ? route('categories.index') : url('/admin/categories')) }}" class="nav-link {{ request()->routeIs('*categories*') ? 'active' : '' }}">
-                            <i class="bi bi-tags"></i><span>Danh mục</span>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="{{ Route::has('admin.services.index') ? route('admin.services.index') : (Route::has('services.index') ? route('services.index') : url('/dich-vu')) }}" class="nav-link {{ request()->routeIs('*services*') ? 'active' : '' }}">
-                            <i class="bi bi-wrench-adjustable-circle"></i><span>Gói dịch vụ</span>
-                        </a>
-                    </li>
-
-                    @if((method_exists(Auth::user(), 'isAdmin') && Auth::user()->isAdmin()) || Auth::user()->role === 'admin')
-                        <li class="nav-item">
-                            <a href="{{ Route::has('admin.users.index') ? route('admin.users.index') : (Route::has('users.index') ? route('users.index') : url('/admin/users')) }}" class="nav-link {{ request()->routeIs('*users*') ? 'active' : '' }}">
-                                <i class="bi bi-people"></i><span>Người dùng</span>
-                            </a>
-                        </li>
-                    @endif
-
-                    <li class="nav-item">
-                        <a href="{{ Route::has('admin.orders.index') ? route('admin.orders.index') : (Route::has('orders.index') ? route('orders.index') : url('/admin/orders')) }}" class="nav-link {{ request()->routeIs('*orders*') ? 'active' : '' }}">
-                            <i class="bi bi-receipt"></i><span>Đơn hàng</span>
-                        </a>
-                    </li>
-                </ul>
+            <div class="sidebar-brand">
+                <i class="fas fa-fan text-primary fs-5 me-2"></i>
+                <span>XFAN STORE</span>
             </div>
+            
+            <div class="sidebar-user">
+                <div class="avatar">{{ strtoupper(substr(Auth::user()->name ?? 'U', 0, 1)) }}</div>
+                <div class="fw-bold text-white small" style="font-size:0.88rem;">{{ Auth::user()->name ?? 'Tài khoản' }}</div>
+                
+                <div class="text-info mt-1" style="font-size: 0.78rem; font-weight: 600;">
+                    <i class="bi bi-person-badge me-1"></i>
+                    @if((method_exists(Auth::user(), 'isStaff') && Auth::user()->isStaff()) || Auth::user()->role === 'staff')
+                        Nhân viên
+                    @elseif((method_exists(Auth::user(), 'isAdmin') && Auth::user()->isAdmin()) || Auth::user()->role === 'admin')
+                        Quản trị viên
+                    @else
+                        {{ ucfirst(Auth::user()->role ?? 'Admin') }}
+                    @endif
+                </div>
+            </div>
+
+            <ul class="sidebar-menu">
+                <li class="nav-item">
+                    <a href="{{ Route::has('admin.portal') ? route('admin.portal') : url('/admin/portal') }}" class="nav-link {{ request()->routeIs('admin.portal') ? 'active' : '' }}">
+                        <i class="bi bi-speedometer2"></i><span>Dashboard</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ Route::has('storefront') ? route('storefront') : url('/') }}" class="nav-link {{ request()->routeIs('storefront*') ? 'active' : '' }}">
+                        <i class="bi bi-shop"></i><span>Xem Cửa Hàng</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ Route::has('admin.hoods.index') ? route('admin.hoods.index') : (Route::has('hoods.index') ? route('hoods.index') : url('/admin/hoods')) }}" class="nav-link {{ request()->routeIs('*hoods*') ? 'active' : '' }}">
+                        <i class="bi bi-box-seam"></i><span>Sản phẩm</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ Route::has('admin.categories.index') ? route('admin.categories.index') : (Route::has('categories.index') ? route('categories.index') : url('/admin/categories')) }}" class="nav-link {{ request()->routeIs('*categories*') ? 'active' : '' }}">
+                        <i class="bi bi-tags"></i><span>Danh mục</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{{ Route::has('admin.services.index') ? route('admin.services.index') : (Route::has('services.index') ? route('services.index') : url('/admin/services')) }}" class="nav-link {{ request()->routeIs('*services*') ? 'active' : '' }}">
+                        <i class="bi bi-wrench-adjustable-circle"></i><span>Gói dịch vụ</span>
+                    </a>
+                </li>
+
+                {{-- MỤC QUẢN LÝ KHUYẾN MẠI --}}
+                <li class="nav-item">
+                    <a href="{{ Route::has('admin.coupons.index') ? route('admin.coupons.index') : (Route::has('coupons.index') ? route('coupons.index') : url('/admin/coupons')) }}" class="nav-link {{ request()->routeIs('*coupons*') ? 'active' : '' }}">
+                        <i class="bi bi-ticket-perforated"></i><span>Khuyến mại</span>
+                    </a>
+                </li>
+
+                {{-- MỤC 1: HÒM THƯ HỖ TRỢ --}}
+                <li class="nav-item">
+                    <a href="{{ Route::has('admin.support.index') ? route('admin.support.index') : url('/admin/support-requests') }}" class="nav-link {{ request()->routeIs('*support-requests*') ? 'active' : '' }}">
+                        <i class="bi bi-inbox-fill text-warning"></i><span>Hòm Thư Hỗ Trợ</span>
+                    </a>
+                </li>
+
+                {{-- MỤC 2: GỬI THƯ HỖ TRỢ BÁN HÀNG --}}
+                <li class="nav-item">
+                    <a href="{{ Route::has('admin.promotion.form') ? route('admin.promotion.form') : url('/admin/send-promotion-mail') }}" class="nav-link {{ request()->routeIs('*promotion*') ? 'active' : '' }}">
+                        <i class="bi bi-envelope-paper"></i><span>Gửi Thư Hỗ Trợ</span>
+                    </a>
+                </li>
+
+                {{-- MỤC NGƯỜI DÙNG --}}
+                @if((method_exists(Auth::user(), 'isAdmin') && Auth::user()->isAdmin()) || Auth::user()->role === 'admin')
+                    <li class="nav-item">
+                        <a href="{{ Route::has('admin.users.index') ? route('admin.users.index') : (Route::has('users.index') ? route('users.index') : url('/admin/users')) }}" class="nav-link {{ request()->routeIs('*users*') ? 'active' : '' }}">
+                            <i class="bi bi-people"></i><span>Người dùng</span>
+                        </a>
+                    </li>
+                @endif
+
+                <li class="nav-item">
+                    <a href="{{ Route::has('admin.orders.index') ? route('admin.orders.index') : (Route::has('orders.index') ? route('orders.index') : url('/admin/orders')) }}" class="nav-link {{ request()->routeIs('*orders*') ? 'active' : '' }}">
+                        <i class="bi bi-receipt"></i><span>Đơn hàng</span>
+                    </a>
+                </li>
+            </ul>
+
+            <!-- CỐ ĐỊNH NÚT ĐĂNG XUẤT Ở CHÂN SIDEBAR -->
             <div class="sidebar-footer">
                 <form action="{{ Route::has('logout') ? route('logout') : url('/logout') }}" method="POST">
                     @csrf
@@ -267,7 +324,7 @@
         </div>
     @endif
 
-    {{-- NAVBAR TOPBAR CỬA HÀNG --}}
+    {{-- NAVBAR TOPBAR CỬA HÀNG KHÁCH HÀNG --}}
     @if (!$isAdminManagementPage)
         <nav class="navbar navbar-expand-lg navbar-light user-navbar py-2 shadow-sm mb-4">
             <div class="{{ $isAdminOrStaff ? 'container-fluid px-4' : 'container' }} d-flex align-items-center justify-content-between">
@@ -282,6 +339,9 @@
                         <a href="{{ Route::has('services.index') ? route('services.index') : url('/dich-vu') }}" class="user-nav-link {{ request()->routeIs('*services*') ? 'active' : '' }}">
                             <i class="bi bi-tools"></i><span>Dịch vụ & Lắp đặt</span>
                         </a>
+                        <a href="{{ Route::has('user.support.form') ? route('user.support.form') : url('/ho-tro') }}" class="user-nav-link {{ request()->routeIs('*support*') || request()->is('ho-tro*') ? 'active' : '' }}">
+                            <i class="bi bi-headset"></i><span>Gửi thư hỗ trợ</span>
+                        </a>
                         <a href="{{ auth()->check() ? (Route::has('cart.index') ? route('cart.index') : url('/cart')) : (Route::has('login') ? route('login') : url('/login')) }}" class="user-nav-link {{ request()->routeIs('*cart*') ? 'active' : '' }}">
                             <i class="bi bi-cart3"></i><span>Giỏ hàng</span>
                         </a>
@@ -294,7 +354,17 @@
                 <div class="d-flex align-items-center gap-2">
                     @auth
                         @if (!$isAdminOrStaff)
-                            <span class="text-secondary small me-2">Xin chào, <strong>{{ Auth::user()->name }}</strong></span>
+                            <span class="text-secondary small me-1">Xin chào, <strong>{{ Auth::user()->name }}</strong></span>
+                            
+                            @if(!Auth::user()->hasVerifiedEmail())
+                                <a href="{{ Route::has('verification.notice') ? route('verification.notice') : url('/email/verify') }}" 
+                                   class="badge bg-warning text-dark border border-warning-subtle px-2 py-1 me-2 text-decoration-none" 
+                                   style="font-size: 0.75rem;" 
+                                   title="Bấm để mở trang xác minh email">
+                                    ⚠️ Chưa xác minh
+                                </a>
+                            @endif
+
                             <form action="{{ Route::has('logout') ? route('logout') : url('/logout') }}" method="POST" class="d-inline m-0">
                                 @csrf
                                 <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-box-arrow-right me-1"></i> Đăng xuất</button>
@@ -322,13 +392,17 @@
                     <h6 class="mb-0 fw-bold fs-6">Nhắn tin cho chúng tôi</h6>
                     <span id="chatStatusSubtitle" class="text-white-50 extra-small" style="font-size: 0.75rem;">Hệ thống tư vấn tự động</span>
                 </div>
-                <button type="button" id="btnUserChatClose" class="btn-close btn-close-white"></button>
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button" id="btnExitAdminChat" class="btn btn-sm btn-outline-warning text-warning border-warning d-none px-2 py-1" style="font-size: 0.75rem; font-weight: 600;" onclick="exitAdminChat()">
+                        <i class="bi bi-box-arrow-left me-1"></i>Thoát Admin
+                    </button>
+                    <button type="button" id="btnUserChatClose" class="btn-close btn-close-white"></button>
+                </div>
             </div>
 
             <div class="flex-grow-1 p-3 overflow-auto" id="userChatMessagesBox">
                 <div class="chat-date-badge" id="chatTodayDate"></div>
 
-                <!-- Khối menu Bot chào mừng -->
                 <div id="botWelcomeContainer">
                     <div class="msg-bubble-received">
                         <div class="fw-bold mb-1 text-primary" style="font-size:0.8rem">XFAN Bot</div>
@@ -336,7 +410,6 @@
                     </div>
 
                     <div id="quickOptionsGroup" class="mt-2">
-                        <!-- Nút Tiếp tục cuộc trò chuyện (ẩn mặc định, chỉ hiện nếu từng chat với Admin) -->
                         <button type="button" id="btnContinueChat" class="chat-option-btn btn-resume-chat d-none" onclick="resumeAdminChat()">
                             🔄 Tiếp tục cuộc trò chuyện với Tư vấn viên
                         </button>
@@ -348,7 +421,6 @@
                     </div>
                 </div>
 
-                <!-- Chứa lịch sử tin nhắn thực tế khi kết nối với Admin -->
                 <div id="chatHistoryContainer"></div>
             </div>
 
@@ -502,28 +574,13 @@
             const botWelcomeContainer = document.getElementById('botWelcomeContainer');
             const chatHistoryContainer = document.getElementById('chatHistoryContainer');
             const btnContinueChat = document.getElementById('btnContinueChat');
+            const btnExitAdminChat = document.getElementById('btnExitAdminChat');
             const userSendForm = document.getElementById('userSendChatForm');
             const userInput = document.getElementById('userChatInput');
             const chatStatusSubtitle = document.getElementById('chatStatusSubtitle');
 
-            let unhandledAttempts = 0;
             let isConnectedToAdmin = false;
             let cachedHistory = [];
-
-            // Kiểm tra trạng thái đóng mở chat > 30 phút
-            function checkChatSessionTimeout() {
-                const lastClosedTime = localStorage.getItem('xfan_chat_closed_time');
-                const now = Date.now();
-                const THIRTY_MINUTES = 30 * 60 * 1000;
-
-                // Nếu vừa mở trang hoặc thời gian đóng chat > 30 phút -> Trở về Bot Menu
-                if (!lastClosedTime || (now - parseInt(lastClosedTime)) > THIRTY_MINUTES) {
-                    resetToBotMenu();
-                }
-                
-                // Mặc dù ở Bot Menu nhưng vẫn đi kiểm tra xem người dùng đã từng nhắn với Admin chưa
-                fetchUserChatHistory();
-            }
 
             function resetToBotMenu() {
                 isConnectedToAdmin = false;
@@ -531,8 +588,25 @@
                     chatStatusSubtitle.innerText = 'Hệ thống tư vấn tự động';
                     chatStatusSubtitle.className = 'text-white-50 extra-small';
                 }
+                if (btnExitAdminChat) {
+                    btnExitAdminChat.classList.add('d-none');
+                }
+                if (userInput) {
+                    userInput.placeholder = "Gửi tin nhắn...";
+                }
                 if (botWelcomeContainer) botWelcomeContainer.classList.remove('d-none');
                 if (chatHistoryContainer) chatHistoryContainer.innerHTML = '';
+            }
+
+            function checkChatSessionTimeout() {
+                const lastClosedTime = localStorage.getItem('xfan_chat_closed_time');
+                const now = Date.now();
+                const THIRTY_MINUTES = 30 * 60 * 1000;
+
+                if (!lastClosedTime || (now - parseInt(lastClosedTime)) > THIRTY_MINUTES) {
+                    resetToBotMenu();
+                }
+                fetchUserChatHistory();
             }
 
             function fetchUserChatHistory() {
@@ -548,8 +622,9 @@
                     const msgs = Array.isArray(data) ? data : (data.messages || []);
                     cachedHistory = msgs;
 
-                    // Nếu đã có tin nhắn trao đổi với Admin -> Hiện nút "Tiếp tục cuộc trò chuyện"
-                    if (msgs && msgs.length > 0) {
+                    if (data.is_admin) {
+                        resumeAdminChat();
+                    } else if (msgs && msgs.length > 0) {
                         if (btnContinueChat) btnContinueChat.classList.remove('d-none');
                     } else {
                         if (btnContinueChat) btnContinueChat.classList.add('d-none');
@@ -558,29 +633,53 @@
                 .catch(() => {});
             }
 
-            // Bấm nút "Tiếp tục cuộc trò chuyện với Tư vấn viên"
             window.resumeAdminChat = function() {
                 isConnectedToAdmin = true;
                 
-                // Cập nhật Header
                 if (chatStatusSubtitle) {
                     chatStatusSubtitle.innerText = '🟢 Đã kết nối với Tư vấn viên Admin';
                     chatStatusSubtitle.className = 'text-warning extra-small fw-bold';
                 }
 
-                // Ẩn Menu Bot (ảnh 1 & ảnh 2)
+                if (btnExitAdminChat) {
+                    btnExitAdminChat.classList.remove('d-none');
+                }
+
+                if (userInput) {
+                    userInput.placeholder = "Nhập tin nhắn cho Admin...";
+                }
+
                 if (botWelcomeContainer) botWelcomeContainer.classList.add('d-none');
 
-                // Render lịch sử chat
                 if (chatHistoryContainer) {
                     chatHistoryContainer.innerHTML = '';
                     cachedHistory.forEach(m => {
                         let text = m.content || m.message || '';
-                        let isMe = (m.sender_id == currentUserId || m.type === 'user');
+                        let isMe = (m.sender_id == currentUserId || m.type === 'user' || m.sender === 'user');
                         appendBubbleToBox(chatHistoryContainer, text, isMe ? 'sent' : 'received', isMe ? 'Bạn' : 'Tư vấn viên Admin');
                     });
                 }
                 userMessagesBox.scrollTop = userMessagesBox.scrollHeight;
+            };
+
+            window.exitAdminChat = function() {
+                const userSendUrl = "{{ Route::has('user.chat.send') ? route('user.chat.send') : url('/user/chat/send') }}";
+
+                fetch(userSendUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
+                    body: JSON.stringify({ message: 'exit' })
+                })
+                .then(r => r.ok ? r.json() : null)
+                .then(data => {
+                    resetToBotMenu();
+                    if (data && data.reply) {
+                        appendBubbleToBox(botWelcomeContainer, data.reply, 'received', 'XFAN Bot');
+                    }
+                })
+                .catch(() => {
+                    resetToBotMenu();
+                });
             };
 
             function appendBubbleToBox(targetBox, text, type = 'received', senderName = 'XFAN Bot') {
@@ -606,14 +705,12 @@
                 if (btnUserClose) {
                     btnUserClose.addEventListener('click', function () {
                         userPanel.classList.remove('active');
-                        // Lưu thời gian tại thời điểm người dùng đóng bong bóng chat
                         localStorage.setItem('xfan_chat_closed_time', Date.now().toString());
                     });
                 }
             }
 
             window.handleOptionSelect = function(actionKey, labelText) {
-                // Thêm tin nhắn lựa chọn vào menu bot
                 const botMsgDiv = document.createElement('div');
                 botMsgDiv.className = 'msg-bubble-sent';
                 botMsgDiv.innerHTML = `<div>${labelText}</div>`;
@@ -634,7 +731,7 @@
                         }
 
                     } else if (actionKey === 'promotion') {
-                        appendBubbleToBox(botWelcomeContainer, `💰 <b>Khoảng giá sản phẩm tại XFAN Store:</b><br>Các mẫu máy hút mùi tại cửa hàng hiện có mức giá dao động từ <b>${minPriceFormatted}</b> đến <b>${maxPriceFormatted}</b> tùy thuộc vào kiểu dáng và công suất.<br><br>📢 <b>Khuyến mại:</b> Cửa hàng hiện tại không có chương trình khuyến mại.`, 'received');
+                        appendBubbleToBox(botWelcomeContainer, `💰 <b>Khoảng giá sản phẩm tại XFAN Store:</b><br>Các mẫu máy hút mùi tại cửa hàng hiện có mức giá dao động từ <b>${minPriceFormatted}</b> đến <b>${maxPriceFormatted}</b> tùy thuộc vào kiểu dáng và công suất.`, 'received');
                     
                     } else if (actionKey === 'connect_admin') {
                         resumeAdminChat();
@@ -654,34 +751,32 @@
 
                     const userSendUrl = "{{ Route::has('user.chat.send') ? route('user.chat.send') : url('/user/chat/send') }}";
 
-                    if (isConnectedToAdmin) {
-                        fetch(userSendUrl, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
-                            body: JSON.stringify({ message: msg })
-                        });
-                        return;
-                    }
+                    fetch(userSendUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
+                        body: JSON.stringify({ message: msg })
+                    })
+                    .then(r => r.ok ? r.json() : null)
+                    .then(data => {
+                        if (!data) return;
 
-                    unhandledAttempts++;
-
-                    if (unhandledAttempts >= 3) {
-                        setTimeout(() => {
-                            appendBubbleToBox(botWelcomeContainer, 'Tôi nhận thấy câu hỏi của bạn cần sự hỗ trợ chuyên sâu hơn từ kỹ thuật viên.', 'received');
-                            resumeAdminChat();
-                            
-                            fetch(userSendUrl, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
-                                body: JSON.stringify({ message: msg })
-                            });
-                        }, 600);
-                        return;
-                    }
-
-                    setTimeout(() => {
-                        appendBubbleToBox(botWelcomeContainer, `Cảm ơn bạn. Bot chưa nhận diện rõ câu hỏi "${msg}". Vui lòng chọn menu bên trên hoặc nhập lại chi tiết hơn (Lần ${unhandledAttempts}/3 trước khi chuyển Admin).`, 'received');
-                    }, 500);
+                        if (data.mode === 'bot') {
+                            resetToBotMenu();
+                            if (data.reply) {
+                                appendBubbleToBox(botWelcomeContainer, data.reply, 'received', 'XFAN Bot');
+                            }
+                        } else if (data.mode === 'admin') {
+                            if (!isConnectedToAdmin) {
+                                resumeAdminChat();
+                            }
+                            if (data.reply) {
+                                appendBubbleToBox(chatHistoryContainer, data.reply, 'received', 'Tư vấn viên Admin');
+                            }
+                        } else if (data.reply) {
+                            appendBubbleToBox(activeTargetBox, data.reply, 'received', 'XFAN Bot');
+                        }
+                    })
+                    .catch(() => {});
                 });
             }
         });

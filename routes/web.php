@@ -19,6 +19,8 @@ use App\Http\Controllers\AdminPortalController;
 use App\Http\Controllers\Admin\ChatController;
 use App\Http\Controllers\ServicePackageController;
 use App\Http\Controllers\Admin\AdminServicePackageController;
+use App\Http\Controllers\CouponController;
+use App\Http\Controllers\SupportController;
 
 // Middlewares
 use App\Http\Middleware\AdminMiddleware;
@@ -32,20 +34,28 @@ use App\Http\Middleware\AdminMiddleware;
 // Redirect trang chủ về Storefront
 Route::get('/', fn () => redirect()->route('storefront'));
 
-// Trang Storefront công khai (Dành cho khách truy cập)
+// Trang Storefront công khai
 Route::get('/storefront', [HoodController::class, 'storefront'])->name('storefront');
 Route::get('/storefront/{id}', [HoodController::class, 'storefrontShow'])->name('storefront.show');
+
+// CHỨC NĂNG GỬI THƯ HỖ TRỢ PHÍA KHÁCH HÀNG
+Route::get('/ho-tro', [SupportController::class, 'showForm'])->name('user.support.form');
+Route::post('/ho-tro/send', [SupportController::class, 'sendSupport'])->name('user.support.send');
 
 // Dịch vụ Vệ sinh & Lắp đặt
 Route::get('/dich-vu', [ServicePackageController::class, 'index'])->name('services.index');
 Route::match(['get', 'post'], '/dich-vu/add-to-cart/{id}', [ServicePackageController::class, 'addToCart'])->name('services.addToCart');
 Route::match(['get', 'post'], '/dich-vu/add-to-cart-alias/{id}', [ServicePackageController::class, 'addToCart'])->name('services.add_to_cart');
 
-// MoMo Callbacks & IPN (Thanh toán trực tuyến)
+// Google OAuth
+Route::get('/auth/google', [AuthController::class, 'redirectToGoogle'])->name('auth.google');
+Route::get('/auth/google/callback', [AuthController::class, 'handleGoogleCallback'])->name('auth.google.callback');
+
+// MoMo Callbacks & IPN
 Route::get('/payment/momo/callback', [MomoController::class, 'callback'])->name('user.payment.momo.callback');
 Route::post('/payment/momo/ipn', [MomoController::class, 'ipn'])->name('payment.momo.ipn');
 
-// GHN Webhook (Bỏ qua kiểm tra CSRF Token cho API từ GHN)
+// GHN Webhook
 Route::post('/ghn/webhook', [OrderController::class, 'handleGhnWebhook'])
     ->withoutMiddleware([
         \Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class,
@@ -54,7 +64,7 @@ Route::post('/ghn/webhook', [OrderController::class, 'handleGhnWebhook'])
     ->name('ghn.webhook');
 
 // ==========================================
-// 1. GUEST ROUTES (Dành cho khách chưa đăng nhập)
+// 1. GUEST ROUTES (Chưa đăng nhập)
 // ==========================================
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -84,7 +94,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/mark-as-read', [ChatController::class, 'markUserRead'])->name('markRead');
     });
 
-    // Email Verification (Xác minh Email)
+    // Email Verification
     Route::get('/email/verify', function (Request $request) {
         return $request->user()->hasVerifiedEmail()
             ? redirect()->route('storefront')
@@ -94,12 +104,12 @@ Route::middleware('auth')->group(function () {
     Route::get('/email/verify/{id}/{hash}', function (EmailVerificationRequest $request) {
         $request->fulfill();
         $user = $request->user();
-        $isAdminOrStaff = in_array($user->role, ['admin', 'staff']);
+        $isAdminOrStaff = in_array($user->role ?? '', ['admin', 'staff']);
 
-        return redirect()->route($isAdminOrStaff ? 'admin.portal' : 'storefront');
+        return redirect()->route($isAdminOrStaff ? 'admin.portal' : 'storefront')
+            ->with('success', 'Xác minh Gmail thành công!');
     })->middleware('signed')->name('verification.verify');
 
-    // Xử lý gửi lại email xác minh có bắt lỗi Throwable & hiển thị chi tiết ra giao diện
     Route::post('/email/verification-notification', function (Request $request) {
         if ($request->user()->hasVerifiedEmail()) {
             return redirect()->route('storefront');
@@ -114,24 +124,24 @@ Route::middleware('auth')->group(function () {
         }
     })->middleware('throttle:6,1')->name('verification.send');
 
-    // CHỨC NĂNG NGƯỜI DÙNG (Yêu cầu xác minh Email)
+    // CHỨC NĂNG NGƯỜI DÙNG CÓ XÁC MINH EMAIL
     Route::middleware('verified')->group(function () {
-        // Giỏ hàng & Thanh toán
         Route::get('/cart', [CartController::class, 'index'])->name('cart.index');
         Route::get('/cart-alias', [CartController::class, 'index'])->name('cart');
         Route::post('/cart/add', [CartController::class, 'add'])->name('cart.add');
-        
         Route::match(['get', 'post', 'delete'], '/cart/remove/{key}', [CartController::class, 'remove'])->name('cart.remove');
         
+        // ROUTE ÁP DỤNG & HỦY MÃ GIẢM GIÁ
+        Route::post('/cart/apply-coupon', [CartController::class, 'applyCoupon'])->name('cart.applyCoupon');
+        Route::post('/cart/remove-coupon', [CartController::class, 'removeCoupon'])->name('cart.removeCoupon');
+
         Route::get('/checkout', [CartController::class, 'checkout'])->name('cart.checkout');
         Route::post('/checkout', [CartController::class, 'processCheckout'])->name('cart.checkout.process');
         Route::post('/checkout-alias', [CartController::class, 'processCheckout'])->name('cart.processCheckout');
 
-        // Quản lý Đơn hàng
         Route::get('/orders', [OrderController::class, 'index'])->name('orders.index');
         Route::get('/orders/{id}', [OrderController::class, 'show'])->name('orders.show');
 
-        // API Địa giới hành chính (GHN)
         Route::prefix('locations')->name('locations.')->group(function () {
             Route::get('/provinces', [CartController::class, 'getProvinces'])->name('provinces');
             Route::get('/districts/{provinceId}', [CartController::class, 'getDistricts'])->name('districts');
@@ -139,68 +149,64 @@ Route::middleware('auth')->group(function () {
             Route::post('/calculate-fee', [CartController::class, 'getShippingFee'])->name('fee');
         });
 
-        // Alias đường dẫn API GHN hỗ trợ Javascript
         Route::get('/cart/api/provinces', [CartController::class, 'getProvinces']);
         Route::get('/cart/api/districts/{provinceId}', [CartController::class, 'getDistricts']);
         Route::get('/cart/api/wards/{districtId}', [CartController::class, 'getWards']);
         Route::post('/cart/api/shipping-fee', [CartController::class, 'getShippingFee']);
 
-        // Thanh toán MoMo
         Route::get('/payment/momo/start/{order}', [MomoController::class, 'startPayment'])->name('user.orders.momo.start');
     });
 
     // ==========================================
-    // 3. ADMIN ROUTES (Quản trị viên & Nhân viên)
+    // 3. ADMIN & STAFF ROUTES (Quản trị viên & Nhân viên)
     // ==========================================
     Route::middleware([AdminMiddleware::class])
         ->prefix('admin')
         ->group(function () {
 
-            // Admin Dashboard & Export
+            // Dashboard & Thống kê
             Route::get('/portal', [AdminPortalController::class, 'index'])->name('admin.portal');
             Route::get('/dashboard', fn() => redirect()->route('admin.portal'))->name('admin.dashboard');
             Route::get('/portal/export-excel', [AdminPortalController::class, 'exportExcel'])->name('admin.portal.export');
 
-            // Quản lý đơn hàng Admin
+            // Quản lý Hòm Thư Hỗ Trợ (Khách hàng gửi đến)
+            Route::get('/support-requests', [SupportController::class, 'adminIndex'])->name('admin.support.index');
+            Route::post('/support-requests/{id}/reply', [SupportController::class, 'adminReply'])->name('admin.support.reply');
+            Route::delete('/support-requests/{id}', [SupportController::class, 'destroy'])->name('admin.support.destroy');
+
+            // Quản lý Đơn hàng
             Route::get('/orders', [OrderController::class, 'adminIndex'])->name('admin.orders.index');
             Route::get('/orders/{id}', [OrderController::class, 'show'])->name('admin.orders.show');
             Route::put('/orders/{id}/status', [OrderController::class, 'updateStatus'])->name('admin.orders.updateStatus');
             Route::post('/orders/{id}/sync-ghn', [OrderController::class, 'syncGhnStatus'])->name('admin.orders.syncGhn');
             Route::post('/orders/{id}/push-ghn', [OrderController::class, 'pushToGhn'])->name('admin.orders.pushGhn');
 
-            // Admin Livechat
+            // Livechat
             Route::get('/chat', [ChatController::class, 'index'])->name('admin.chat');
             Route::get('/chat/users', [ChatController::class, 'getAdminUsers'])->name('admin.chat.users');
             Route::get('/chat/messages/{userId}', [ChatController::class, 'getAdminMessages'])->name('admin.chat.messages');
             Route::post('/chat/send', [ChatController::class, 'sendAdminMessage'])->name('admin.chat.send');
             Route::get('/chat/unread-count', [ChatController::class, 'checkAdminUnread'])->name('admin.chat.unread');
 
-            // Resource Routes CRUD
+            // Khai báo trọn bộ Resource hỗ trợ 100% cả 2 kiểu đặt tên route
             Route::resource('categories', CategoryController::class)->names('admin.categories');
-            Route::resource('users', UserController::class)->only(['index', 'store', 'update', 'destroy'])->names('admin.users');
+            Route::resource('categories-short', CategoryController::class)->names('categories');
+
             Route::resource('hoods', HoodController::class)->names('admin.hoods');
+            Route::resource('hoods-short', HoodController::class)->names('hoods');
+
             Route::resource('services', AdminServicePackageController::class)->names('admin.services');
+            Route::resource('services-short', AdminServicePackageController::class)->names('services');
 
-            // ROUTE ALIASES (Tên route rút gọn)
-            Route::name('categories.')->group(function () {
-                Route::get('/categories-alias', [CategoryController::class, 'index'])->name('index');
-                Route::get('/categories-alias/create', [CategoryController::class, 'create'])->name('create');
-                Route::post('/categories-alias', [CategoryController::class, 'store'])->name('store');
-                Route::get('/categories-alias/{category}', [CategoryController::class, 'show'])->name('show');
-                Route::get('/categories-alias/{category}/edit', [CategoryController::class, 'edit'])->name('edit');
-                Route::put('/categories-alias/{category}', [CategoryController::class, 'update'])->name('update');
-                Route::delete('/categories-alias/{category}', [CategoryController::class, 'destroy'])->name('destroy');
-            });
+            Route::resource('coupons', CouponController::class)->names('admin.coupons');
+            Route::resource('coupons-short', CouponController::class)->names('coupons');
 
-            Route::name('hoods.')->group(function () {
-                Route::get('/hoods-alias', [HoodController::class, 'index'])->name('index');
-                Route::get('/hoods-alias/create', [HoodController::class, 'create'])->name('create');
-                Route::post('/hoods-alias', [HoodController::class, 'store'])->name('store');
-                Route::get('/hoods-alias/{hood}', [HoodController::class, 'show'])->name('show');
-                Route::get('/hoods-alias/{hood}/edit', [HoodController::class, 'edit'])->name('edit');
-                Route::put('/hoods-alias/{hood}', [HoodController::class, 'update'])->name('update');
-                Route::delete('/hoods-alias/{hood}', [HoodController::class, 'destroy'])->name('destroy');
-            });
+            // Thư Hỗ trợ Bán hàng & Khuyến mại Email
+            Route::get('/send-promotion-mail', [AdminPortalController::class, 'showPromotionForm'])->name('admin.promotion.form');
+            Route::post('/send-promotion-mail', [AdminPortalController::class, 'sendPromotionMail'])->name('admin.promotion.send');
+
+            // Quản lý Người dùng
+            Route::resource('users', UserController::class)->only(['index', 'store', 'update', 'destroy'])->names('admin.users');
 
             Route::name('users.')->group(function () {
                 Route::get('/users-alias', [UserController::class, 'index'])->name('index');
@@ -209,18 +215,12 @@ Route::middleware('auth')->group(function () {
                 Route::delete('/users-alias/{user}', [UserController::class, 'destroy'])->name('destroy');
             });
 
-            // Alias Routes v2
-            Route::get('/v2/categories', [CategoryController::class, 'index'])->name('admin.categories.v2.index');
-            Route::get('/v2/categories/create', [CategoryController::class, 'create'])->name('admin.categories.v2.create');
-            Route::get('/v2/hoods', [HoodController::class, 'index'])->name('admin.hoods.v2.index');
-            Route::get('/v2/hoods/create', [HoodController::class, 'create'])->name('admin.hoods.v2.create');
             Route::get('/v2/users', [UserController::class, 'index'])->name('admin.users.v2.index');
-            Route::get('/v2/services', [AdminServicePackageController::class, 'index'])->name('admin.services.v2.index');
         });
 });
 
 // ========================================================
-// 4. ROUTE ĐỌC ẢNH TRỰC TIẾP TỪ STORAGE (ĐÃ NÂNG CẤP BẢO MẬT)
+// 4. STORAGE IMAGE ROUTE
 // ========================================================
 Route::get('/storage/{path}', function ($path) {
     if (str_contains($path, '..')) {
