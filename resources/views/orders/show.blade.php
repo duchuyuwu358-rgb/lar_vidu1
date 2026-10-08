@@ -227,11 +227,18 @@
                         </tbody>
                         <tfoot class="border-top">
                             @php 
-                                $discountAmount = $order->discount_amount ?? 0;
-                                $couponCode     = $order->coupon_code ?? null;
-                                $shippingFee    = $order->ghn_total_fee ?? max(0, ($order->total_price ?? $subtotal) - ($subtotal - $discountAmount));
-                                $grandTotal     = $order->total_price ?? ($subtotal - $discountAmount + $shippingFee);
+                                $shippingFee    = $order->ghn_total_fee ?? $order->shipping_fee ?? 0;
+                                $discountAmount = $order->discount_amount ?? $order->discount ?? 0;
+                                $couponCode     = $order->coupon_code ?? $order->coupon ?? null;
+
+                                // Tự động suy ra số tiền giảm giá nếu CSDL chưa lưu cột discount_amount
+                                if ($discountAmount <= 0 && isset($order->total_price) && $order->total_price < ($subtotal + $shippingFee)) {
+                                    $discountAmount = ($subtotal + $shippingFee) - $order->total_price;
+                                }
+
+                                $grandTotal = $order->total_price ?? ($subtotal - $discountAmount + $shippingFee);
                             @endphp
+                            
                             <!-- Tạm tính tiền hàng -->
                             <tr>
                                 <td colspan="3" class="text-end text-muted">Tiền hàng:</td>

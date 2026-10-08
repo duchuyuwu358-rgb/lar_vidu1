@@ -140,17 +140,26 @@ class OrderController extends Controller
             'email'   => 'required|email',
         ]);
 
+        // Lấy mã giảm giá và số tiền giảm từ Session hoặc Request
+        $couponCode     = session('coupon.code') ?? session('coupon.name') ?? $request->coupon_code ?? null;
+        $discountAmount = session('coupon.discount') ?? session('coupon.discount_amount') ?? $request->discount_amount ?? 0;
+
         $order = Order::create([
-            'user_id'        => auth()->id(),
-            'total_price'    => $request->total_price ?? 0,
-            'payment_method' => 'cod',
-            'payment_status' => 'unpaid',
-            'status'         => 'pending_payment',
-            'address'        => $request->address,
-            'phone'          => $request->phone,
-            'name'           => $request->name,
-            'email'          => $request->email,
+            'user_id'         => auth()->id(),
+            'total_price'     => $request->total_price ?? 0,
+            'coupon_code'     => $couponCode,
+            'discount_amount' => $discountAmount,
+            'payment_method'  => 'cod',
+            'payment_status'  => 'unpaid',
+            'status'          => 'pending_payment',
+            'address'         => $request->address,
+            'phone'           => $request->phone,
+            'name'            => $request->name,
+            'email'           => $request->email,
         ]);
+
+        // Xóa mã giảm giá khỏi Session sau khi tạo đơn hàng thành công
+        session()->forget('coupon');
 
         // Gửi email xác nhận đặt hàng
         $this->sendOrderStatusEmail($order);
