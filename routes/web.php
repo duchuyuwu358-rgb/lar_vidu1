@@ -85,7 +85,6 @@ Route::middleware('auth')->group(function () {
     });
 
     // Email Verification (Xác minh Email)
-    // Tối ưu: Nếu user đã xác minh email rồi thì tự động chuyển hướng về storefront
     Route::get('/email/verify', function (Request $request) {
         return $request->user()->hasVerifiedEmail()
             ? redirect()->route('storefront')
@@ -100,7 +99,7 @@ Route::middleware('auth')->group(function () {
         return redirect()->route($isAdminOrStaff ? 'admin.portal' : 'storefront');
     })->middleware('signed')->name('verification.verify');
 
-    // Bọc try-catch tránh treo / nghẽn kết nối SMTP khi gửi lại mail xác thực
+    // Xử lý gửi lại email xác minh có bắt lỗi Throwable & hiển thị chi tiết ra giao diện
     Route::post('/email/verification-notification', function (Request $request) {
         if ($request->user()->hasVerifiedEmail()) {
             return redirect()->route('storefront');
@@ -108,10 +107,10 @@ Route::middleware('auth')->group(function () {
 
         try {
             $request->user()->sendEmailVerificationNotification();
-            return back()->with('success', 'Đã gửi lại email xác minh! Vui lòng kiểm tra hộp thư.');
-        } catch (\Exception $e) {
-            Log::error('Lỗi gửi lại mail xác minh: ' . $e->getMessage());
-            return back()->with('warning', 'Hệ thống chưa thể kết nối tới máy chủ gửi thư lúc này. Vui lòng thử lại sau.');
+            return back()->with('success', 'Đã gửi lại email xác minh! Vui lòng kiểm tra hòm thư.');
+        } catch (\Throwable $e) {
+            Log::error('Lỗi gửi mail xác minh: ' . $e->getMessage());
+            return back()->with('error', $e->getMessage());
         }
     })->middleware('throttle:6,1')->name('verification.send');
 
@@ -159,10 +158,7 @@ Route::middleware('auth')->group(function () {
 
             // Admin Dashboard & Export
             Route::get('/portal', [AdminPortalController::class, 'index'])->name('admin.portal');
-            
-            // Bổ sung Alias admin.dashboard tương thích với AuthController
             Route::get('/dashboard', fn() => redirect()->route('admin.portal'))->name('admin.dashboard');
-            
             Route::get('/portal/export-excel', [AdminPortalController::class, 'exportExcel'])->name('admin.portal.export');
 
             // Quản lý đơn hàng Admin
@@ -227,7 +223,6 @@ Route::middleware('auth')->group(function () {
 // 4. ROUTE ĐỌC ẢNH TRỰC TIẾP TỪ STORAGE (ĐÃ NÂNG CẤP BẢO MẬT)
 // ========================================================
 Route::get('/storage/{path}', function ($path) {
-    // Chặn nguy cơ Directory Traversal tấn công lấy file hệ thống
     if (str_contains($path, '..')) {
         abort(403, 'Forbidden');
     }

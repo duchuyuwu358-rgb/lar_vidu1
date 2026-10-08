@@ -135,11 +135,14 @@ class AuthController extends Controller
 
         // Xử lý gửi email xác thực an toàn bằng try-catch
         $mailSent = true;
+        $errorMessage = null;
+
         try {
             event(new Registered($user));
-        } catch (\Exception $e) {
-            Log::error('Lỗi gửi email xác thực: ' . $e->getMessage());
+        } catch (\Throwable $e) {
+            Log::error('Lỗi gửi email xác thực khi đăng ký: ' . $e->getMessage());
             $mailSent = false;
+            $errorMessage = $e->getMessage();
         }
 
         // Tự động đăng nhập phiên làm việc cho user
@@ -147,10 +150,10 @@ class AuthController extends Controller
 
         // Thông báo tùy theo trạng thái gửi thư
         if ($mailSent) {
-            return redirect()->route('verification.notice')->with('success', 'Đăng ký thành công! Vui lòng kiểm tra Gmail để xác thực tài khoản.');
+            return redirect()->route('verification.notice')->with('success', 'Đăng ký tài khoản thành công! Vui lòng kiểm tra hòm thư Gmail để xác minh.');
         }
 
-        return redirect()->route('verification.notice')->with('warning', 'Đăng ký tài khoản thành công! Tuy nhiên hệ thống chưa thể gửi email xác thực lúc này. Bạn có thể nhấn gửi lại sau.');
+        return redirect()->route('verification.notice')->with('error', $errorMessage ?? 'Hệ thống không thể kết nối tới máy chủ gửi mail lúc này.');
     }
 
     /**
