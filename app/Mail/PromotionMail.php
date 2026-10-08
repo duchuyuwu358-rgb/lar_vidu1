@@ -16,12 +16,14 @@ class PromotionMail extends Mailable
     public string $subjectText;
     public string $contentBody;
     public ?string $attachmentPath;
+    public ?string $couponCode;
 
-    public function __construct(string $subjectText, string $contentBody, ?string $attachmentPath = null)
+    public function __construct(string $subjectText, string $contentBody, ?string $attachmentPath = null, ?string $couponCode = null)
     {
         $this->subjectText    = $subjectText;
         $this->contentBody    = $contentBody;
         $this->attachmentPath = $attachmentPath;
+        $this->couponCode     = $couponCode;
     }
 
     public function envelope(): Envelope
@@ -34,7 +36,12 @@ class PromotionMail extends Mailable
     public function content(): Content
     {
         return new Content(
-            htmlString: nl2br(e($this->contentBody)),
+            view: 'emails.promotion',
+            with: [
+                'mailTitle'   => $this->subjectText,
+                'mailContent' => $this->contentBody,
+                'couponCode'  => $this->couponCode,
+            ],
         );
     }
 

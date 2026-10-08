@@ -304,25 +304,23 @@ class AdminPortalController extends Controller
     }
 
     /**
-     * Thực hiện Gửi Email Hàng Loạt kèm Tệp đính kèm (PDF, DOC, DOCX, Hình ảnh)
+     * Gửi thư khuyến mãi & thông báo sử dụng HTML View (emails.promotion)
      */
     public function sendPromotionMail(Request $request)
     {
         $request->validate([
             'subject'    => 'required|string|max:255',
-            'content'    => 'required|string',
-            'target'     => 'required|string',
-            'attachment' => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240', // Tối đa 10MB
+            'attachment' => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
         ], [
             'subject.required' => 'Vui lòng nhập tiêu đề thư.',
-            'content.required' => 'Vui lòng nhập nội dung thư.',
             'attachment.mimes' => 'Tập tin đính kèm phải có định dạng PDF, DOC, DOCX, JPG, JPEG hoặc PNG.',
             'attachment.max'   => 'Tập tin đính kèm không được vượt quá 10MB.',
         ]);
 
-        $subject = $request->input('subject');
-        $content = $request->input('content');
-        $target  = $request->input('target');
+        $subject    = $request->input('subject');
+        $content    = $request->input('message') ?? $request->input('content') ?? '';
+        $target     = $request->input('target') ?? $request->input('recipient') ?? 'all';
+        $couponCode = $request->input('coupon_code') ?? null;
 
         $attachmentPath = null;
         if ($request->hasFile('attachment')) {
@@ -333,15 +331,17 @@ class AdminPortalController extends Controller
         try {
             if ($target === 'all') {
                 $emails = User::where('role', 'customer')->pluck('email')->filter()->toArray();
+                if (empty($emails)) {
+                    $emails = User::whereNotNull('email')->pluck('email')->filter()->toArray();
+                }
             } else {
                 $emails = [$target];
             }
 
             foreach ($emails as $email) {
-                Mail::to($email)->send(new PromotionMail($subject, $content, $attachmentPath));
+                Mail::to($email)->send(new PromotionMail($subject, $content, $attachmentPath, $couponCode));
             }
 
-            // Xóa tập tin tạm sau khi đã gửi email hoàn tất
             if ($attachmentPath && file_exists($attachmentPath)) {
                 @unlink($attachmentPath);
             }

@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\SupportRequest;
-use App\Models\User;
 use App\Mail\SupportReplyMail;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
@@ -164,56 +163,7 @@ class SupportController extends Controller
     }
 
     /**
-     * 6. Phía Admin: Gửi Thư Hỗ Trợ & Thông Báo Khách Hàng (Kết nối giao diện promotion.blade.php)
-     */
-    public function sendPromotionMail(Request $request)
-    {
-        $request->validate([
-            'recipient'  => 'required',
-            'subject'    => 'required|string|max:255',
-            'message'    => 'required|string',
-            'attachment' => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
-        ]);
-
-        $recipients = ($request->recipient === 'all')
-            ? User::whereNotNull('email')->pluck('email')->toArray()
-            : [$request->recipient];
-
-        $attachment = $request->file('attachment');
-        $successCount = 0;
-
-        foreach ($recipients as $email) {
-            try {
-                Mail::send('emails.promotion', [
-                    'recipientName' => $email,
-                    'mailTitle'     => $request->subject,
-                    'mailContent'   => $request->message,
-                    'couponCode'    => $request->coupon_code ?? null,
-                ], function ($mail) use ($email, $request, $attachment) {
-                    $mail->to($email)->subject($request->subject);
-
-                    if ($attachment) {
-                        $mail->attach($attachment->getRealPath(), [
-                            'as'   => $attachment->getClientOriginalName(),
-                            'mime' => $attachment->getClientMimeType(),
-                        ]);
-                    }
-                });
-                $successCount++;
-            } catch (\Throwable $e) {
-                Log::error("Lỗi gửi mail đến {$email}: " . $e->getMessage());
-            }
-        }
-
-        if ($successCount > 0) {
-            return back()->with('success', "Đã gửi thư hỗ trợ kèm tập tin đính kèm thành công đến {$successCount} khách hàng!");
-        }
-
-        return back()->with('error', 'Không thể gửi email. Vui lòng kiểm tra log hệ thống.');
-    }
-
-    /**
-     * 7. Phía Admin & Nhân viên: Xóa thư hỗ trợ
+     * 6. Phía Admin & Nhân viên: Xóa thư hỗ trợ
      */
     public function destroy($id)
     {
