@@ -164,7 +164,7 @@ class SupportController extends Controller
     }
 
     /**
-     * 6. Phía Admin: Gửi Thư Hỗ Trợ & Thông Báo Khách Hàng (Giao diện HTML đẹp)
+     * 6. Phía Admin: Gửi Thư Hỗ Trợ & Thông Báo Khách Hàng (Kết nối giao diện promotion.blade.php)
      */
     public function sendPromotionMail(Request $request)
     {
@@ -175,22 +175,20 @@ class SupportController extends Controller
             'attachment' => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
         ]);
 
-        $recipients = [];
-        if ($request->recipient === 'all') {
-            $recipients = User::whereNotNull('email')->pluck('email')->toArray();
-        } else {
-            $recipients = [$request->recipient];
-        }
+        $recipients = ($request->recipient === 'all')
+            ? User::whereNotNull('email')->pluck('email')->toArray()
+            : [$request->recipient];
 
         $attachment = $request->file('attachment');
         $successCount = 0;
 
         foreach ($recipients as $email) {
             try {
-                Mail::send('emails.support', [
-                    'recipientName'  => $email,
-                    'subjectTitle'   => $request->subject,
-                    'contentMessage' => $request->message,
+                Mail::send('emails.promotion', [
+                    'recipientName' => $email,
+                    'mailTitle'     => $request->subject,
+                    'mailContent'   => $request->message,
+                    'couponCode'    => $request->coupon_code ?? null,
                 ], function ($mail) use ($email, $request, $attachment) {
                     $mail->to($email)->subject($request->subject);
 
@@ -203,7 +201,7 @@ class SupportController extends Controller
                 });
                 $successCount++;
             } catch (\Throwable $e) {
-                Log::error("Lỗi gửi mail hỗ trợ đến {$email}: " . $e->getMessage());
+                Log::error("Lỗi gửi mail đến {$email}: " . $e->getMessage());
             }
         }
 
