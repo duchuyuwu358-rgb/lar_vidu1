@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\SupportRequest;
+use App\Models\User;
 use App\Mail\SupportReplyMail;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
@@ -53,7 +54,7 @@ class SupportController extends Controller
             'message'         => $validated['message'],
             'attachment_path' => $attachmentPath,
             'status'          => 'pending',
-            'user_id'         => auth()->id(), // Gán ID của tài khoản đang đăng nhập
+            'user_id'         => auth()->id(),
         ];
 
         SupportRequest::create($data);
@@ -152,7 +153,7 @@ class SupportController extends Controller
                 }
                 Log::error('Lỗi gửi mail phản hồi: ' . $e->getMessage());
 
-                return back()->with('success', 'Đã lưu phản hồi vào CSDL! (Chưa gửi được Email do chưa cấu hình xong SMTP: ' . $e->getMessage() . ')');
+                return back()->with('success', 'Đã lưu phản hồi vào CSDL! (Không gửi được Email: ' . $e->getMessage() . ')');
             }
         } else {
             $supportRequest->status = $request->status;
@@ -163,7 +164,58 @@ class SupportController extends Controller
     }
 
     /**
-     * 6. Phía Admin & Nhân viên: Xóa thư hỗ trợ
+     * 6. Phía Admin: Gửi Thư Hỗ Trợ & Thông Báo Khách Hàng (Giao diện HTML đẹp)
+     */
+    public function sendPromotionMail(Request $request)
+    {
+        $request->validate([
+            'recipient'  => 'required',
+            'subject'    => 'required|string|max:255',
+            'message'    => 'required|string',
+            'attachment' => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
+        ]);
+
+        $recipients = [];
+        if ($request->recipient === 'all') {
+            $recipients = User::whereNotNull('email')->pluck('email')->toArray();
+        } else {
+            $recipients = [$request->recipient];
+        }
+
+        $attachment = $request->file('attachment');
+        $successCount = 0;
+
+        foreach ($recipients as $email) {
+            try {
+                Mail::send('emails.support', [
+                    'recipientName'  => $email,
+                    'subjectTitle'   => $request->subject,
+                    'contentMessage' => $request->message,
+                ], function ($mail) use ($email, $request, $attachment) {
+                    $mail->to($email)->subject($request->subject);
+
+                    if ($attachment) {
+                        $mail->attach($attachment->getRealPath(), [
+                            'as'   => $attachment->getClientOriginalName(),
+                            'mime' => $attachment->getClientMimeType(),
+                        ]);
+                    }
+                });
+                $successCount++;
+            } catch (\Throwable $e) {
+                Log::error("Lỗi gửi mail hỗ trợ đến {$email}: " . $e->getMessage());
+            }
+        }
+
+        if ($successCount > 0) {
+            return back()->with('success', "Đã gửi thư hỗ trợ kèm tập tin đính kèm thành công đến {$successCount} khách hàng!");
+        }
+
+        return back()->with('error', 'Không thể gửi email. Vui lòng kiểm tra log hệ thống.');
+    }
+
+    /**
+     * 7. Phía Admin & Nhân viên: Xóa thư hỗ trợ
      */
     public function destroy($id)
     {
