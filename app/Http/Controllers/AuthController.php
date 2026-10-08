@@ -13,23 +13,23 @@ use Laravel\Socialite\Facades\Socialite;
 class AuthController extends Controller
 {
     /**
-     * Hiển thị trang đăng nhập (Khớp với route showLogin)
+     * Hiển thị trang đăng nhập
      */
     public function showLogin()
     {
+        if (Auth::check()) {
+            return redirect()->route('storefront');
+        }
         return view('auth.login');
     }
 
-    /**
-     * Hỗ trợ tên hàm showLoginForm nếu route khác gọi đến
-     */
     public function showLoginForm()
     {
         return $this->showLogin();
     }
 
     /**
-     * Xử lý đăng nhập thông thường (Email & Mật khẩu)
+     * Xử lý đăng nhập bằng Email & Mật khẩu
      */
     public function login(Request $request)
     {
@@ -40,7 +40,7 @@ class AuthController extends Controller
 
         if (Auth::attempt($credentials, $request->boolean('remember'))) {
             $request->session()->regenerate();
-            return redirect()->intended('/')->with('status', 'Đăng nhập thành công!');
+            return redirect()->route('storefront')->with('status', 'Đăng nhập thành công!');
         }
 
         return back()->withErrors([
@@ -49,7 +49,7 @@ class AuthController extends Controller
     }
 
     /**
-     * Chuyển hướng người dùng sang trang xác thực của Google
+     * Chuyển hướng sang Google OAuth
      */
     public function redirectToGoogle()
     {
@@ -57,60 +57,64 @@ class AuthController extends Controller
     }
 
     /**
-     * Xử lý dữ liệu callback trả về từ Google
+     * Xử lý dữ liệu Google Callback trả về
      */
     public function handleGoogleCallback()
     {
         try {
-            // stateless() giúp khắc phục triệt để lỗi Session State / HTTPS Proxy trên Render
+            // Lấy thông tin user từ Google qua stateless()
             $googleUser = Socialite::driver('google')->stateless()->user();
 
             if (!$googleUser || !$googleUser->getEmail()) {
                 return redirect()->route('login')->with('error', 'Không lấy được thông tin email từ Google.');
             }
 
-            // Tìm tài khoản theo email hoặc google_id
-            $user = User::where('email', $googleUser->getEmail())
-                ->orWhere('google_id', $googleUser->getId())
+            $email    = $googleUser->getEmail();
+            $googleId = $googleUser->getId();
+
+            // Tìm user theo email hoặc google_id
+            $user = User::where('email', $email)
+                ->orWhere('google_id', $googleId)
                 ->first();
 
             if (!$user) {
-                // Tạo tài khoản mới nếu chưa tồn tại
+                // Tạo mới nếu chưa có tài khoản
                 $user = User::create([
                     'name'              => $googleUser->getName() ?? 'Khách hàng Google',
-                    'email'             => $googleUser->getEmail(),
-                    'google_id'         => $googleUser->getId(),
-                    'password'          => Hash::make(Str::random(16)), // Mật khẩu ngẫu nhiên tránh lỗi NOT NULL trong CSDL
+                    'email'             => $email,
+                    'google_id'         => $googleId,
+                    'password'          => Hash::make(Str::random(16)), // Mật khẩu ngẫu nhiên tránh lỗi NOT NULL CSDL
                     'email_verified_at' => now(),                        // Tự động xác minh email
                     'role'              => 'customer',
                     'status'            => 1,
                 ]);
             } else {
-                // Cập nhật google_id và email_verified_at nếu người dùng đã có tài khoản từ trước
+                // Cập nhật google_id vào CSDL Aiven nếu tài khoản đã tồn tại
                 $user->update([
-                    'google_id'         => $googleUser->getId(),
+                    'google_id'         => $googleId,
                     'email_verified_at' => $user->email_verified_at ?? now(),
                 ]);
             }
 
-            // Kiểm tra nếu tài khoản bị khóa
             if ($user->isBlocked()) {
                 return redirect()->route('login')->with('error', 'Tài khoản của bạn đã bị khóa.');
             }
 
-            // Đăng nhập người dùng vào phiên làm việc
+            // Đăng nhập người dùng & Tái tạo Session
             Auth::login($user, true);
+            request()->session()->regenerate();
 
-            return redirect()->intended('/')->with('status', 'Đăng nhập bằng Google thành công!');
+            // Đẩy thẳng về trang Storefront thay vì dùng intended() tránh bị dính lại trang /login
+            return redirect()->route('storefront')->with('status', 'Đăng nhập bằng Google thành công!');
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             Log::error('Google Auth Error: ' . $e->getMessage());
-            return redirect()->route('login')->with('error', 'Không thể đăng nhập bằng Google. Vui lòng thử lại.');
+            return redirect()->route('login')->with('error', 'Lỗi Google Auth: ' . $e->getMessage());
         }
     }
 
     /**
-     * Đăng xuất người dùng
+     * Đăng xuất
      */
     public function logout(Request $request)
     {
@@ -118,6 +122,6 @@ class AuthController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect('/')->with('status', 'Đã đăng xuất thành công!');
+        return redirect()->route('storefront')->with('status', 'Đã đăng xuất thành công!');
     }
 }

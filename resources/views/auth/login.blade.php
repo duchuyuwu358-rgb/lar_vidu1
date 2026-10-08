@@ -17,7 +17,7 @@
                     <p class="text-muted small m-0">Nhập thông tin để tiếp tục trải nghiệm XFAN Store</p>
                 </div>
 
-                <!-- THÔNG BÁO THÀNH CÔNG (NẾU CÓ) -->
+                <!-- THÔNG BÁO THÀNH CÔNG -->
                 @if(session('status'))
                     <div class="alert alert-success border-0 small rounded-3 mb-3 d-flex align-items-center">
                         <i class="bi bi-check-circle-fill me-2 fs-6"></i>
@@ -25,7 +25,15 @@
                     </div>
                 @endif
 
-                <!-- THÔNG BÁO LỖI TỔNG HỢP -->
+                <!-- THÔNG BÁO LỖI SESSION (HIỂN THỊ LỖI GOOGLE AUTH NẾU CÓ) -->
+                @if(session('error'))
+                    <div class="alert alert-danger border-0 small rounded-3 mb-3 d-flex align-items-center">
+                        <i class="bi bi-exclamation-triangle-fill me-2 fs-6"></i>
+                        <div>{{ session('error') }}</div>
+                    </div>
+                @endif
+
+                <!-- THÔNG BÁO LỖI TỔNG HỢP FORM -->
                 @if($errors->any() && !$errors->has('email') && !$errors->has('password'))
                     <div class="alert alert-danger border-0 small rounded-3 mb-3 d-flex align-items-center">
                         <i class="bi bi-exclamation-triangle-fill me-2 fs-6"></i>
