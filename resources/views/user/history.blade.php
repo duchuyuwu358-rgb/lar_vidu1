@@ -85,7 +85,7 @@
                                                         <div class="fw-bold text-primary mb-1">Tiêu đề: {{ $req->subject }}</div>
                                                         <p class="mb-0 text-dark small" style="white-space: pre-wrap;">{{ $req->message ?? $req->content }}</p>
 
-                                                        <!-- Tệp đính kèm / Ảnh đính kèm -->
+                                                        <!-- Tệp đính kèm khách gửi -->
                                                         @if(!empty($req->attachment_path))
                                                             @php
                                                                 $cleanPath = ltrim(str_replace(['public/', 'storage/'], '', $req->attachment_path), '/');
@@ -109,22 +109,16 @@
                                                                     @endif
                                                                 </div>
 
-                                                                @if($isImage)
+                                                                @if($isImage && $fileExists)
                                                                     <div class="text-center mt-3 pt-3 border-top">
-                                                                        @if($fileExists)
-                                                                            <img src="{{ $filePath }}" alt="{{ $fileName }}" class="img-fluid rounded-3 border shadow-sm" style="max-height: 380px; object-fit: contain;">
-                                                                        @else
-                                                                            <div class="alert alert-secondary fs-7 py-2 my-0">
-                                                                                <i class="bi bi-exclamation-triangle-fill text-warning me-1"></i>Tệp ảnh cũ không còn tồn tại trên bộ nhớ máy chủ.
-                                                                            </div>
-                                                                        @endif
+                                                                        <img src="{{ $filePath }}" alt="{{ $fileName }}" class="img-fluid rounded-3 border shadow-sm" style="max-height: 380px; object-fit: contain;">
                                                                     </div>
                                                                 @endif
                                                             </div>
                                                         @endif
                                                     </div>
 
-                                                    <!-- Nội dung Admin phản hồi riêng -->
+                                                    <!-- Nội dung Admin phản hồi -->
                                                     @if(!empty($req->reply_content) && $req->reply_content !== ($req->message ?? $req->content))
                                                         <div class="mt-3 p-3 bg-success-subtle rounded-3 border border-success-subtle">
                                                             <div class="d-flex justify-content-between align-items-center mb-2">
@@ -132,6 +126,38 @@
                                                                 <small class="text-muted">{{ $req->updated_at ? $req->updated_at->format('H:i d/m/Y') : '' }}</small>
                                                             </div>
                                                             <p class="mb-0 text-dark fw-semibold small" style="white-space: pre-wrap;">{{ $req->reply_content }}</p>
+
+                                                            <!-- Tệp Admin gửi kèm trong phản hồi -->
+                                                            @if(!empty($req->reply_attachment_path))
+                                                                @php
+                                                                    $replyClean = ltrim(str_replace(['public/', 'storage/'], '', $req->reply_attachment_path), '/');
+                                                                    $replyFull  = storage_path('app/public/' . $replyClean);
+                                                                    $replyUrl   = asset('storage/' . $replyClean);
+                                                                    $replyName  = basename($replyClean);
+                                                                    $replyExt   = strtolower(pathinfo($replyClean, PATHINFO_EXTENSION));
+                                                                    $replyIsImg = in_array($replyExt, ['jpg', 'jpeg', 'png', 'gif', 'webp']);
+                                                                    $replyExists= !empty($replyClean) && file_exists($replyFull);
+                                                                @endphp
+
+                                                                @if($replyExists)
+                                                                    <div class="mt-3 p-3 bg-white rounded-3 border shadow-sm">
+                                                                        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                                                            <span class="small fw-bold text-dark text-break">
+                                                                                <i class="bi bi-paperclip me-1 text-success"></i>Tệp Admin gửi kèm: <code class="text-success">{{ $replyName }}</code>
+                                                                            </span>
+                                                                            <a href="{{ $replyUrl }}" target="_blank" class="btn btn-sm btn-outline-success rounded-pill px-3">
+                                                                                <i class="bi bi-box-arrow-up-right me-1"></i>Mở / Tải về
+                                                                            </a>
+                                                                        </div>
+
+                                                                        @if($replyIsImg)
+                                                                            <div class="text-center mt-3 pt-3 border-top">
+                                                                                <img src="{{ $replyUrl }}" alt="{{ $replyName }}" class="img-fluid rounded-3 border shadow-sm" style="max-height: 380px; object-fit: contain;">
+                                                                            </div>
+                                                                        @endif
+                                                                    </div>
+                                                                @endif
+                                                            @endif
                                                         </div>
                                                     @endif
                                                 </div>

@@ -32,7 +32,7 @@
                                     <td style="font-size: 14px; color: #64748b;">
                                         <strong>Nội dung câu hỏi của bạn:</strong>
                                         <div style="background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px; margin-top: 5px; color: #334155; font-style: italic;">
-                                            "{{ $supportRequest->message ?? $supportRequest->content }}"
+                                            "{!! nl2br(e($supportRequest->message ?? $supportRequest->content)) !!}"
                                         </div>
                                     </td>
                                 </tr>

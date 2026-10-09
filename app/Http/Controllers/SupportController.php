@@ -30,13 +30,13 @@ class SupportController extends Controller
             'phone'      => 'nullable|string|max:20',
             'subject'    => 'required|string|max:255',
             'message'    => 'required|string',
-            'attachment' => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
+            'attachment' => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png,webp|max:10240',
         ], [
             'name.required'    => 'Vui lòng nhập họ và tên.',
             'email.required'   => 'Vui lòng nhập email liên hệ.',
             'subject.required' => 'Vui lòng nhập tiêu đề yêu cầu.',
             'message.required' => 'Vui lòng nhập nội dung cần hỗ trợ.',
-            'attachment.mimes' => 'Tệp đính kèm phải có định dạng PDF, DOC, DOCX, JPG, JPEG hoặc PNG.',
+            'attachment.mimes' => 'Tệp đính kèm phải có định dạng PDF, DOC, DOCX, JPG, JPEG, PNG hoặc WEBP.',
             'attachment.max'   => 'Tệp đính kèm không vượt quá 10MB.',
         ]);
 
@@ -120,18 +120,24 @@ class SupportController extends Controller
         $request->validate([
             'reply_message' => 'required_if:status,replied|nullable|string',
             'status'        => 'required|in:pending,replied',
-            'attachment'    => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
+            'attachment'    => 'nullable|file|mimes:pdf,doc,docx,jpg,jpeg,png,webp|max:10240',
         ], [
             'reply_message.required_if' => 'Vui lòng nhập nội dung câu trả lời trước khi chuyển sang trạng thái Đã phản hồi.',
+            'attachment.mimes'          => 'Tệp đính kèm phải có định dạng PDF, DOC, DOCX, JPG, JPEG, PNG hoặc WEBP.',
+            'attachment.max'            => 'Tập tin đính kèm không vượt quá 10MB.',
         ]);
 
-        if ($request->filled('reply_message')) {
-            $tempPath = null;
-            if ($request->hasFile('attachment')) {
-                $relPath  = $request->file('attachment')->store('temp_reply_attachments', 'public');
-                $tempPath = storage_path('app/public/' . $relPath);
-            }
+        $permPath = null;
+        if ($request->hasFile('attachment')) {
+            $relPath  = $request->file('attachment')->store('support_attachments', 'public');
+            $permPath = storage_path('app/public/' . $relPath);
 
+            if (Schema::hasColumn('support_requests', 'reply_attachment_path')) {
+                $supportRequest->reply_attachment_path = $relPath;
+            }
+        }
+
+        if ($request->filled('reply_message')) {
             if (Schema::hasColumn('support_requests', 'reply_content')) {
                 $supportRequest->reply_content = $request->reply_message;
             }
@@ -140,18 +146,10 @@ class SupportController extends Controller
 
             try {
                 Mail::to($supportRequest->email)->send(
-                    new SupportReplyMail($supportRequest, $request->reply_message, $tempPath)
+                    new SupportReplyMail($supportRequest, $request->reply_message, $permPath)
                 );
-
-                if ($tempPath && file_exists($tempPath)) {
-                    @unlink($tempPath);
-                }
             } catch (\Throwable $e) {
-                if ($tempPath && file_exists($tempPath)) {
-                    @unlink($tempPath);
-                }
                 Log::error('Lỗi gửi mail phản hồi: ' . $e->getMessage());
-
                 return back()->with('success', 'Đã lưu phản hồi vào CSDL! (Không gửi được Email: ' . $e->getMessage() . ')');
             }
         } else {
@@ -170,6 +168,9 @@ class SupportController extends Controller
         $supportRequest = SupportRequest::findOrFail($id);
         if ($supportRequest->attachment_path) {
             @unlink(storage_path('app/public/' . $supportRequest->attachment_path));
+        }
+        if (isset($supportRequest->reply_attachment_path) && $supportRequest->reply_attachment_path) {
+            @unlink(storage_path('app/public/' . $supportRequest->reply_attachment_path));
         }
         $supportRequest->delete();
 

@@ -125,7 +125,6 @@
                                 </td>
                                 <td class="text-nowrap">{{ $req->created_at ? $req->created_at->format('H:i - d/m/Y') : '' }}</td>
                                 
-                                <!-- CÂN ĐỐI NÚT XEM & NÚT XÓA NGANG HÀNG CHUẨN ĐẸP -->
                                 <td class="text-end pe-3 text-nowrap">
                                     <div class="d-inline-flex align-items-center justify-content-end gap-2 flex-nowrap">
                                         <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 shadow-sm text-nowrap d-inline-flex align-items-center" data-bs-toggle="modal" data-bs-target="#viewSupportModal{{ $req->id }}">
@@ -168,7 +167,7 @@
                                                             <label class="form-label fw-bold text-dark"><i class="bi bi-person-fill me-1"></i>Nội dung khách hàng viết:</label>
                                                             <div class="p-3 bg-light rounded border mb-2" style="white-space: pre-wrap;">{{ $req->message ?? $req->content }}</div>
 
-                                                            <!-- HIỂN THỊ TÊN FILE VÀ ẢNH XEM TRỰC TIẾP -->
+                                                            <!-- HIỂN THỊ TÊN FILE VÀ ẢNH XEM TRỰC TIẾP (TỰ ĐỘNG ẨN KHI KHÔNG TỒN TẠI) -->
                                                             @if(!empty($req->attachment_path))
                                                                 @php
                                                                     $cleanPath = ltrim(str_replace(['public/', 'storage/'], '', $req->attachment_path), '/');
@@ -192,15 +191,9 @@
                                                                         @endif
                                                                     </div>
 
-                                                                    @if($isImage)
+                                                                    @if($isImage && $fileExists)
                                                                         <div class="text-center mt-3 pt-3 border-top">
-                                                                            @if($fileExists)
-                                                                                <img src="{{ $filePath }}" alt="{{ $fileName }}" class="img-fluid rounded-3 border shadow-sm" style="max-height: 350px; object-fit: contain;">
-                                                                            @else
-                                                                                <div class="alert alert-secondary fs-7 py-2 my-0">
-                                                                                    <i class="bi bi-exclamation-triangle-fill text-warning me-1"></i>Tệp ảnh cũ không còn tồn tại trên bộ nhớ máy chủ.
-                                                                                </div>
-                                                                            @endif
+                                                                            <img src="{{ $filePath }}" alt="{{ $fileName }}" class="img-fluid rounded-3 border shadow-sm" style="max-height: 350px; object-fit: contain;">
                                                                         </div>
                                                                     @endif
                                                                 </div>
@@ -213,7 +206,7 @@
 
                                                         <div class="mb-3">
                                                             <label class="form-label fw-bold">Nội dung câu trả lời gửi về {{ $req->email }}:</label>
-                                                            <textarea name="reply_message" class="form-control" rows="4" placeholder="Nhập câu trả lời cho khách hàng...">{{ old('reply_message', $req->reply_content) }}</textarea>
+                                                            <textarea name="reply_message" class="form-control" rows="4" placeholder="Nhập câu trả lời cho khách hàng..." required>{{ old('reply_message', $req->reply_content) }}</textarea>
                                                         </div>
 
                                                         <div class="mb-3">
