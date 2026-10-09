@@ -326,7 +326,7 @@
             </div>
         </aside>
 
-        {{-- KHUNG CHAT CỦA NHÂN VIÊN: GIỮ NGUYÊN BÓNG CHAT BÊN PHẢI + CỘT DANH SÁCH BÊN TRÁI --}}
+        {{-- KHUNG CHAT CỦA NHÂN VIÊN: CẤU TRÚC 2 CỘT NẰM Ở GÓC DƯỚI BÊN PHẢI --}}
         @if ($isStaff)
             <button type="button" id="btnAdminChatToggle" class="btn btn-dark rounded-pill shadow-lg px-3 py-2 floating-chat-btn position-relative">
                 <i class="bi bi-chat-dots-fill text-warning me-1"></i>
@@ -346,7 +346,7 @@
                         <div class="text-center text-muted small py-3">Đang tải danh sách...</div>
                     </div>
 
-                    <!-- CỘT BÊN PHẢI: MÀN HÌNH NHẮN TIN VÀ Ô NHẬP TIN -->
+                    <!-- CỘT BÊN PHẢI: MÀN HÌNH NHẮN TIN KHÁCH HÀNG -->
                     <div class="d-flex flex-column flex-grow-1 bg-white overflow-hidden">
                         <div class="flex-grow-1 p-3 overflow-auto bg-light" id="adminChatMessagesBox">
                             <div class="text-center text-muted small py-5">
@@ -592,10 +592,18 @@
                             html = `<div class="text-center text-muted small py-4">Bắt đầu trò chuyện với <b>${activeAdminUserName}</b></div>`;
                         } else {
                             msgs.forEach(m => {
-                                let isMe = (m.sender_id != userId);
                                 let text = m.content || m.message || '';
+                                // BỘ LỌC FRONTEND: Không hiển thị tin nhắn tự động của Bot/Hệ thống
+                                if (text.includes('🤖') || text.includes('XFAN Bot') || text.includes('🎧') || text.includes('Hệ thống:')) {
+                                    return;
+                                }
+
+                                let isMe = (m.sender_id != userId);
                                 html += `<div class="${isMe ? 'msg-bubble-sent' : 'msg-bubble-received'}"><div class="small">${text}</div></div>`;
                             });
+                        }
+                        if (html === '') {
+                            html = `<div class="text-center text-muted small py-4">Chưa có tin nhắn trực tiếp với <b>${activeAdminUserName}</b></div>`;
                         }
                         adminMessagesBox.innerHTML = html;
                         adminMessagesBox.scrollTop = adminMessagesBox.scrollHeight;

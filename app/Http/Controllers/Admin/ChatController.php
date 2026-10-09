@@ -292,12 +292,22 @@ class ChatController extends Controller
             ->map(function ($user) {
                 $user->unread_count = ChatMessage::where('sender_id', $user->id)
                     ->where('is_read', false)
+                    ->where('content', 'not like', '%🤖%')
+                    ->where('content', 'not like', '%XFAN Bot%')
+                    ->where('content', 'not like', '%🎧%')
+                    ->where('content', 'not like', '%Hệ thống:%')
                     ->count();
 
                 $latestMsg = ChatMessage::where(function ($q) use ($user) {
                     $q->where('sender_id', $user->id)
                       ->orWhere('receiver_id', $user->id);
-                })->latest()->first();
+                })
+                ->where('content', 'not like', '%🤖%')
+                ->where('content', 'not like', '%XFAN Bot%')
+                ->where('content', 'not like', '%🎧%')
+                ->where('content', 'not like', '%Hệ thống:%')
+                ->latest()
+                ->first();
 
                 $user->latest_message = $latestMsg ? ($latestMsg->content ?? $latestMsg->message ?? '') : '';
                 $user->last_activity  = $latestMsg ? $latestMsg->created_at : null;
@@ -313,7 +323,7 @@ class ChatController extends Controller
     }
 
     /**
-     * Nhân viên xem tin nhắn với 1 Khách hàng (Đã sửa để lấy đúng 100% tin nhắn của User)
+     * Nhân viên xem tin nhắn với 1 Khách hàng (ĐÃ LỌC BỎ HOÀN TOÀN TIN NHẮN TỰ ĐỘNG BOT)
      */
     public function getAdminMessages($userId)
     {
@@ -322,11 +332,22 @@ class ChatController extends Controller
             ->where('is_read', false)
             ->update(['is_read' => true]);
 
-        // 2. Lấy toàn bộ lịch sử tin nhắn của Khách hàng này
+        // 2. Lấy danh sách tin nhắn và LỌC BỎ hoàn toàn các tin nhắn chứa nội dung Bot/Hệ thống
         $messages = ChatMessage::where(function ($q) use ($userId) {
             $q->where('sender_id', $userId)
               ->orWhere('receiver_id', $userId);
-        })->orderBy('created_at', 'asc')->get();
+        })
+        ->where(function ($q) {
+            $q->whereNull('content')
+              ->orWhere(function ($sub) {
+                  $sub->where('content', 'not like', '%🤖%')
+                      ->where('content', 'not like', '%XFAN Bot%')
+                      ->where('content', 'not like', '%🎧%')
+                      ->where('content', 'not like', '%Hệ thống:%');
+              });
+        })
+        ->orderBy('created_at', 'asc')
+        ->get();
 
         return response()->json($messages);
     }
@@ -372,6 +393,10 @@ class ChatController extends Controller
             $q->select('id')->from('users')->whereNotIn('id', $staffAndAdminIds);
         })
         ->where('is_read', false)
+        ->where('content', 'not like', '%🤖%')
+        ->where('content', 'not like', '%XFAN Bot%')
+        ->where('content', 'not like', '%🎧%')
+        ->where('content', 'not like', '%Hệ thống:%')
         ->count();
 
         return response()->json(['unread_count' => $count]);
