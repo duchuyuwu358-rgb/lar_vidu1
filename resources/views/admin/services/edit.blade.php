@@ -38,10 +38,10 @@
                     @error('is_active') <div class="invalid-feedback">{{ $message }}</div> @enderror
                 </div>
 
-                <!-- Ô Chọn File Ảnh Minh Họa & Khung Ảnh Đã Chọn / Ảnh Cũ -->
-                <div class="mb-3">
+                <!-- Ô Chọn File Ảnh & Khung Xem Trước Duy Nhất -->
+                <div class="mb-3 image-upload-wrapper">
                     <label class="form-label fw-semibold">Hình ảnh minh họa</label>
-                    <input type="file" name="image" id="serviceImageInput" class="form-control @error('image') is-invalid @enderror" accept="image/*" onchange="previewServiceImage(event)">
+                    <input type="file" name="image" id="serviceImageInput" class="form-control @error('image') is-invalid @enderror" accept="image/*">
                     @error('image') <div class="invalid-feedback">{{ $message }}</div> @enderror
 
                     @php
@@ -64,14 +64,17 @@
                     @endphp
 
                     <!-- Khung xem trước duy nhất -->
-                    <div id="serviceImagePreviewContainer" class="mt-3 p-3 bg-light rounded-3 border {{ $hasImage ? '' : 'd-none' }}">
+                    <div id="singleServicePreviewBox" class="mt-3 p-3 bg-light rounded-3 border {{ $hasImage ? '' : 'd-none' }}">
                         <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span id="serviceImagePreviewLabel" class="fw-bold text-secondary">
-                                <i class="bi bi-image me-1"></i> {{ $hasImage ? 'Ảnh hiện tại đang sử dụng:' : 'Ảnh xem trước:' }}
+                            <span class="fw-bold text-secondary" id="singleServicePreviewLabel">
+                                <i class="bi bi-image me-1"></i> Hình ảnh đính kèm (Xem trước):
                             </span>
+                            <button type="button" class="btn btn-sm btn-outline-danger border-0 fw-semibold" id="btnRemoveServicePreview">
+                                <i class="bi bi-x-circle me-1"></i> Xóa ảnh
+                            </button>
                         </div>
                         <div class="text-center">
-                            <img id="serviceImagePreviewTarget" src="{{ $imageUrl ?? '#' }}" alt="Ảnh dịch vụ" class="img-fluid rounded shadow-sm" style="max-height: 220px; object-fit: contain;">
+                            <img id="singleServicePreviewImg" src="{{ $imageUrl ?? '#' }}" alt="Ảnh gói dịch vụ" class="img-fluid rounded shadow-sm" style="max-height: 220px; object-fit: contain;">
                         </div>
                     </div>
                 </div>
@@ -96,25 +99,53 @@
 </div>
 
 <script>
-    function previewServiceImage(event) {
-        const input = event.target;
-        const container = document.getElementById('serviceImagePreviewContainer');
-        const target = document.getElementById('serviceImagePreviewTarget');
-        const label = document.getElementById('serviceImagePreviewLabel');
+    document.addEventListener('DOMContentLoaded', function() {
+        const fileInput = document.getElementById('serviceImageInput');
+        const previewBox = document.getElementById('singleServicePreviewBox');
+        const previewImg = document.getElementById('singleServicePreviewImg');
+        const btnRemove = document.getElementById('btnRemoveServicePreview');
+        const wrapper = document.querySelector('.image-upload-wrapper');
 
-        if (input.files && input.files[0]) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                target.src = e.target.result;
-                if (label) {
-                    label.innerHTML = '<i class="bi bi-image me-1"></i> Ảnh mới chọn (Xem trước):';
+        function cleanupDuplicateBoxes() {
+            if (!wrapper) return;
+            const allBoxes = wrapper.querySelectorAll('.p-3.bg-light.rounded-3.border, .image-preview-wrapper, .image-preview-box');
+            allBoxes.forEach(box => {
+                if (box !== previewBox) {
+                    box.remove();
                 }
-                if (container) {
-                    container.classList.remove('d-none');
-                }
-            };
-            reader.readAsDataURL(input.files[0]);
+            });
         }
-    }
+
+        if (fileInput) {
+            fileInput.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(evt) {
+                        previewImg.src = evt.target.result;
+                        previewBox.classList.remove('d-none');
+                        setTimeout(cleanupDuplicateBoxes, 50);
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+        }
+
+        if (btnRemove) {
+            btnRemove.addEventListener('click', function() {
+                if (fileInput) fileInput.value = '';
+                previewImg.src = '#';
+                previewBox.classList.add('d-none');
+                cleanupDuplicateBoxes();
+            });
+        }
+
+        if (wrapper) {
+            const observer = new MutationObserver(function() {
+                cleanupDuplicateBoxes();
+            });
+            observer.observe(wrapper, { childList: true, subtree: true });
+        }
+    });
 </script>
 @endsection
