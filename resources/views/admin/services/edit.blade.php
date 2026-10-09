@@ -38,11 +38,34 @@
                     @error('is_active') <div class="invalid-feedback">{{ $message }}</div> @enderror
                 </div>
 
-                <!-- Ô Chọn File Ảnh Minh Họa -->
+                <!-- Ô Chọn File Ảnh & Hiển Thị Ảnh Hiện Tại / Ảnh Mới -->
                 <div class="mb-3">
                     <label class="form-label fw-semibold">Hình ảnh minh họa</label>
-                    <input type="file" name="image" class="form-control @error('image') is-invalid @enderror" accept="image/*">
+                    <input type="file" name="image" id="serviceImageInput" class="form-control @error('image') is-invalid @enderror" accept="image/*" onchange="previewEditImage(event)">
                     @error('image') <div class="invalid-feedback">{{ $message }}</div> @enderror
+
+                    @php
+                        $existingImage = $service->image ?? $service->image_url ?? null;
+                        $hasImage = !empty($existingImage);
+                        $imageSrc = '#';
+                        if ($hasImage) {
+                            $imageSrc = \Illuminate\Support\Str::startsWith($existingImage, ['http://', 'https://']) 
+                                ? $existingImage 
+                                : asset('storage/' . $existingImage);
+                        }
+                    @endphp
+
+                    <!-- Khung hiển thị duy nhất 1 ảnh (Ảnh cũ hiện tại hoặc Ảnh mới chọn) -->
+                    <div id="editImagePreviewWrapper" class="mt-3 p-3 bg-light rounded-3 border {{ $hasImage ? '' : 'd-none' }}">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span id="editImageLabel" class="fw-bold text-secondary">
+                                <i class="bi bi-image me-1"></i> {{ $hasImage ? 'Ảnh hiện tại đang sử dụng:' : 'Ảnh xem trước:' }}
+                            </span>
+                        </div>
+                        <div class="text-center">
+                            <img id="editImagePreviewTarget" src="{{ $imageSrc }}" alt="Ảnh minh họa" class="img-fluid rounded shadow-sm" style="max-height: 220px; object-fit: contain;">
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Mô tả chi tiết -->
@@ -63,4 +86,24 @@
         </div>
     </div>
 </div>
+</div>
+
+<script>
+    function previewEditImage(event) {
+        const input = event.target;
+        const wrapper = document.getElementById('editImagePreviewWrapper');
+        const target = document.getElementById('editImagePreviewTarget');
+        const label = document.getElementById('editImageLabel');
+
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                target.src = e.target.result;
+                label.innerHTML = '<i class="bi bi-image me-1"></i> Ảnh mới chọn (Xem trước):';
+                wrapper.classList.remove('d-none');
+            };
+            reader.readAsDataURL(input.files[0]);
+        }
+    }
+</script>
 @endsection
