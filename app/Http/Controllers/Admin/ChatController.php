@@ -14,16 +14,16 @@ use Illuminate\Support\Facades\View;
 class ChatController extends Controller
 {
     /**
-     * Lấy ID tài khoản Admin mặc định cho Bot / Admin gửi tin nhắn
+     * Lấy ID tài khoản Admin/Cửa hàng mặc định
      */
     private function getAdminSenderId()
     {
         $admin = User::where('role', 'admin')->first();
-        return $admin ? $admin->id : 2; // Mặc định Admin ID = 2 từ CSDL
+        return $admin ? $admin->id : 2;
     }
 
     /**
-     * Lấy trạng thái chế độ Chat (Bot hay Admin/Nhân viên)
+     * Lấy trạng thái chế độ Chat (Bot hay Nhân viên)
      */
     private function getIsAdminMode($userId)
     {
@@ -37,7 +37,7 @@ class ChatController extends Controller
     }
 
     /**
-     * Cập nhật trạng thái chế độ Chat (Bot hay Admin/Nhân viên)
+     * Cập nhật trạng thái chế độ Chat (Bot hay Nhân viên)
      */
     private function setIsAdminMode($userId, bool $status)
     {
@@ -51,7 +51,7 @@ class ChatController extends Controller
     }
 
     /**
-     * Hiển thị giao diện quản lý Chat
+     * Giao diện quản lý Chat Admin/Nhân viên
      */
     public function index()
     {
@@ -88,7 +88,7 @@ class ChatController extends Controller
     }
 
     /**
-     * Khách hàng gửi tin nhắn (Xử lý ngắt Bot tuyệt đối khi đã ở chế độ Nhân viên)
+     * Khách hàng gửi tin nhắn
      */
     public function sendUserMessage(Request $request)
     {
@@ -108,7 +108,7 @@ class ChatController extends Controller
         $textLower = mb_strtolower($text);
         $adminId   = $this->getAdminSenderId();
 
-        // 1. Lệnh EXIT: Thoát khỏi chế độ Chat Nhân viên -> Quay lại Bot
+        // 1. Lệnh EXIT: Quay lại Bot
         if (in_array($textLower, ['exit', '/exit', 'thoát', 'thoat', 'quit'])) {
             $this->setIsAdminMode($userId, false);
 
@@ -136,7 +136,7 @@ class ChatController extends Controller
             ]);
         }
 
-        // 2. Lệnh CONNECT: Kích hoạt chế độ Chat Nhân viên
+        // 2. Lệnh CONNECT: Kích hoạt chế độ nhắn với Nhân viên
         $isConnectCommand = in_array($textLower, ['connect_staff', 'connect_admin', 'kết nối']) ||
             str_contains($textLower, 'tư vấn viên') ||
             str_contains($textLower, 'gặp admin') ||
@@ -173,7 +173,7 @@ class ChatController extends Controller
             ]);
         }
 
-        // 3. Đang trong chế độ CHAT NHÂN VIÊN -> LƯU CSDL & KHÔNG ĐƯỢC CHẠY BOT CỦA HỆ THỐNG!
+        // 3. Đang ở chế độ Chat với Nhân viên -> Lưu CSDL và KHÔNG chạy Bot
         if ($this->getIsAdminMode($userId)) {
             $userMsg = ChatMessage::create([
                 'sender_id'   => $userId,
@@ -185,12 +185,12 @@ class ChatController extends Controller
             return response()->json([
                 'status' => 'success',
                 'mode'   => 'admin',
-                'reply'  => null, // Trả về null để Bot KHÔNG phản hồi
+                'reply'  => null,
                 'data'   => $userMsg
             ]);
         }
 
-        // 4. Đang ở chế độ XFAN Bot tự động
+        // 4. Đang ở chế độ Bot tự động
         $userMsg = ChatMessage::create([
             'sender_id'   => $userId,
             'receiver_id' => $adminId,
@@ -216,7 +216,7 @@ class ChatController extends Controller
     }
 
     /**
-     * Câu trả lời tự động cho XFAN Bot
+     * Sinh phản hồi tự động cho Bot
      */
     private function generateSmartBotReply(string $text): string
     {
@@ -258,7 +258,7 @@ class ChatController extends Controller
     }
 
     /**
-     * Đánh dấu tất cả tin nhắn gửi tới người dùng là đã đọc
+     * Đánh dấu tin nhắn là đã đọc
      */
     public function markUserRead()
     {
@@ -273,24 +273,24 @@ class ChatController extends Controller
     }
 
     /**
-     * Admin/Nhân viên lấy danh sách khách hàng
+     * Nhân viên lấy danh sách Khách hàng
      */
     public function getAdminUsers()
     {
-        $adminId = Auth::id();
+        $staffAndAdminIds = User::whereIn('role', ['admin', 'staff'])
+            ->orWhere('email', 'like', '%admin%')
+            ->pluck('id')
+            ->toArray();
 
-        $senders   = ChatMessage::whereNotNull('sender_id')->where('sender_id', '!=', $adminId)->pluck('sender_id');
-        $receivers = ChatMessage::whereNotNull('receiver_id')->where('receiver_id', '!=', $adminId)->pluck('receiver_id');
+        $senders   = ChatMessage::whereNotNull('sender_id')->whereNotIn('sender_id', $staffAndAdminIds)->pluck('sender_id');
+        $receivers = ChatMessage::whereNotNull('receiver_id')->whereNotIn('receiver_id', $staffAndAdminIds)->pluck('receiver_id');
         $userIds   = $senders->merge($receivers)->unique();
 
         $users = User::whereIn('id', $userIds)
             ->select('id', 'name', 'email', 'role')
             ->get()
-            ->map(function ($user) use ($adminId) {
+            ->map(function ($user) {
                 $user->unread_count = ChatMessage::where('sender_id', $user->id)
-                    ->where(function ($q) use ($adminId) {
-                        $q->where('receiver_id', $adminId)->orWhereNull('receiver_id');
-                    })
                     ->where('is_read', false)
                     ->count();
 
@@ -299,7 +299,7 @@ class ChatController extends Controller
                       ->orWhere('receiver_id', $user->id);
                 })->latest()->first();
 
-                $user->latest_message = $latestMsg ? $latestMsg->content : '';
+                $user->latest_message = $latestMsg ? ($latestMsg->content ?? $latestMsg->message ?? '') : '';
                 $user->last_activity  = $latestMsg ? $latestMsg->created_at : null;
 
                 return $user;
@@ -313,36 +313,26 @@ class ChatController extends Controller
     }
 
     /**
-     * Admin/Nhân viên lấy nội dung tin nhắn với 1 User
+     * Nhân viên xem tin nhắn với 1 Khách hàng (Đã sửa để lấy đúng 100% tin nhắn của User)
      */
     public function getAdminMessages($userId)
     {
-        $adminId = Auth::id();
-
+        // 1. Đánh dấu tất cả tin nhắn do Khách hàng này gửi là ĐÃ ĐỌC
         ChatMessage::where('sender_id', $userId)
-            ->where(function ($q) use ($adminId) {
-                $q->where('receiver_id', $adminId)->orWhereNull('receiver_id');
-            })
             ->where('is_read', false)
             ->update(['is_read' => true]);
 
-        $messages = ChatMessage::where(function ($outer) use ($userId, $adminId) {
-            $outer->where(function ($q) use ($userId, $adminId) {
-                $q->where('sender_id', $userId)
-                  ->where(function ($sub) use ($adminId) {
-                      $sub->where('receiver_id', $adminId)->orWhereNull('receiver_id');
-                  });
-            })->orWhere(function ($q) use ($userId, $adminId) {
-                $q->where('sender_id', $adminId)
-                  ->where('receiver_id', $userId);
-            });
+        // 2. Lấy toàn bộ lịch sử tin nhắn của Khách hàng này
+        $messages = ChatMessage::where(function ($q) use ($userId) {
+            $q->where('sender_id', $userId)
+              ->orWhere('receiver_id', $userId);
         })->orderBy('created_at', 'asc')->get();
 
         return response()->json($messages);
     }
 
     /**
-     * Admin/Nhân viên gửi tin nhắn cho 1 User
+     * Nhân viên trả lời tin nhắn cho 1 Khách hàng
      */
     public function sendAdminMessage(Request $request)
     {
@@ -369,15 +359,17 @@ class ChatController extends Controller
     }
 
     /**
-     * Đếm tổng số tin nhắn chưa đọc đối với Nhân viên
+     * Kiểm tra tổng số tin nhắn chưa đọc đối với Nhân viên
      */
     public function checkAdminUnread()
     {
-        $adminId = Auth::id();
+        $staffAndAdminIds = User::whereIn('role', ['admin', 'staff'])
+            ->orWhere('email', 'like', '%admin%')
+            ->pluck('id')
+            ->toArray();
 
-        $count = ChatMessage::where(function ($q) use ($adminId) {
-            $q->where('sender_id', '!=', $adminId)
-              ->orWhereNull('sender_id');
+        $count = ChatMessage::whereIn('sender_id', function($q) use ($staffAndAdminIds) {
+            $q->select('id')->from('users')->whereNotIn('id', $staffAndAdminIds);
         })
         ->where('is_read', false)
         ->count();

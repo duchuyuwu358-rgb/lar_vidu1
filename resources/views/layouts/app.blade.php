@@ -111,7 +111,7 @@
         .user-nav-link:hover { color: #2563eb; background-color: #f1f5f9; }
         .user-nav-link.active { color: #2563eb; font-weight: 600; background-color: #eff6ff; }
 
-        /* VỊ TRÍ GỐC: CHAT PANEL & BUTTON Ở GÓC DƯỚI BÊN PHẢI */
+        /* NÚT TỔNG: ĐẶT Ở GÓC DƯỚI BÊN PHẢI (RIGHT: 24px) */
         .floating-chat-btn {
             position: fixed !important;
             bottom: 24px !important;
@@ -119,6 +119,8 @@
             z-index: 99999 !important;
             cursor: pointer;
         }
+
+        /* KHUNG CHAT KHÁCH HÀNG */
         .custom-chat-panel {
             position: fixed !important;
             bottom: 85px !important;
@@ -136,13 +138,32 @@
             border: 1px solid #e2e8f0;
         }
         .custom-chat-panel.active { display: flex !important; }
+
+        /* KHUNG CHAT NHÂN VIÊN: CẤU TRÚC 2 CỘT Ở GÓC DƯỚI BÊN PHẢI */
+        .custom-chat-panel-staff {
+            position: fixed !important;
+            bottom: 85px !important;
+            right: 24px !important;
+            width: 620px !important;
+            max-width: 92vw !important;
+            height: 540px !important;
+            background: #ffffff !important;
+            border-radius: 16px !important;
+            z-index: 100000 !important;
+            box-shadow: 0 12px 35px rgba(0,0,0,0.2) !important;
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+            border: 1px solid #cbd5e1;
+        }
+        .custom-chat-panel-staff.active { display: flex !important; }
         
         .chat-header-dark {
             background-color: #0f172a; color: white; padding: 14px 18px;
             display: flex; justify-content: space-between; align-items: center;
         }
 
-        /* NÚT TỰ ĐỘNG CỦA BOT */
+        /* NÚT TỰ ĐỘNG BOT */
         .chat-option-btn {
             background: #ffffff; color: #334155; border: 1px solid #e2e8f0;
             border-radius: 20px; padding: 10px 16px; font-size: 0.88rem; font-weight: 500;
@@ -172,7 +193,7 @@
 @php
     $user = auth()->user();
     
-    // PHÂN QUYỀN RÕ RÀNG: ADMIN VÀ NHÂN VIÊN
+    // PHÂN QUYỀN: ADMIN VÀ NHÂN VIÊN
     $isAdmin = $user && (
         (method_exists($user, 'isAdmin') && $user->isAdmin()) ||
         ($user->role ?? '') === 'admin'
@@ -187,7 +208,7 @@
     $isAuthPage = request()->is('login') || request()->is('register');
     $isAdminManagementPage = request()->is('admin*') || request()->routeIs('admin.*');
 
-    // LẤY DỮ LIỆU ĐỂ BOT TỰ ĐỘNG PHẢN HỒI
+    // LẤY DỮ LIỆU CỦA BOT
     $bestSeller = \App\Models\Hood::first();
     $minPrice = \App\Models\Hood::min('price') ?? 0;
     $maxPrice = \App\Models\Hood::max('price') ?? 0;
@@ -305,7 +326,7 @@
             </div>
         </aside>
 
-        {{-- KHUNG CHAT DÀNH CHO NHÂN VIÊN --}}
+        {{-- KHUNG CHAT CỦA NHÂN VIÊN: GIỮ NGUYÊN BÓNG CHAT BÊN PHẢI + CỘT DANH SÁCH BÊN TRÁI --}}
         @if ($isStaff)
             <button type="button" id="btnAdminChatToggle" class="btn btn-dark rounded-pill shadow-lg px-3 py-2 floating-chat-btn position-relative">
                 <i class="bi bi-chat-dots-fill text-warning me-1"></i>
@@ -313,25 +334,34 @@
                 <span id="adminChatBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-circle bg-danger p-2 border border-light d-none"></span>
             </button>
 
-            <div id="adminChatPanel" class="custom-chat-panel">
+            <div id="adminChatPanel" class="custom-chat-panel-staff">
                 <div class="chat-header-dark">
                     <h6 class="mb-0 fw-bold"><i class="bi bi-headset text-warning me-2"></i> Trò Chuyện Khách Hàng</h6>
                     <button type="button" id="btnAdminChatClose" class="btn-close btn-close-white"></button>
                 </div>
 
-                <div class="p-2 border-bottom bg-light overflow-auto" id="adminChatUsersList" style="max-height: 120px;">
-                    <div class="text-center text-muted small py-2">Đang tải danh sách...</div>
-                </div>
+                <div class="d-flex flex-grow-1 overflow-hidden">
+                    <!-- CỘT BÊN TRÁI: DANH SÁCH KHÁCH HÀNG -->
+                    <div class="bg-light border-end p-2 overflow-auto" id="adminChatUsersList" style="width: 200px; min-width: 180px; flex-shrink: 0;">
+                        <div class="text-center text-muted small py-3">Đang tải danh sách...</div>
+                    </div>
 
-                <div class="flex-grow-1 p-3 overflow-auto bg-light" id="adminChatMessagesBox">
-                    <div class="text-center text-muted small py-4">Chọn một khách hàng ở danh sách trên để xem tin nhắn.</div>
-                </div>
+                    <!-- CỘT BÊN PHẢI: MÀN HÌNH NHẮN TIN VÀ Ô NHẬP TIN -->
+                    <div class="d-flex flex-column flex-grow-1 bg-white overflow-hidden">
+                        <div class="flex-grow-1 p-3 overflow-auto bg-light" id="adminChatMessagesBox">
+                            <div class="text-center text-muted small py-5">
+                                <i class="bi bi-chat-square-dots fs-1 text-secondary opacity-50 d-block mb-2"></i>
+                                Chọn một khách hàng ở cột bên trái để xem tin nhắn.
+                            </div>
+                        </div>
 
-                <div class="p-2 border-top bg-white">
-                    <form id="adminSendChatForm" class="input-group">
-                        <input type="text" id="adminChatInput" class="form-control" placeholder="Nhập câu trả lời..." disabled required>
-                        <button class="btn btn-primary px-3" type="submit" id="btnAdminSend" disabled><i class="bi bi-send-fill me-1"></i>Gửi</button>
-                    </form>
+                        <div class="p-2 border-top bg-white">
+                            <form id="adminSendChatForm" class="input-group">
+                                <input type="text" id="adminChatInput" class="form-control" placeholder="Nhập câu trả lời..." disabled required>
+                                <button class="btn btn-primary px-3" type="submit" id="btnAdminSend" disabled><i class="bi bi-send-fill me-1"></i>Gửi</button>
+                            </form>
+                        </div>
+                    </div>
                 </div>
             </div>
         @endif
@@ -430,7 +460,7 @@
                     </div>
 
                     <div id="quickOptionsGroup" class="mt-2">
-                        <button type="button" id="btnContinueChat" class="chat-option-btn btn-resume-chat d-none" onclick="connectStaffChat()">
+                        <button type="button" id="btnContinueChat" class="chat-option-btn btn-resume-chat d-none" onclick="connectStaffChat(true)">
                             🔄 Tiếp tục cuộc trò chuyện với Nhân viên tư vấn
                         </button>
 
@@ -506,11 +536,13 @@
 
             if (btnAdminToggle && adminPanel) {
                 checkAdminUnread();
-                setInterval(checkAdminUnread, 5000);
+                setInterval(checkAdminUnread, 4000);
+
                 btnAdminToggle.addEventListener('click', function () {
                     adminPanel.classList.toggle('active');
                     if (adminPanel.classList.contains('active')) loadAdminUsers();
                 });
+
                 if (btnAdminClose) {
                     btnAdminClose.addEventListener('click', function () { adminPanel.classList.remove('active'); });
                 }
@@ -523,35 +555,23 @@
                     .then(r => r.json())
                     .then(users => {
                         if (!users || users.length === 0) {
-                            adminUsersList.innerHTML = '<div class="text-center text-muted small py-2">Chưa có tin nhắn mới.</div>';
+                            adminUsersList.innerHTML = '<div class="text-center text-muted small py-3">Chưa có tin nhắn mới.</div>';
                             return;
                         }
                         let html = '';
                         users.forEach(u => {
-                            let roleName = (u.role || '').toLowerCase();
-                            let emailName = (u.email || '').toLowerCase();
-                            let userName = (u.name || '').toLowerCase();
-                            
-                            // LỌC HOÀN TOÀN TÀI KHOẢN ADMIN/STAFF
-                            if (roleName === 'admin' || roleName === 'staff' || emailName.includes('admin') || userName.includes('admin')) {
-                                return;
-                            }
-
                             let isActive = (activeAdminUserId == u.id) ? 'active' : '';
-                            let badgeHtml = (u.unread_count && u.unread_count > 0) ? `<span class="badge bg-danger ms-auto">${u.unread_count}</span>` : '';
+                            let badgeHtml = (u.unread_count && u.unread_count > 0) ? `<span class="badge bg-danger ms-auto" style="font-size:0.7rem">${u.unread_count}</span>` : '';
                             html += `
-                                <div class="chat-user-item p-2 rounded mb-1 border shadow-sm d-flex align-items-center justify-content-between ${isActive}" onclick="openAdminUserChat(${u.id}, '${u.name}')">
+                                <div class="chat-user-item p-2 rounded-3 mb-2 border shadow-sm d-flex align-items-center justify-content-between ${isActive}" onclick="openAdminUserChat(${u.id}, '${u.name}')">
                                     <div class="overflow-hidden me-1">
-                                        <div class="fw-bold small text-truncate">${u.name}</div>
-                                        <div class="text-muted extra-small text-truncate" style="font-size:0.75rem">${u.email ?? ''}</div>
+                                        <div class="fw-bold small text-truncate" style="max-width: 120px;">${u.name}</div>
+                                        <div class="text-muted extra-small text-truncate" style="font-size:0.72rem; max-width: 120px;">${u.email ?? ''}</div>
                                     </div>
                                     ${badgeHtml}
                                 </div>`;
                         });
                         
-                        if (html === '') {
-                            html = '<div class="text-center text-muted small py-2">Không có khách hàng nào trong danh sách.</div>';
-                        }
                         adminUsersList.innerHTML = html;
                     }).catch(() => {});
             }
@@ -646,7 +666,7 @@
                     cachedHistory = msgs;
 
                     if (data.is_admin || data.is_staff) {
-                        connectStaffChat(false); // Kết nối lại không cần gửi lại tin connect_staff
+                        connectStaffChat(false);
                     } else if (msgs && msgs.length > 0) {
                         if (btnContinueChat) btnContinueChat.classList.remove('d-none');
                     } else {
