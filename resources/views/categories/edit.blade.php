@@ -47,29 +47,25 @@
                     <textarea class="form-control @error('description') is-invalid @enderror" id="description" name="description" rows="3">{{ old('description', $category->description) }}</textarea>
                 </div>
 
-                <!-- CSS Hiệu Ứng Tích Chọn Màu Sắc -->
+                <!-- CSS tùy chỉnh ô chọn màu -->
                 <style>
-                    .color-select-btn {
+                    .color-pill {
                         cursor: pointer;
-                        border: 2px solid #cbd5e1 !important;
-                        background-color: #ffffff !important;
-                        color: #334155 !important;
+                        border: 2px solid #cbd5e1;
+                        background-color: #ffffff;
+                        padding: 8px 16px;
+                        border-radius: 50rem;
                         transition: all 0.2s ease;
                         user-select: none;
                     }
-                    .color-select-btn:hover {
-                        border-color: #94a3b8 !important;
-                        background-color: #f8fafc !important;
+                    .color-pill:hover {
+                        border-color: #0d6efd;
+                        background-color: #f8fafc;
                     }
-                    .btn-check:checked + .color-select-btn {
-                        border-color: #0d6efd !important;
-                        background-color: #eff6ff !important;
-                        color: #0d6efd !important;
-                        font-weight: 700 !important;
-                        box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.15) !important;
-                    }
-                    .btn-check:checked + .color-select-btn .color-check-icon {
-                        display: inline-block !important;
+                    .color-pill input[type="checkbox"] {
+                        cursor: pointer;
+                        width: 18px;
+                        height: 18px;
                     }
                 </style>
 
@@ -103,15 +99,13 @@
                     <div class="d-flex flex-wrap gap-2 align-items-center">
                         @foreach($colorList as $colorName => $style)
                             @php
-                                $elementId = 'color_edit_item_' . $loop->index;
                                 $isChecked = is_array($currentColors) && in_array($colorName, $currentColors);
                             @endphp
 
-                            <input type="checkbox" class="btn-check" id="{{ $elementId }}" name="colors[]" value="{{ $colorName }}" autocomplete="off" {{ $isChecked ? 'checked' : '' }}>
-                            <label class="btn color-select-btn rounded-pill d-flex align-items-center gap-2 px-3 py-2 shadow-sm" for="{{ $elementId }}">
+                            <label class="color-pill d-flex align-items-center gap-2 shadow-sm">
+                                <input type="checkbox" class="form-check-input m-0" name="colors[]" value="{{ $colorName }}" {{ $isChecked ? 'checked' : '' }}>
                                 <span class="rounded-circle d-inline-block {{ $style['border'] ? 'border border-secondary-subtle' : '' }}" style="width: 15px; height: 15px; background-color: {{ $style['bg'] }};"></span>
-                                <span>{{ $colorName }}</span>
-                                <i class="bi bi-check-circle-fill text-primary color-check-icon d-none ms-1"></i>
+                                <span class="fw-semibold text-dark fs-6">{{ $colorName }}</span>
                             </label>
                         @endforeach
                     </div>

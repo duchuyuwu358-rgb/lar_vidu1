@@ -46,6 +46,28 @@
                     <textarea class="form-control @error('description') is-invalid @enderror" id="description" name="description" rows="3" placeholder="Mô tả ngắn gọn về nhóm sản phẩm này...">{{ old('description') }}</textarea>
                 </div>
 
+                <!-- CSS tùy chỉnh ô chọn màu -->
+                <style>
+                    .color-pill {
+                        cursor: pointer;
+                        border: 2px solid #cbd5e1;
+                        background-color: #ffffff;
+                        padding: 8px 16px;
+                        border-radius: 50rem;
+                        transition: all 0.2s ease;
+                        user-select: none;
+                    }
+                    .color-pill:hover {
+                        border-color: #0d6efd;
+                        background-color: #f8fafc;
+                    }
+                    .color-pill input[type="checkbox"] {
+                        cursor: pointer;
+                        width: 18px;
+                        height: 18px;
+                    }
+                </style>
+
                 <!-- Danh Sách Màu Sắc Hỗ Trợ -->
                 <div class="mb-4 p-3 bg-light border rounded-3">
                     <label class="form-label fw-bold d-block mb-1">
@@ -76,14 +98,13 @@
                     <div class="d-flex flex-wrap gap-2 align-items-center">
                         @foreach($colorList as $colorName => $style)
                             @php
-                                $elementId = 'color_create_' . \Illuminate\Support\Str::slug($colorName, '_');
                                 $isChecked = is_array($oldColors) && in_array($colorName, $oldColors);
                             @endphp
 
-                            <input type="checkbox" class="btn-check" id="{{ $elementId }}" name="colors[]" value="{{ $colorName }}" autocomplete="off" {{ $isChecked ? 'checked' : '' }}>
-                            <label class="btn btn-outline-secondary d-flex align-items-center gap-2 px-3 py-2 bg-white" for="{{ $elementId }}">
-                                <span class="rounded-circle d-inline-block {{ $style['border'] ? 'border border-secondary-subtle' : '' }}" style="width: 14px; height: 14px; background-color: {{ $style['bg'] }};"></span>
-                                <span class="fw-semibold text-dark">{{ $colorName }}</span>
+                            <label class="color-pill d-flex align-items-center gap-2 shadow-sm">
+                                <input type="checkbox" class="form-check-input m-0" name="colors[]" value="{{ $colorName }}" {{ $isChecked ? 'checked' : '' }}>
+                                <span class="rounded-circle d-inline-block {{ $style['border'] ? 'border border-secondary-subtle' : '' }}" style="width: 15px; height: 15px; background-color: {{ $style['bg'] }};"></span>
+                                <span class="fw-semibold text-dark fs-6">{{ $colorName }}</span>
                             </label>
                         @endforeach
                     </div>
