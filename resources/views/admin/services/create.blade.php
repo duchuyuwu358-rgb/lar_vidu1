@@ -1,4 +1,4 @@
-@extends('layouts.app') {{-- Đổi thành 'layouts.admin' nếu layout admin của bạn nằm trong thư mục admin --}}
+@extends('layouts.app')
 
 @section('title', 'Thêm Gói Dịch Vụ Mới')
 
@@ -6,7 +6,9 @@
 <div class="container py-4">
     <div class="col-md-7 mx-auto">
         <div class="card border-0 shadow-sm rounded-4 p-4">
-            <h4 class="fw-bold mb-3">Thêm Gói Dịch Vụ Mới</h4>
+            <h4 class="fw-bold mb-3 text-primary">
+                <i class="bi bi-box-seam me-2"></i>Thêm Gói Dịch Vụ Mới
+            </h4>
 
             <form action="{{ route('admin.services.store') }}" method="POST" enctype="multipart/form-data">
                 @csrf
@@ -35,15 +37,27 @@
                     @error('is_active') <div class="invalid-feedback">{{ $message }}</div> @enderror
                 </div>
 
-                <!-- Hình ảnh minh họa & Khung xem trước -->
+                <!-- Ô Chọn File Ảnh Minh Họa -->
                 <div class="mb-3">
                     <label class="form-label fw-semibold">Hình ảnh minh họa</label>
-                    <input type="file" name="image" id="imageInput" class="form-control @error('image') is-invalid @enderror" accept="image/*">
+                    <input type="file" name="image" id="imageInput" class="form-control @error('image') is-invalid @enderror" accept="image/*" onchange="previewSingleImage(event)">
                     @error('image') <div class="invalid-feedback">{{ $message }}</div> @enderror
+                </div>
 
-                    <!-- Khung hiển thị ảnh xem trước ngay khi vừa chọn file -->
-                    <div class="mt-3 text-center">
-                        <img id="imagePreview" src="#" alt="Xem trước ảnh" class="img-thumbnail shadow-sm d-none" style="max-height: 200px; border-radius: 10px; object-fit: cover;">
+                <!-- KHUNG XEM TRƯỚC BÊN DƯỚI DUY NHẤT -->
+                <div id="imagePreviewContainer" class="mb-3 d-none">
+                    <div class="p-3 bg-light rounded-3 border">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="fw-bold text-secondary">
+                                <i class="bi bi-image me-1"></i> Hình ảnh đính kèm (Xem trước):
+                            </span>
+                            <button type="button" class="btn btn-sm btn-outline-danger border-0 fw-semibold" onclick="removeSingleImage()">
+                                <i class="bi bi-x-circle me-1"></i> Xóa ảnh
+                            </button>
+                        </div>
+                        <div class="text-center">
+                            <img id="imagePreviewTarget" src="#" alt="Xem trước ảnh" class="img-fluid rounded shadow-sm" style="max-height: 250px; object-fit: contain;">
+                        </div>
                     </div>
                 </div>
 
@@ -55,37 +69,41 @@
                 </div>
 
                 <!-- Nút bấm -->
-                <div class="d-flex justify-content-between mt-4">
+                <div class="d-flex justify-content-between mt-4 border-top pt-3">
                     <a href="{{ route('admin.services.index') }}" class="btn btn-light px-4">Quay lại</a>
-                    <button type="submit" class="btn btn-primary fw-bold px-4">Lưu thông tin</button>
+                    <button type="submit" class="btn btn-primary fw-bold px-4">
+                        <i class="bi bi-plus-circle me-1"></i> Lưu thông tin
+                    </button>
                 </div>
             </form>
         </div>
     </div>
 </div>
 
-<!-- JavaScript tự động đọc file và hiển thị ảnh trực tiếp -->
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const imageInput = document.getElementById('imageInput');
-        const imagePreview = document.getElementById('imagePreview');
+    function previewSingleImage(event) {
+        const input = event.target;
+        const container = document.getElementById('imagePreviewContainer');
+        const imgTarget = document.getElementById('imagePreviewTarget');
 
-        if (imageInput && imagePreview) {
-            imageInput.addEventListener('change', function(event) {
-                const file = event.target.files[0];
-                if (file) {
-                    const reader = new FileReader();
-                    reader.onload = function(e) {
-                        imagePreview.src = e.target.result;
-                        imagePreview.classList.remove('d-none'); // Bật hiển thị khung ảnh
-                    }
-                    reader.readAsDataURL(file);
-                } else {
-                    imagePreview.src = '#';
-                    imagePreview.classList.add('d-none'); // Ẩn khung ảnh nếu bấm bỏ chọn file
-                }
-            });
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                imgTarget.src = e.target.result;
+                container.classList.remove('d-none');
+            };
+            reader.readAsDataURL(input.files[0]);
         }
-    });
+    }
+
+    function removeSingleImage() {
+        const input = document.getElementById('imageInput');
+        const container = document.getElementById('imagePreviewContainer');
+        const imgTarget = document.getElementById('imagePreviewTarget');
+
+        if (input) input.value = '';
+        if (imgTarget) imgTarget.src = '#';
+        if (container) container.classList.add('d-none');
+    }
 </script>
 @endsection
