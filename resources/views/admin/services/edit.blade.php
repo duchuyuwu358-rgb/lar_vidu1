@@ -41,31 +41,8 @@
                 <!-- Ô Chọn File Ảnh Minh Họa -->
                 <div class="mb-3">
                     <label class="form-label fw-semibold">Hình ảnh minh họa</label>
-                    <input type="file" name="image" id="imageInput" class="form-control @error('image') is-invalid @enderror" accept="image/*" onchange="previewSingleImage(event)">
+                    <input type="file" name="image" class="form-control @error('image') is-invalid @enderror" accept="image/*">
                     @error('image') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                </div>
-
-                @php
-                    $existingImagePath = $service->image ?? $service->image_url ?? null;
-                    $hasInitialImage = !empty($existingImagePath);
-                    $initialSrc = $hasInitialImage ? (\Illuminate\Support\Str::startsWith($existingImagePath, ['http://', 'https://']) ? $existingImagePath : asset('storage/' . $existingImagePath)) : '#';
-                @endphp
-
-                <!-- KHUNG XEM TRƯỚC BÊN DƯỚI DUY NHẤT -->
-                <div id="imagePreviewContainer" class="mb-3 {{ $hasInitialImage ? '' : 'd-none' }}">
-                    <div class="p-3 bg-light rounded-3 border">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span class="fw-bold text-secondary">
-                                <i class="bi bi-image me-1"></i> Hình ảnh đính kèm (Xem trước):
-                            </span>
-                            <button type="button" class="btn btn-sm btn-outline-danger border-0 fw-semibold" onclick="removeSingleImage()">
-                                <i class="bi bi-x-circle me-1"></i> Xóa ảnh
-                            </button>
-                        </div>
-                        <div class="text-center">
-                            <img id="imagePreviewTarget" src="{{ $initialSrc }}" alt="Xem trước ảnh" class="img-fluid rounded shadow-sm" style="max-height: 250px; object-fit: contain;">
-                        </div>
-                    </div>
                 </div>
 
                 <!-- Mô tả chi tiết -->
@@ -86,31 +63,4 @@
         </div>
     </div>
 </div>
-
-<script>
-    function previewSingleImage(event) {
-        const input = event.target;
-        const container = document.getElementById('imagePreviewContainer');
-        const imgTarget = document.getElementById('imagePreviewTarget');
-
-        if (input.files && input.files[0]) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                imgTarget.src = e.target.result;
-                container.classList.remove('d-none');
-            };
-            reader.readAsDataURL(input.files[0]);
-        }
-    }
-
-    function removeSingleImage() {
-        const input = document.getElementById('imageInput');
-        const container = document.getElementById('imagePreviewContainer');
-        const imgTarget = document.getElementById('imagePreviewTarget');
-
-        if (input) input.value = '';
-        if (imgTarget) imgTarget.src = '#';
-        if (container) container.classList.add('d-none');
-    }
-</script>
 @endsection
