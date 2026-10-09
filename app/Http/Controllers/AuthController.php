@@ -49,6 +49,62 @@ class AuthController extends Controller
     }
 
     /**
+     * Hiển thị trang đăng ký
+     */
+    public function showRegister()
+    {
+        if (Auth::check()) {
+            return redirect()->route('storefront');
+        }
+
+        if (view()->exists('auth.register')) {
+            return view('auth.register');
+        }
+        return view('register');
+    }
+
+    /**
+     * Xử lý đăng ký tài khoản mới
+     */
+    public function register(Request $request)
+    {
+        $request->validate([
+            'name'     => ['required', 'string', 'max:255'],
+            'email'    => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
+            'password' => ['required', 'string', 'min:6', 'confirmed'],
+        ], [
+            'name.required'      => 'Vui lòng nhập họ và tên.',
+            'email.required'     => 'Vui lòng nhập địa chỉ email.',
+            'email.email'        => 'Email không đúng định dạng.',
+            'email.unique'       => 'Email này đã được đăng ký sử dụng.',
+            'password.required'  => 'Vui lòng nhập mật khẩu.',
+            'password.min'       => 'Mật khẩu phải chứa ít nhất 6 ký tự.',
+            'password.confirmed' => 'Xác nhận mật khẩu không khớp.',
+        ]);
+
+        $user = User::create([
+            'name'     => $request->name,
+            'email'    => $request->email,
+            'password' => Hash::make($request->password),
+            'role'     => 'customer',
+            'status'   => 1,
+        ]);
+
+        // Gửi email kích hoạt/xác minh
+        try {
+            $user->sendEmailVerificationNotification();
+        } catch (\Throwable $e) {
+            Log::error('Lỗi gửi email xác minh đăng ký: ' . $e->getMessage());
+        }
+
+        // Đăng nhập tự động & tái tạo session
+        Auth::login($user);
+        $request->session()->regenerate();
+
+        return redirect()->route('storefront')->with('status', 'Đăng ký tài khoản thành công! Vui lòng kiểm tra email để xác minh tài khoản.');
+    }
+
+    /**
      * Chuyển hướng sang Google OAuth
      */
     public function redirectToGoogle()
@@ -96,7 +152,7 @@ class AuthController extends Controller
                 ]);
             }
 
-            if ($user->isBlocked()) {
+            if (method_exists($user, 'isBlocked') && $user->isBlocked()) {
                 return redirect()->route('login')->with('error', 'Tài khoản của bạn đã bị khóa.');
             }
 
@@ -104,7 +160,6 @@ class AuthController extends Controller
             Auth::login($user, true);
             request()->session()->regenerate();
 
-            // Đẩy thẳng về trang Storefront thay vì dùng intended() tránh bị dính lại trang /login
             return redirect()->route('storefront')->with('status', 'Đăng nhập bằng Google thành công!');
 
         } catch (\Throwable $e) {

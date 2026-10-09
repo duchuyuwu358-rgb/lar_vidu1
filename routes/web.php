@@ -147,6 +147,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/orders', [OrderController::class, 'index'])->name('orders.index');
         Route::get('/orders/{id}', [OrderController::class, 'show'])->name('orders.show');
 
+        // Tỉnh/Thành, Quận/Huyện, Xã/Phường
         Route::prefix('locations')->name('locations.')->group(function () {
             Route::get('/provinces', [CartController::class, 'getProvinces'])->name('provinces');
             Route::get('/districts/{provinceId}', [CartController::class, 'getDistricts'])->name('districts');
