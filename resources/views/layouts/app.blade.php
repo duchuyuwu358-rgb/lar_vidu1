@@ -122,7 +122,7 @@
             font-size: 0.95rem !important;
         }
 
-        /* KHUNG CHAT KHÁCH HÀNG: KÍCH THƯỚC RỘNG RÃI (420px x 600px) */
+        /* KHUNG CHAT KHÁCH HÀNG */
         .custom-chat-panel {
             position: fixed !important;
             bottom: 85px !important;
@@ -141,7 +141,7 @@
         }
         .custom-chat-panel.active { display: flex !important; }
 
-        /* KHUNG CHAT NHÂN VIÊN: 2 CỘT DỄ NHÌN (680px x 580px) */
+        /* KHUNG CHAT NHÂN VIÊN */
         .custom-chat-panel-staff {
             position: fixed !important;
             bottom: 85px !important;
@@ -507,6 +507,52 @@
                 const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
                 dateElem.innerText = now.toLocaleDateString('vi-VN', options);
             }
+
+            /* BỔ SUNG: TỰ ĐỘNG HIỂN THỊ KHUNG XEM TRƯỚC (PREVIEW) HÌNH ẢNH TOÀN CỤC KHI CHỌN FILE */
+            document.addEventListener('change', function(e) {
+                if (e.target && e.target.type === 'file') {
+                    const fileInput = e.target;
+                    const file = fileInput.files[0];
+                    const parentContainer = fileInput.closest('.col-md-12') || fileInput.closest('.mb-3') || fileInput.parentNode;
+
+                    let previewContainer = parentContainer.querySelector('.global-image-preview-box');
+
+                    if (file && file.type.startsWith('image/')) {
+                        if (!previewContainer) {
+                            previewContainer = document.createElement('div');
+                            previewContainer.className = 'global-image-preview-box mt-3 p-3 bg-light border rounded-3 text-center';
+                            parentContainer.appendChild(previewContainer);
+                        }
+
+                        const reader = new FileReader();
+                        reader.onload = function(evt) {
+                            previewContainer.innerHTML = `
+                                <div class="fw-bold small text-secondary mb-2 text-start d-flex justify-content-between align-items-center">
+                                    <span><i class="bi bi-image me-1"></i> Hình ảnh đính kèm (Xem trước):</span>
+                                    <button type="button" class="btn btn-sm btn-link text-danger p-0 text-decoration-none fw-bold" onclick="removeGlobalPreview(this)">
+                                        <i class="bi bi-x-circle-fill me-1"></i>Xóa ảnh
+                                    </button>
+                                </div>
+                                <img src="${evt.target.result}" class="img-thumbnail shadow-sm rounded-3" style="max-height: 250px; object-fit: contain;">
+                            `;
+                            previewContainer.classList.remove('d-none');
+                        };
+                        reader.readAsDataURL(file);
+                    } else if (previewContainer) {
+                        previewContainer.classList.add('d-none');
+                        previewContainer.innerHTML = '';
+                    }
+                }
+            });
+
+            window.removeGlobalPreview = function(btn) {
+                const previewContainer = btn.closest('.global-image-preview-box');
+                const parentContainer = previewContainer.parentNode;
+                const fileInput = parentContainer.querySelector('input[type="file"]');
+                if (fileInput) fileInput.value = '';
+                previewContainer.classList.add('d-none');
+                previewContainer.innerHTML = '';
+            };
 
             /* LOGIC CHAT PHÍA NHÂN VIÊN TƯ VẤN */
             const btnAdminToggle = document.getElementById('btnAdminChatToggle');
