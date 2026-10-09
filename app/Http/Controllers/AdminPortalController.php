@@ -323,7 +323,6 @@ class AdminPortalController extends Controller
         $attachmentPath = null;
         $relPath = null;
 
-        // Lưu tệp đính kèm vào thư mục vĩnh viễn 'support_attachments' (giữ file trên server để Web hiển thị)
         if ($request->hasFile('attachment')) {
             $relPath        = $request->file('attachment')->store('support_attachments', 'public');
             $attachmentPath = storage_path('app/public/' . $relPath);
@@ -340,13 +339,10 @@ class AdminPortalController extends Controller
             }
 
             foreach ($emails as $email) {
-                // 1. Vẫn gửi Email chuẩn ra Gmail người nhận
                 Mail::to($email)->send(new PromotionMail($subject, $content, $attachmentPath, $couponCode));
 
-                // 2. Tìm tài khoản khách hàng tương ứng
                 $targetUser = User::where('email', $email)->first();
 
-                // 3. Tự động lưu vào CSDL để hiển thị trong mục "Thư phản hồi & Hỗ trợ" trên Web
                 SupportRequest::create([
                     'name'            => $targetUser ? $targetUser->name : 'Khách hàng',
                     'email'           => $email,
@@ -355,7 +351,7 @@ class AdminPortalController extends Controller
                     'reply_content'   => $content,
                     'status'          => 'replied',
                     'user_id'         => $targetUser ? $targetUser->id : null,
-                    'attachment_path' => $relPath, // Đường dẫn xem ảnh/file trên web
+                    'attachment_path' => $relPath,
                 ]);
             }
 

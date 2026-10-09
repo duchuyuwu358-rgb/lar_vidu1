@@ -88,15 +88,16 @@
                                                         <!-- Tệp đính kèm / Ảnh đính kèm -->
                                                         @if(!empty($req->attachment_path))
                                                             @php
-                                                                $filePath = asset('storage/' . $req->attachment_path);
-                                                                $fileName = basename($req->attachment_path);
-                                                                $ext = strtolower(pathinfo($req->attachment_path, PATHINFO_EXTENSION));
+                                                                $cleanPath = ltrim(str_replace(['public/', 'storage/'], '', $req->attachment_path), '/');
+                                                                $filePath = asset('storage/' . $cleanPath);
+                                                                $fileName = basename($cleanPath);
+                                                                $ext = strtolower(pathinfo($cleanPath, PATHINFO_EXTENSION));
                                                                 $isImage = in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp']);
                                                             @endphp
 
-                                                            <div class="mt-3 p-3 bg-white rounded-3 border">
-                                                                <div class="d-flex justify-content-between align-items-center">
-                                                                    <span class="small fw-bold text-secondary">
+                                                            <div class="mt-3 p-3 bg-white rounded-3 border shadow-sm">
+                                                                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                                                    <span class="small fw-bold text-dark text-break">
                                                                         <i class="bi bi-paperclip me-1 text-primary"></i>Tệp đính kèm: <code class="text-primary">{{ $fileName }}</code>
                                                                     </span>
                                                                     <a href="{{ $filePath }}" target="_blank" class="btn btn-sm btn-outline-primary rounded-pill px-3">
@@ -105,15 +106,19 @@
                                                                 </div>
 
                                                                 @if($isImage)
-                                                                    <div class="text-center mt-3 pt-2 border-top">
-                                                                        <img src="{{ $filePath }}" alt="{{ $fileName }}" class="img-fluid rounded-3 border shadow-sm" style="max-height: 380px;">
+                                                                    <div class="text-center mt-3 pt-3 border-top">
+                                                                        <img src="{{ $filePath }}" 
+                                                                             alt="{{ $fileName }}" 
+                                                                             class="img-fluid rounded-3 border shadow-sm" 
+                                                                             style="max-height: 380px; object-fit: contain;"
+                                                                             onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\"alert alert-secondary fs-7 py-2 my-2 mb-0\"><i class=\"bi bi-exclamation-triangle-fill text-warning me-1\"></i>Tệp ảnh thử nghiệm cũ đã bị xóa khỏi đĩa server. Vui lòng gửi thư mới để kiểm tra ảnh hiển thị!</div>';">
                                                                     </div>
                                                                 @endif
                                                             </div>
                                                         @endif
                                                     </div>
 
-                                                    <!-- Nội dung Admin trả lời riêng (Chỉ hiện khi câu trả lời khác nội dung đã gửi) -->
+                                                    <!-- Nội dung Admin phản hồi riêng -->
                                                     @if(!empty($req->reply_content) && $req->reply_content !== ($req->message ?? $req->content))
                                                         <div class="mt-3 p-3 bg-success-subtle rounded-3 border border-success-subtle">
                                                             <div class="d-flex justify-content-between align-items-center mb-2">
