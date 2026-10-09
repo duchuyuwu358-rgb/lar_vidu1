@@ -90,7 +90,7 @@ class AuthController extends Controller
             'status'   => 1,
         ]);
 
-        // Gửi email kích hoạt/xác minh
+        // Gửi email xác minh
         try {
             $user->sendEmailVerificationNotification();
         } catch (\Throwable $e) {
@@ -101,7 +101,8 @@ class AuthController extends Controller
         Auth::login($user);
         $request->session()->regenerate();
 
-        return redirect()->route('storefront')->with('status', 'Đăng ký tài khoản thành công! Vui lòng kiểm tra email để xác minh tài khoản.');
+        // CHUYỂN HƯỚNG TRỰC TIẾP SANG TRANG XÁC MINH GMAIL (/email/verify)
+        return redirect()->route('verification.notice')->with('success', 'Đăng ký thành công! Vui lòng kiểm tra Gmail để xác minh tài khoản.');
     }
 
     /**
@@ -118,7 +119,6 @@ class AuthController extends Controller
     public function handleGoogleCallback()
     {
         try {
-            // Lấy thông tin user từ Google qua stateless()
             $googleUser = Socialite::driver('google')->stateless()->user();
 
             if (!$googleUser || !$googleUser->getEmail()) {
@@ -128,24 +128,21 @@ class AuthController extends Controller
             $email    = $googleUser->getEmail();
             $googleId = $googleUser->getId();
 
-            // Tìm user theo email hoặc google_id
             $user = User::where('email', $email)
                 ->orWhere('google_id', $googleId)
                 ->first();
 
             if (!$user) {
-                // Tạo mới nếu chưa có tài khoản
                 $user = User::create([
                     'name'              => $googleUser->getName() ?? 'Khách hàng Google',
                     'email'             => $email,
                     'google_id'         => $googleId,
-                    'password'          => Hash::make(Str::random(16)), // Mật khẩu ngẫu nhiên tránh lỗi NOT NULL CSDL
-                    'email_verified_at' => now(),                        // Tự động xác minh email
+                    'password'          => Hash::make(Str::random(16)),
+                    'email_verified_at' => now(),
                     'role'              => 'customer',
                     'status'            => 1,
                 ]);
             } else {
-                // Cập nhật google_id vào CSDL Aiven nếu tài khoản đã tồn tại
                 $user->update([
                     'google_id'         => $googleId,
                     'email_verified_at' => $user->email_verified_at ?? now(),
@@ -156,7 +153,6 @@ class AuthController extends Controller
                 return redirect()->route('login')->with('error', 'Tài khoản của bạn đã bị khóa.');
             }
 
-            // Đăng nhập người dùng & Tái tạo Session
             Auth::login($user, true);
             request()->session()->regenerate();
 

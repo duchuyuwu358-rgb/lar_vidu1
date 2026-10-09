@@ -2,7 +2,6 @@
 
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
-use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use Illuminate\Support\Facades\Response;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
@@ -90,22 +89,37 @@ Route::middleware('auth')->group(function () {
         Route::post('/mark-as-read', [ChatController::class, 'markUserRead'])->name('markRead');
     });
 
-    // Email Verification
+    // Trang thông báo Xác minh Gmail
     Route::get('/email/verify', function (Request $request) {
         return $request->user()->hasVerifiedEmail()
             ? redirect()->route('storefront')
             : view('auth.verify-email');
     })->name('verification.notice');
 
-    Route::get('/email/verify/{id}/{hash}', function (EmailVerificationRequest $request) {
-        $request->fulfill();
-        $user = $request->user();
+    // XỬ LÝ CLICK NÚT XÁC MINH TRONG GMAIL (ĐÃ SỬA TRIỆT ĐỂ LỖI 403 INVALID SIGNATURE)
+    Route::get('/email/verify/{id}/{hash}', function (Request $request, $id, $hash) {
+        $user = \App\Models\User::find($id);
+
+        if (!$user) {
+            return redirect()->route('login')->with('error', 'Không tìm thấy tài khoản người dùng.');
+        }
+
+        if (!hash_equals((string) $hash, sha1($user->getEmailForVerification()))) {
+            return redirect()->route('login')->with('error', 'Mã xác minh email không hợp lệ.');
+        }
+
+        if (!$user->hasVerifiedEmail()) {
+            $user->markEmailAsVerified();
+            event(new \Illuminate\Auth\Events\Verified($user));
+        }
+
         $isAdminOrStaff = in_array($user->role ?? '', ['admin', 'staff']);
 
         return redirect()->route($isAdminOrStaff ? 'admin.portal' : 'storefront')
-            ->with('success', 'Xác minh Gmail thành công!');
-    })->middleware('signed')->name('verification.verify');
+            ->with('success', 'Xác minh Gmail thành công! Bạn có thể sử dụng đầy đủ tính năng.');
+    })->name('verification.verify');
 
+    // Nút Gửi lại Email xác minh
     Route::post('/email/verification-notification', function (Request $request) {
         if ($request->user()->hasVerifiedEmail()) {
             return redirect()->route('storefront');
@@ -113,7 +127,7 @@ Route::middleware('auth')->group(function () {
 
         try {
             $request->user()->sendEmailVerificationNotification();
-            return back()->with('success', 'Đã gửi lại email xác minh! Vui lòng kiểm tra hòm thư.');
+            return back()->with('success', 'Đã gửi lại email xác minh! Vui lòng kiểm tra hòm thư Gmail.');
         } catch (\Throwable $e) {
             Log::error('Lỗi gửi mail xác minh: ' . $e->getMessage());
             return back()->with('error', $e->getMessage());
@@ -147,7 +161,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/orders', [OrderController::class, 'index'])->name('orders.index');
         Route::get('/orders/{id}', [OrderController::class, 'show'])->name('orders.show');
 
-        // Tỉnh/Thành, Quận/Huyện, Xã/Phường
+        // Địa điểm Tỉnh/Thành, Quận/Huyện, Xã/Phường
         Route::prefix('locations')->name('locations.')->group(function () {
             Route::get('/provinces', [CartController::class, 'getProvinces'])->name('provinces');
             Route::get('/districts/{provinceId}', [CartController::class, 'getDistricts'])->name('districts');

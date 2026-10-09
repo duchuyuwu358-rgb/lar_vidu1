@@ -33,18 +33,16 @@ class AppServiceProvider extends ServiceProvider
         $targetStoragePath = storage_path('app/public');
 
         if (file_exists($targetStoragePath)) {
-            // Xóa liên kết cũ nếu đó là symlink bị hỏng trên Render
             if (is_link($publicStoragePath)) {
                 @unlink($publicStoragePath);
             }
 
-            // Tạo mới liên kết public/storage
             if (!file_exists($publicStoragePath)) {
                 app('files')->link($targetStoragePath, $publicStoragePath);
             }
         }
 
-        // Cấu hình phân trang Bootstrap 5 (Sửa lỗi vỡ icon/mũi tên)
+        // Cấu hình phân trang Bootstrap 5
         Paginator::useBootstrapFive();
 
         // Cấu hình Mail xác thực Email
