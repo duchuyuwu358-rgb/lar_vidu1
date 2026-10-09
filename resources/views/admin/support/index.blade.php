@@ -124,27 +124,34 @@
                                     @endif
                                 </td>
                                 <td>{{ $req->created_at ? $req->created_at->format('H:i - d/m/Y') : '' }}</td>
+                                
+                                <!-- CÂN ĐỐI NÚT XEM & NÚT XÓA NGANG HÀNG -->
                                 <td class="text-end pe-3">
-                                    <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#viewSupportModal{{ $req->id }}">
-                                        <i class="bi bi-eye-fill me-1"></i>Xem & Phản hồi
-                                    </button>
-                                    <form action="{{ route('admin.support.destroy', $req->id) }}" method="POST" class="d-inline m-0" onsubmit="return confirm('Bạn có chắc muốn xóa thư này?');">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
-                                    </form>
+                                    <div class="d-inline-flex align-items-center gap-2">
+                                        <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 shadow-sm d-inline-flex align-items-center" data-bs-toggle="modal" data-bs-target="#viewSupportModal{{ $req->id }}">
+                                            <i class="bi bi-eye-fill me-1"></i> Xem & Phản hồi
+                                        </button>
+
+                                        <form action="{{ route('admin.support.destroy', $req->id) }}" method="POST" class="d-inline mb-0" onsubmit="return confirm('Bạn có chắc muốn xóa thư này?');">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="btn btn-sm btn-outline-danger rounded-circle d-inline-flex align-items-center justify-content-center p-2" style="width: 32px; height: 32px;" title="Xóa thư">
+                                                <i class="bi bi-trash-fill"></i>
+                                            </button>
+                                        </form>
+                                    </div>
 
                                     <!-- MODAL XEM CÂU HỎI & CÂU TRẢ LỜI -->
                                     <div class="modal fade text-start" id="viewSupportModal{{ $req->id }}" tabindex="-1">
-                                        <div class="modal-dialog modal-lg">
-                                            <div class="modal-content">
+                                        <div class="modal-dialog modal-lg modal-dialog-centered">
+                                            <div class="modal-content rounded-4 border-0 shadow">
                                                 <form action="{{ route('admin.support.reply', $req->id) }}" method="POST" enctype="multipart/form-data">
                                                     @csrf
-                                                    <div class="modal-header bg-light">
+                                                    <div class="modal-header bg-primary text-white rounded-top-4">
                                                         <h5 class="modal-title fw-bold"><i class="bi bi-envelope-open-fill me-2"></i>Thư hỗ trợ từ {{ $req->name }}</h5>
-                                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                                                     </div>
-                                                    <div class="modal-body">
+                                                    <div class="modal-body p-4">
                                                         <div class="row mb-3">
                                                             <div class="col-md-6"><strong>Họ tên:</strong> {{ $req->name }}</div>
                                                             <div class="col-md-6"><strong>Email:</strong> {{ $req->email }}</div>
@@ -161,12 +168,30 @@
                                                             <label class="form-label fw-bold text-dark"><i class="bi bi-person-fill me-1"></i>Nội dung khách hàng viết:</label>
                                                             <div class="p-3 bg-light rounded border mb-2" style="white-space: pre-wrap;">{{ $req->message ?? $req->content }}</div>
 
-                                                            @if($req->attachment_path)
-                                                                <div class="p-2 bg-light rounded border d-flex align-items-center justify-content-between">
-                                                                    <span><i class="bi bi-paperclip me-1 text-primary"></i> <strong>Tệp / Hình ảnh khách đính kèm:</strong></span>
-                                                                    <a href="{{ asset('storage/' . $req->attachment_path) }}" target="_blank" class="btn btn-sm btn-outline-primary">
-                                                                        <i class="bi bi-box-arrow-up-right me-1"></i>Mở / Tải về tệp
-                                                                    </a>
+                                                            <!-- HIỂN THỊ TÊN FILE VÀ ẢNH XEM TRỰC TIẾP -->
+                                                            @if(!empty($req->attachment_path))
+                                                                @php
+                                                                    $filePath = asset('storage/' . $req->attachment_path);
+                                                                    $fileName = basename($req->attachment_path);
+                                                                    $ext = strtolower(pathinfo($req->attachment_path, PATHINFO_EXTENSION));
+                                                                    $isImage = in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp']);
+                                                                @endphp
+
+                                                                <div class="p-3 bg-white rounded-3 border">
+                                                                    <div class="d-flex align-items-center justify-content-between">
+                                                                        <span class="small fw-bold text-dark">
+                                                                            <i class="bi bi-paperclip me-1 text-primary"></i>Tệp đính kèm: <code class="text-primary">{{ $fileName }}</code>
+                                                                        </span>
+                                                                        <a href="{{ $filePath }}" target="_blank" class="btn btn-sm btn-outline-primary rounded-pill px-3">
+                                                                            <i class="bi bi-box-arrow-up-right me-1"></i>Mở / Tải về tệp
+                                                                        </a>
+                                                                    </div>
+
+                                                                    @if($isImage)
+                                                                        <div class="text-center mt-3 pt-3 border-top">
+                                                                            <img src="{{ $filePath }}" alt="{{ $fileName }}" class="img-fluid rounded-3 border shadow-sm" style="max-height: 350px;">
+                                                                        </div>
+                                                                    @endif
                                                                 </div>
                                                             @endif
                                                         </div>
@@ -182,7 +207,7 @@
 
                                                         <div class="mb-3">
                                                             <label class="form-label fw-bold">Gửi kèm Tệp / Hình ảnh cho khách (PDF, Word, Ảnh...):</label>
-                                                            <input type="file" name="attachment" class="form-control" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+                                                            <input type="file" name="attachment" class="form-control" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp">
                                                         </div>
 
                                                         <div class="mb-3">
@@ -193,9 +218,9 @@
                                                             </select>
                                                         </div>
                                                     </div>
-                                                    <div class="modal-footer">
-                                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
-                                                        <button type="submit" class="btn btn-primary"><i class="bi bi-send-fill me-1"></i>Lưu & Gửi Phản Hồi Email</button>
+                                                    <div class="modal-footer bg-light rounded-bottom-4">
+                                                        <button type="button" class="btn btn-secondary rounded-pill px-3" data-bs-dismiss="modal">Đóng</button>
+                                                        <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold"><i class="bi bi-send-fill me-1"></i>Lưu & Gửi Phản Hồi Email</button>
                                                     </div>
                                                 </form>
                                             </div>

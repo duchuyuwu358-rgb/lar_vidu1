@@ -76,25 +76,44 @@
                                                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                                                 </div>
                                                 <div class="modal-body p-4">
-                                                    <!-- Nội dung khách gửi -->
+                                                    <!-- Nội dung đã gửi -->
                                                     <div class="mb-4 p-3 bg-light rounded-3 border">
                                                         <div class="d-flex justify-content-between align-items-center mb-2">
-                                                            <strong class="text-dark"><i class="bi bi-person-circle me-1 text-primary"></i>Bạn đã gửi:</strong>
+                                                            <strong class="text-dark"><i class="bi bi-person-circle me-1 text-primary"></i>Nội dung trao đổi:</strong>
                                                             <small class="text-muted">{{ $req->created_at ? $req->created_at->format('H:i d/m/Y') : '' }}</small>
                                                         </div>
                                                         <div class="fw-bold text-primary mb-1">Tiêu đề: {{ $req->subject }}</div>
                                                         <p class="mb-0 text-dark small" style="white-space: pre-wrap;">{{ $req->message ?? $req->content }}</p>
-                                                        
-                                                        @if($req->attachment_path)
-                                                            <div class="mt-2 pt-2 border-top">
-                                                                <a href="{{ asset('storage/' . $req->attachment_path) }}" target="_blank" class="btn btn-sm btn-outline-secondary">
-                                                                    <i class="bi bi-paperclip me-1"></i>Xem tệp bạn đã đính kèm
-                                                                </a>
+
+                                                        <!-- Tệp đính kèm / Ảnh đính kèm -->
+                                                        @if(!empty($req->attachment_path))
+                                                            @php
+                                                                $filePath = asset('storage/' . $req->attachment_path);
+                                                                $fileName = basename($req->attachment_path);
+                                                                $ext = strtolower(pathinfo($req->attachment_path, PATHINFO_EXTENSION));
+                                                                $isImage = in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp']);
+                                                            @endphp
+
+                                                            <div class="mt-3 p-3 bg-white rounded-3 border">
+                                                                <div class="d-flex justify-content-between align-items-center">
+                                                                    <span class="small fw-bold text-secondary">
+                                                                        <i class="bi bi-paperclip me-1 text-primary"></i>Tệp đính kèm: <code class="text-primary">{{ $fileName }}</code>
+                                                                    </span>
+                                                                    <a href="{{ $filePath }}" target="_blank" class="btn btn-sm btn-outline-primary rounded-pill px-3">
+                                                                        <i class="bi bi-box-arrow-up-right me-1"></i>Mở / Tải về
+                                                                    </a>
+                                                                </div>
+
+                                                                @if($isImage)
+                                                                    <div class="text-center mt-3 pt-2 border-top">
+                                                                        <img src="{{ $filePath }}" alt="{{ $fileName }}" class="img-fluid rounded-3 border shadow-sm" style="max-height: 380px;">
+                                                                    </div>
+                                                                @endif
                                                             </div>
                                                         @endif
                                                     </div>
 
-                                                    <!-- Nội dung Admin trả lời -->
+                                                    <!-- Nội dung Admin phản hồi -->
                                                     @if(!empty($req->reply_content))
                                                         <div class="p-3 bg-success-subtle rounded-3 border border-success-subtle">
                                                             <div class="d-flex justify-content-between align-items-center mb-2">
