@@ -122,7 +122,7 @@
             font-size: 0.95rem !important;
         }
 
-        /* KHUNG CHAT KHÁCH HÀNG: LÀM TO RA DỄ NHÌN (420px x 600px) */
+        /* KHUNG CHAT KHÁCH HÀNG: KÍCH THƯỚC RỘNG RÃI (420px x 600px) */
         .custom-chat-panel {
             position: fixed !important;
             bottom: 85px !important;
@@ -141,7 +141,7 @@
         }
         .custom-chat-panel.active { display: flex !important; }
 
-        /* KHUNG CHAT NHÂN VIÊN: LÀM TO RA DỄ NHÌN (680px x 580px) */
+        /* KHUNG CHAT NHÂN VIÊN: 2 CỘT DỄ NHÌN (680px x 580px) */
         .custom-chat-panel-staff {
             position: fixed !important;
             bottom: 85px !important;
@@ -165,7 +165,7 @@
             display: flex; justify-content: space-between; align-items: center;
         }
 
-        /* NÚT OPTION BOT */
+        /* NÚT TỰ ĐỘNG CHỌN CỦA BOT */
         .chat-option-btn {
             background: #ffffff; color: #334155; border: 1px solid #cbd5e1;
             border-radius: 20px; padding: 11px 18px; font-size: 0.92rem; font-weight: 500;
@@ -176,7 +176,7 @@
         .btn-resume-chat { background: #eff6ff !important; color: #2563eb !important; border: 1.5px solid #3b82f6 !important; font-weight: 700 !important; }
         .btn-resume-chat:hover { background: #dbeafe !important; }
 
-        /* BONG BÓNG TIN NHẮN LÀM TO RA DỄ ĐỌC */
+        /* BONG BÓNG TIN NHẮN TO RÕ */
         .chat-date-badge { text-align: center; font-size: 0.78rem; color: #64748b; margin: 10px 0; font-weight: 500; }
         .msg-bubble-sent {
             background-color: #2563eb; color: white; border-radius: 16px 16px 0px 16px;
@@ -330,7 +330,7 @@
             </div>
         </aside>
 
-        {{-- KHUNG CHAT CỦA NHÂN VIÊN: 2 CỘT TẠI GÓC DƯỚI BÊN PHẢI --}}
+        {{-- KHUNG CHAT CỦA NHÂN VIÊN --}}
         @if ($isStaff)
             <button type="button" id="btnAdminChatToggle" class="btn btn-dark rounded-pill shadow-lg floating-chat-btn position-relative">
                 <i class="bi bi-chat-dots-fill text-warning me-1"></i>
@@ -345,12 +345,10 @@
                 </div>
 
                 <div class="d-flex flex-grow-1 overflow-hidden">
-                    <!-- CỘT BÊN TRÁI: DANH SÁCH KHÁCH HÀNG -->
                     <div class="bg-light border-end p-2 overflow-auto" id="adminChatUsersList" style="width: 210px; min-width: 190px; flex-shrink: 0;">
                         <div class="text-center text-muted small py-3">Đang tải danh sách...</div>
                     </div>
 
-                    <!-- CỘT BÊN PHẢI: MÀN HÌNH NHẮN TIN KHÁCH HÀNG -->
                     <div class="d-flex flex-column flex-grow-1 bg-white overflow-hidden">
                         <div class="flex-grow-1 p-3 overflow-auto bg-light" id="adminChatMessagesBox">
                             <div class="text-center text-muted small py-5">
@@ -376,7 +374,6 @@
         <nav class="navbar navbar-expand-xl navbar-light user-navbar py-2 mb-4">
             <div class="container-fluid px-3 px-lg-4 d-flex align-items-center justify-content-between flex-nowrap">
                 
-                {{-- LOGO + DANH SÁCH MENU --}}
                 <div class="d-flex align-items-center gap-2 me-2">
                     <a class="navbar-brand fw-bold text-primary fs-5 m-0 d-flex align-items-center me-2 me-lg-3 text-nowrap" href="{{ Route::has('storefront') ? route('storefront') : url('/') }}">
                         <i class="fas fa-fan me-2"></i>XFAN STORE
@@ -389,7 +386,6 @@
                             <i class="bi bi-tools"></i><span>Dịch vụ & Lắp đặt</span>
                         </a>
                         
-                        <!-- MỤC "THƯ HỖ TRỢ" DUY NHẤT -->
                         <a href="{{ Route::has('user.support.history') ? route('user.support.history') : url('/ho-tro/lich-su') }}" class="user-nav-link {{ request()->is('ho-tro*') ? 'active' : '' }}">
                             <i class="bi bi-headset"></i><span>Thư hỗ trợ</span>
                         </a>
@@ -403,7 +399,6 @@
                     </div>
                 </div>
 
-                {{-- THÔNG TIN TÀI KHOẢN & ĐĂNG XUẤT --}}
                 <div class="d-flex align-items-center gap-2 text-nowrap flex-shrink-0 ms-auto">
                     @auth
                         @if (!$isAdminOrStaff)
@@ -432,7 +427,7 @@
         </nav>
     @endif
 
-    {{-- KHUNG CHAT KHÁCH HÀNG (420px x 600px - TO RÕ) --}}
+    {{-- KHUNG CHAT KHÁCH HÀNG --}}
     @if (!$isAdminOrStaff && !$isAuthPage)
         <button type="button" id="btnUserChatToggle" class="btn btn-primary rounded-pill shadow-lg floating-chat-btn position-relative">
             <i class="bi bi-chat-dots-fill me-1"></i>
@@ -597,7 +592,6 @@
                         } else {
                             msgs.forEach(m => {
                                 let text = m.content || m.message || '';
-                                // BỘ LỌC FRONTEND: Bỏ hoàn toàn các tin tự động/exit/connect khỏi màn hình Nhân viên
                                 if (text.includes('🤖') || text.includes('XFAN Bot') || text.includes('🎧') || text.includes('Hệ thống:') || text === 'exit' || text === 'connect_staff') {
                                     return;
                                 }
@@ -815,7 +809,18 @@
                     userInput.value = '';
 
                     if (isConnectedToStaff) {
+                        // Đang kết nối Nhân viên: Gửi cho Nhân viên
                         appendBubbleToBox(chatHistoryContainer, msg, 'sent');
+
+                        const userSendUrl = "{{ Route::has('user.chat.send') ? route('user.chat.send') : url('/user/chat/send') }}";
+                        fetch(userSendUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
+                            body: JSON.stringify({ message: msg })
+                        });
+                    } else {
+                        // Đang ở chế độ Bot: Hiển thị câu hỏi & Nhận câu trả lời từ Bot
+                        appendBubbleToBox(botWelcomeContainer, msg, 'sent');
 
                         const userSendUrl = "{{ Route::has('user.chat.send') ? route('user.chat.send') : url('/user/chat/send') }}";
                         fetch(userSendUrl, {
@@ -825,17 +830,10 @@
                         })
                         .then(r => r.ok ? r.json() : null)
                         .then(data => {
-                            if (!data) return;
-                            if (data.mode === 'bot') {
-                                resetToBotMenu();
-                                if (data.reply) {
-                                    appendBubbleToBox(botWelcomeContainer, data.reply, 'received', 'XFAN Bot');
-                                }
+                            if (data && data.reply) {
+                                appendBubbleToBox(botWelcomeContainer, data.reply, 'received', 'XFAN Bot');
                             }
                         });
-                    } else {
-                        appendBubbleToBox(botWelcomeContainer, msg, 'sent');
-                        connectStaffChat(true);
                     }
                 });
             }

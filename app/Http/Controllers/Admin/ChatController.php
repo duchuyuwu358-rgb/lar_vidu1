@@ -88,7 +88,7 @@ class ChatController extends Controller
     }
 
     /**
-     * Khách hàng gửi tin nhắn (Xử lý âm thầm thoát/kết nối không để lại rác CSDL)
+     * Khách hàng gửi tin nhắn
      */
     public function sendUserMessage(Request $request)
     {
@@ -108,7 +108,7 @@ class ChatController extends Controller
         $textLower = mb_strtolower($text);
         $adminId   = $this->getAdminSenderId();
 
-        // 1. Lệnh EXIT từ nút "Thoát Nhân viên": Âm thầm tắt mode admin, KHÔNG lưu tin 'exit' vào CSDL
+        // 1. Thoát khỏi chế độ Nhân viên tư vấn
         if (in_array($textLower, ['exit', '/exit', 'thoát', 'thoat', 'quit'])) {
             $this->setIsAdminMode($userId, false);
 
@@ -119,30 +119,19 @@ class ChatController extends Controller
             ]);
         }
 
-        // 2. Lệnh CONNECT từ nút "Kết nối": Bật mode admin, KHÔNG lưu tin nhắn rác vào CSDL
-        $isConnectCommand = in_array($textLower, ['connect_staff', 'connect_admin', 'kết nối']) ||
-            str_contains($textLower, 'tư vấn viên') ||
-            str_contains($textLower, 'gặp admin') ||
-            str_contains($textLower, 'kết nối admin') ||
-            str_contains($textLower, 'kết nối nhân viên');
-
-        if ($isConnectCommand) {
+        // 2. Kích hoạt chế độ Nhân viên tư vấn khi bấm nút
+        if ($textLower === 'connect_staff' || $textLower === 'connect_admin') {
             $this->setIsAdminMode($userId, true);
 
-            // Nếu chỉ bấm nút kết nối tự động thì không tạo tin nhắn chữ trong CSDL
-            if ($textLower === 'connect_staff' || $textLower === 'connect_admin') {
-                return response()->json([
-                    'status' => 'success',
-                    'mode'   => 'admin',
-                    'reply'  => null
-                ]);
-            }
+            return response()->json([
+                'status' => 'success',
+                'mode'   => 'admin',
+                'reply'  => null
+            ]);
         }
 
-        // 3. Đang ở chế độ Chat với Nhân viên -> Lưu CSDL để Nhân viên xem & KHÔNG trả về tin nhắn Bot
-        if ($this->getIsAdminMode($userId) || $isConnectCommand) {
-            $this->setIsAdminMode($userId, true);
-
+        // 3. Đang ở chế độ Chat trực tiếp với Nhân viên -> Gửi tin cho Nhân viên, chờ Nhân viên reply
+        if ($this->getIsAdminMode($userId)) {
             $userMsg = ChatMessage::create([
                 'sender_id'   => $userId,
                 'receiver_id' => $adminId,
@@ -158,7 +147,7 @@ class ChatController extends Controller
             ]);
         }
 
-        // 4. Đang ở chế độ Bot tự động
+        // 4. Đang ở chế độ XFAN Bot -> Phản hồi tự động bằng Bot
         $userMsg = ChatMessage::create([
             'sender_id'   => $userId,
             'receiver_id' => $adminId,
@@ -184,28 +173,43 @@ class ChatController extends Controller
     }
 
     /**
-     * Sinh phản hồi tự động cho Bot
+     * Sinh phản hồi tự động thông minh cho Bot
      */
     private function generateSmartBotReply(string $text): string
     {
         $textLower = mb_strtolower($text);
 
-        if (str_contains($textLower, 'máy hút mùi') || str_contains($textLower, 'giá') || str_contains($textLower, 'sản phẩm')) {
-            $hoods = Hood::where('name', 'like', "%{$text}%")->orWhere('model', 'like', "%{$text}%")->take(3)->get();
-            if ($hoods->count() > 0) {
-                $reply = "🤖 **XFAN Bot tìm thấy sản phẩm gợi ý:**\n";
-                foreach ($hoods as $hood) {
-                    $reply .= "• **{$hood->name}** - Giá: " . number_format($hood->price) . "đ\n";
+        // Tìm kiếm sản phẩm theo từ khóa (dành cho mọi cụm từ từ người dùng nhập)
+        if (str_contains($textLower, 'máy hút mùi') || str_contains($textLower, 'giá') || str_contains($textLower, 'sản phẩm') || str_contains($textLower, 'under cabinet') || str_contains($textLower, 'cabinet') || str_contains($textLower, 'hood')) {
+            $query = Hood::query();
+            
+            $keywords = explode(' ', $text);
+            foreach ($keywords as $kw) {
+                $kw = trim($kw);
+                if (strlen($kw) > 1 && !in_array($kw, ['giá', 'báo', 'máy', 'hút', 'mùi', 'tìm'])) {
+                    $query->orWhere('name', 'like', "%{$kw}%")
+                          ->orWhere('model', 'like', "%{$kw}%");
                 }
+            }
+
+            $hoods = $query->take(4)->get();
+
+            if ($hoods->count() > 0) {
+                $reply = "🤖 <b>XFAN Bot tìm thấy sản phẩm gợi ý phù hợp:</b><br>";
+                foreach ($hoods as $hood) {
+                    $priceStr = number_format($hood->price ?? 0, 0, ',', '.') . 'đ';
+                    $reply .= "• <b>{$hood->name}</b> - Giá: <span class='text-danger fw-bold'>{$priceStr}</span><br>";
+                }
+                $reply .= "<br>👉 Bạn có thể truy cập mục <b>Cửa Hàng</b> trên thanh menu để xem chi tiết nhé!";
                 return $reply;
             }
         }
 
         if (str_contains($textLower, 'chào') || str_contains($textLower, 'hi') || str_contains($textLower, 'hello')) {
-            return "🤖 **XFAN Bot:** Xin chào! Tôi là trợ lý ảo XFAN. Bạn muốn tìm hiểu dòng máy hút mùi nào hay dịch vụ lắp đặt của chúng tôi?";
+            return "🤖 <b>XFAN Bot:</b> Xin chào! Tôi là trợ lý ảo XFAN. Bạn muốn tìm hiểu dòng máy hút mùi nào hay dịch vụ lắp đặt của chúng tôi?";
         }
 
-        return "🤖 **XFAN Bot:** Cảm ơn bạn đã nhắn tin: '{$text}'. Tôi có thể hỗ trợ bạn chọn máy hút mùi cao cấp hoặc đặt lịch vệ sinh. Để trò chuyện trực tiếp với nhân viên hỗ trợ, bạn vui lòng chọn **'Kết nối trực tiếp với Nhân viên tư vấn'**.";
+        return "🤖 <b>XFAN Bot:</b> Cảm ơn bạn đã nhắn tin. Tôi có thể hỗ trợ bạn chọn máy hút mùi cao cấp hoặc đặt lịch bảo dưỡng. Để trao đổi trực tiếp với nhân viên hỗ trợ, bạn vui lòng bấm <b>'🎧 Kết nối trực tiếp với Nhân viên tư vấn'</b>.";
     }
 
     /**
