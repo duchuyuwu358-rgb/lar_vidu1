@@ -13,9 +13,6 @@ class User extends Authenticatable implements MustVerifyEmail
 {
     use HasFactory, Notifiable;
 
-    /**
-     * Các thuộc tính có thể gán hàng loạt (Mass Assignment).
-     */
     protected $fillable = [
         'name',
         'email',
@@ -26,17 +23,11 @@ class User extends Authenticatable implements MustVerifyEmail
         'google_id',
     ];
 
-    /**
-     * Các thuộc tính cần ẩn khi chuyển đổi thành Array/JSON.
-     */
     protected $hidden = [
         'password',
         'remember_token',
     ];
 
-    /**
-     * Chuyển đổi kiểu dữ liệu (Type casting).
-     */
     protected function casts(): array
     {
         return [
@@ -47,11 +38,13 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
-     * Kiểm tra tài khoản đã xác minh hay chưa (Tạo bởi Admin / Đăng ký Google / Đã bấm Link Mail)
+     * Kiểm tra tài khoản đã xác minh hay chưa (Tạo bởi Admin / Đăng ký Google / Click Mail xác minh / Quyền Admin, Staff)
      */
     public function isVerified(): bool
     {
-        return !empty($this->email_verified_at) || !empty($this->google_id);
+        return !empty($this->email_verified_at) 
+            || !empty($this->google_id) 
+            || in_array($this->role, ['admin', 'staff']);
     }
 
     public function isAdmin(): bool

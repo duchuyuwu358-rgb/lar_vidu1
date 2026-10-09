@@ -8,6 +8,7 @@ use App\Models\Hood;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\View;
 
@@ -22,7 +23,7 @@ class ChatController extends Controller
     private function getIsAdminMode($userId)
     {
         if (Schema::hasTable('chat_sessions')) {
-            $session = \App\Models\ChatSession::where('user_id', $userId)->first();
+            $session = DB::table('chat_sessions')->where('user_id', $userId)->first();
             if ($session) {
                 return (bool) $session->is_admin_chat;
             }
@@ -33,9 +34,9 @@ class ChatController extends Controller
     private function setIsAdminMode($userId, bool $status)
     {
         if (Schema::hasTable('chat_sessions')) {
-            \App\Models\ChatSession::updateOrCreate(
+            DB::table('chat_sessions')->updateOrInsert(
                 ['user_id' => $userId],
-                ['is_admin_chat' => $status]
+                ['is_admin_chat' => $status ? 1 : 0, 'updated_at' => now()]
             );
         }
         session(["is_admin_chat_{$userId}" => $status]);
@@ -105,7 +106,6 @@ class ChatController extends Controller
         if ($textLower === 'connect_staff' || $textLower === 'connect_admin') {
             $this->setIsAdminMode($userId, true);
 
-            // Lưu 1 dòng thông báo trong CSDL để Nhân viên nhận thông báo cuộc trò chuyện mới
             $sysMsg = ChatMessage::create([
                 'sender_id'   => $userId,
                 'receiver_id' => $adminId,
@@ -138,7 +138,7 @@ class ChatController extends Controller
             ]);
         }
 
-        // 4. Đang ở chế độ XFAN Bot -> Phản hồi tự động qua JSON, KHÔNG LƯU VÀO CSDL ĐỂ TRÁNH LÀM RÁC HÒM THƯ NHÂN VIÊN
+        // 4. Đang hỏi XFAN Bot -> Phản hồi trực tiếp qua JSON, KHÔNG LƯU CSDL VÌ LÀ BOT RIÊNG
         $reply = $this->generateSmartBotReply($text);
 
         return response()->json([
@@ -159,7 +159,6 @@ class ChatController extends Controller
 
         if (str_contains($textLower, 'máy hút mùi') || str_contains($textLower, 'giá') || str_contains($textLower, 'sản phẩm') || str_contains($textLower, 'under cabinet') || str_contains($textLower, 'cabinet') || str_contains($textLower, 'hood')) {
             $query = Hood::query();
-            
             $keywords = explode(' ', $text);
             foreach ($keywords as $kw) {
                 $kw = trim($kw);
@@ -190,7 +189,7 @@ class ChatController extends Controller
     }
 
     /**
-     * Nhân viên lấy danh sách Khách hàng (CHỈ HIỂN THỊ KHI ĐÃ BẤM KẾT NỐI NHÂN VIÊN)
+     * Nhân viên lấy danh sách Khách hàng
      */
     public function getAdminUsers()
     {
@@ -199,21 +198,20 @@ class ChatController extends Controller
             ->pluck('id')
             ->toArray();
 
+        // 1. Lấy ID khách hàng bật chế độ nhân viên trong CSDL
         $activeHumanUserIds = [];
         if (Schema::hasTable('chat_sessions')) {
-            $activeHumanUserIds = \App\Models\ChatSession::where('is_admin_chat', true)
+            $activeHumanUserIds = DB::table('chat_sessions')
+                ->where('is_admin_chat', 1)
                 ->pluck('user_id')
                 ->toArray();
         }
 
-        $senders   = ChatMessage::whereNotNull('sender_id')->whereNotIn('sender_id', $staffAndAdminIds)->pluck('sender_id');
-        $receivers = ChatMessage::whereNotNull('receiver_id')->whereNotIn('receiver_id', $staffAndAdminIds)->pluck('receiver_id');
-        $chatUserIds = $senders->merge($receivers)->unique()->toArray();
+        // 2. Lấy ID tất cả khách hàng có tin nhắn trong chat_messages
+        $senders   = ChatMessage::whereNotIn('sender_id', $staffAndAdminIds)->pluck('sender_id')->toArray();
+        $receivers = ChatMessage::whereNotIn('receiver_id', $staffAndAdminIds)->pluck('receiver_id')->toArray();
 
-        // CHỈ LẤY các người dùng thực sự đang bật chế độ Nhân viên tư vấn
-        $validUserIds = array_unique(array_merge($activeHumanUserIds, array_filter($chatUserIds, function($id) {
-            return $this->getIsAdminMode($id);
-        })));
+        $validUserIds = array_unique(array_merge($activeHumanUserIds, $senders, $receivers));
 
         $users = User::whereIn('id', $validUserIds)
             ->select('id', 'name', 'email', 'role')

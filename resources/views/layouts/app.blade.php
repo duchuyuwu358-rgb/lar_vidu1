@@ -404,12 +404,18 @@
                         @if (!$isAdminOrStaff)
                             <span class="text-secondary small me-1">Xin chào, <strong>{{ Auth::user()->name }}</strong></span>
                             
-                            @if(!Auth::user()->hasVerifiedEmail())
+                            @if(method_exists(Auth::user(), 'isVerified') ? Auth::user()->isVerified() : Auth::user()->hasVerifiedEmail())
+                                <!-- TRƯỜNG HỢP ĐÃ XÁC MINH: Hiển thị Badge Xanh -->
+                                <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 rounded-pill small me-1">
+                                    <i class="bi bi-patch-check-fill me-1"></i>Đã xác minh
+                                </span>
+                            @else
+                                <!-- TRƯỜNG HỢP CHƯA XÁC MINH: Hiển thị Nút Vàng điều hướng tới trang xác minh -->
                                 <a href="{{ Route::has('verification.notice') ? route('verification.notice') : url('/email/verify') }}" 
-                                   class="badge bg-warning text-dark border border-warning-subtle px-2 py-1 me-1 text-decoration-none" 
-                                   style="font-size: 0.75rem;" 
+                                   class="btn btn-sm btn-warning text-dark fw-bold px-2 py-1 rounded-pill shadow-sm me-1" 
+                                   style="font-size: 0.78rem;" 
                                    title="Bấm để mở trang xác minh email">
-                                    ⚠️ Chưa xác minh
+                                    <i class="bi bi-exclamation-circle-fill me-1"></i>Chưa xác minh (Bấm xác minh)
                                 </a>
                             @endif
 
@@ -508,7 +514,7 @@
                 dateElem.innerText = now.toLocaleDateString('vi-VN', options);
             }
 
-            /* BỔ SUNG: TỰ ĐỘNG HIỂN THỊ KHUNG XEM TRƯỚC (PREVIEW) HÌNH ẢNH TOÀN CỤC KHI CHỌN FILE */
+            /* TỰ ĐỘNG HIỂN THỊ KHUNG XEM TRƯỚC HÌNH ẢNH TOÀN CỤC KHI CHỌN FILE */
             document.addEventListener('change', function(e) {
                 if (e.target && e.target.type === 'file') {
                     const fileInput = e.target;
@@ -638,7 +644,10 @@
                         } else {
                             msgs.forEach(m => {
                                 let text = m.content || m.message || '';
-                                if (text.includes('🤖') || text.includes('XFAN Bot') || text.includes('🎧') || text.includes('Hệ thống:') || text === 'exit' || text === 'connect_staff') {
+                                if (text === 'exit' || text === 'connect_staff') return;
+
+                                if (text.includes('🎧') || text.includes('Hệ thống:')) {
+                                    html += `<div class="text-center text-muted extra-small my-2"><span class="bg-white px-2 py-1 rounded border shadow-sm">${text}</span></div>`;
                                     return;
                                 }
 
