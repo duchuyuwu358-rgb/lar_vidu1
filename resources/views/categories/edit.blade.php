@@ -113,11 +113,12 @@
 
                 <!-- Trạng Thái Kích Hoạt -->
                 <div class="mb-4">
-                    <label for="is_active" class="form-label fw-bold">Trạng Thái Kích Hoạt</label>
-                    <select class="form-select @error('is_active') is-invalid @enderror" id="is_active" name="is_active">
-                        <option value="1" {{ old('is_active', $category->is_active) ? 'selected' : '' }}>🟢 Hiển thị (Kích hoạt)</option>
-                        <option value="0" {{ !old('is_active', $category->is_active) ? 'selected' : '' }}>🔴 Ẩn (Khóa)</option>
+                    <label for="status_select" class="form-label fw-bold">Trạng Thái Kích Hoạt <span class="text-danger">*</span></label>
+                    <select class="form-select @error('status') is-invalid @enderror @error('is_active') is-invalid @enderror" id="status_select" name="status" onchange="document.getElementById('is_active_hidden').value = this.value">
+                        <option value="1" {{ old('status', old('is_active', $category->is_active ?? '1')) == '1' ? 'selected' : '' }}>🟢 Hiển thị (Kích hoạt)</option>
+                        <option value="0" {{ old('status', old('is_active', $category->is_active ?? '1')) == '0' ? 'selected' : '' }}>🔴 Ẩn (Khóa)</option>
                     </select>
+                    <input type="hidden" id="is_active_hidden" name="is_active" value="{{ old('is_active', old('status', $category->is_active ?? '1')) }}">
                 </div>
 
                 <!-- Nút Thao Tác -->
