@@ -46,7 +46,7 @@
                     <textarea class="form-control @error('description') is-invalid @enderror" id="description" name="description" rows="3" placeholder="Mô tả ngắn gọn về nhóm sản phẩm này...">{{ old('description') }}</textarea>
                 </div>
 
-                <!-- CSS tùy chỉnh ô chọn màu -->
+                <!-- CSS Tùy Chỉnh Chọn Màu -->
                 <style>
                     .color-pill {
                         cursor: pointer;
@@ -110,14 +110,13 @@
                     </div>
                 </div>
 
-                <!-- Trạng Thái Kích Hoạt (Đồng bộ cả 'status' lẫn 'is_active') -->
+                <!-- Trạng Thái Kích Hoạt -->
                 <div class="mb-4">
-                    <label for="status_select" class="form-label fw-bold">Trạng Thái Kích Hoạt <span class="text-danger">*</span></label>
-                    <select class="form-select @error('status') is-invalid @enderror @error('is_active') is-invalid @enderror" id="status_select" name="status" onchange="document.getElementById('is_active_hidden').value = this.value">
-                        <option value="1" {{ old('status', old('is_active', '1')) == '1' ? 'selected' : '' }}>🟢 Hiển thị (Kích hoạt)</option>
-                        <option value="0" {{ old('status', old('is_active')) == '0' ? 'selected' : '' }}>🔴 Ẩn (Khóa)</option>
+                    <label for="status" class="form-label fw-bold">Trạng Thái Kích Hoạt <span class="text-danger">*</span></label>
+                    <select class="form-select @error('status') is-invalid @enderror" id="status" name="status">
+                        <option value="active" {{ old('status', 'active') === 'active' ? 'selected' : '' }}>🟢 Hiển thị (Kích hoạt)</option>
+                        <option value="inactive" {{ old('status') === 'inactive' ? 'selected' : '' }}>🔴 Ẩn (Khóa)</option>
                     </select>
-                    <input type="hidden" id="is_active_hidden" name="is_active" value="{{ old('is_active', old('status', '1')) }}">
                 </div>
 
                 <!-- Nút Thao Tác -->

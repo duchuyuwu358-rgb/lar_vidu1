@@ -27,7 +27,8 @@ class CategoryController extends Controller
         }
 
         if ($status !== null && $status !== '') {
-            $query->where('is_active', $status === 'active');
+            $isActive = in_array($status, ['active', '1', true], true);
+            $query->where('is_active', $isActive);
         }
 
         $categories = $query->paginate(10)->appends($request->all());
@@ -54,22 +55,23 @@ class CategoryController extends Controller
             'name'        => ['required', 'string', 'max:255'],
             'slug'        => ['nullable', 'string', 'max:255', 'unique:categories,slug'],
             'description' => ['nullable', 'string'],
-            'status'      => ['required', 'in:active,inactive'],
+            'status'      => ['nullable', 'in:active,inactive,1,0'],
+            'is_active'   => ['nullable', 'in:1,0,true,false,active,inactive'],
             'colors'      => ['nullable', 'array'],
             'colors.*'    => ['string', 'max:50'],
             'image'       => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,webp', 'max:2048'],
         ], [
-            'name.required'   => 'Vui lòng nhập tên danh mục.',
-            'name.max'        => 'Tên danh mục không được vượt quá 255 ký tự.',
-            'slug.unique'     => 'Đường dẫn (Slug) này đã tồn tại trên hệ thống.',
-            'status.required' => 'Vui lòng chọn trạng thái danh mục.',
-            'status.in'       => 'Trạng thái được chọn không hợp lệ.',
-            'image.image'     => 'Tệp tải lên phải là hình ảnh.',
-            'image.mimes'     => 'Hình ảnh phải có định dạng: jpeg, png, jpg, gif, webp.',
-            'image.max'       => 'Dung lượng ảnh tối đa là 2MB.',
+            'name.required' => 'Vui lòng nhập tên danh mục.',
+            'name.max'      => 'Tên danh mục không được vượt quá 255 ký tự.',
+            'slug.unique'   => 'Đường dẫn (Slug) này đã tồn tại trên hệ thống.',
+            'status.in'     => 'Trạng thái được chọn không hợp lệ.',
+            'image.image'   => 'Tệp tải lên phải là hình ảnh.',
+            'image.mimes'   => 'Hình ảnh phải có định dạng: jpeg, png, jpg, gif, webp.',
+            'image.max'     => 'Dung lượng ảnh tối đa là 2MB.',
         ]);
 
-        $validated['is_active'] = ($validated['status'] === 'active');
+        $statusInput = $request->input('status', $request->input('is_active', 'active'));
+        $validated['is_active'] = in_array((string)$statusInput, ['active', '1', 'true'], true);
         unset($validated['status']);
 
         if (empty($validated['slug'])) {
@@ -113,22 +115,23 @@ class CategoryController extends Controller
             'name'        => ['required', 'string', 'max:255'],
             'slug'        => ['nullable', 'string', 'max:255', 'unique:categories,slug,' . $category->id],
             'description' => ['nullable', 'string'],
-            'status'      => ['required', 'in:active,inactive'],
+            'status'      => ['nullable', 'in:active,inactive,1,0'],
+            'is_active'   => ['nullable', 'in:1,0,true,false,active,inactive'],
             'colors'      => ['nullable', 'array'],
             'colors.*'    => ['string', 'max:50'],
             'image'       => ['nullable', 'image', 'mimes:jpeg,png,jpg,gif,webp', 'max:2048'],
         ], [
-            'name.required'   => 'Vui lòng nhập tên danh mục.',
-            'name.max'        => 'Tên danh mục không được vượt quá 255 ký tự.',
-            'slug.unique'     => 'Đường dẫn (Slug) này đã tồn tại trên hệ thống.',
-            'status.required' => 'Vui lòng chọn trạng thái danh mục.',
-            'status.in'       => 'Trạng thái được chọn không hợp lệ.',
-            'image.image'     => 'Tệp tải lên phải là hình ảnh.',
-            'image.mimes'     => 'Hình ảnh phải có định dạng: jpeg, png, jpg, gif, webp.',
-            'image.max'       => 'Dung lượng ảnh tối đa là 2MB.',
+            'name.required' => 'Vui lòng nhập tên danh mục.',
+            'name.max'      => 'Tên danh mục không được vượt quá 255 ký tự.',
+            'slug.unique'   => 'Đường dẫn (Slug) này đã tồn tại trên hệ thống.',
+            'status.in'     => 'Trạng thái được chọn không hợp lệ.',
+            'image.image'   => 'Tệp tải lên phải là hình ảnh.',
+            'image.mimes'   => 'Hình ảnh phải có định dạng: jpeg, png, jpg, gif, webp.',
+            'image.max'     => 'Dung lượng ảnh tối đa là 2MB.',
         ]);
 
-        $validated['is_active'] = ($validated['status'] === 'active');
+        $statusInput = $request->input('status', $request->input('is_active', 'active'));
+        $validated['is_active'] = in_array((string)$statusInput, ['active', '1', 'true'], true);
         unset($validated['status']);
 
         if (empty($validated['slug'])) {
@@ -154,7 +157,6 @@ class CategoryController extends Controller
      */
     public function destroy(Category $category)
     {
-        // Kiểm tra an toàn: Không cho phép xóa danh mục đang có sản phẩm liên kết
         if ($category->hoods()->exists()) {
             return redirect()->route('categories.index')->with('error', 'Không thể xóa danh mục này vì đang có sản phẩm thuộc danh mục!');
         }
