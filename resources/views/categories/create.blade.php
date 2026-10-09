@@ -1,41 +1,113 @@
-<div class="mb-4">
-    <label class="form-label fw-bold">Danh Sách Màu Sắc Hỗ Trợ</label>
-    <p class="text-muted small mb-3">Tích chọn các màu sắc khả dụng cho các sản phẩm thuộc danh mục này:</p>
-    
-    <div class="d-flex flex-wrap gap-2 align-items-center">
-        <!-- Đen -->
-        <input type="checkbox" class="btn-check" id="color_black" name="colors[]" value="black" autocomplete="off" {{ (is_array(old('colors', $category->colors ?? [])) && in_array('black', old('colors', $category->colors ?? []))) ? 'checked' : '' }}>
-        <label class="btn btn-outline-secondary d-flex align-items-center gap-2 px-3 py-2" for="color_black">
-            <span class="rounded-circle d-inline-block" style="width: 14px; height: 14px; background-color: #000000;"></span>
-            <span class="fw-semibold text-dark">Đen</span>
-        </label>
+@extends('layouts.app')
 
-        <!-- Bạc -->
-        <input type="checkbox" class="btn-check" id="color_silver" name="colors[]" value="silver" autocomplete="off" {{ (is_array(old('colors', $category->colors ?? [])) && in_array('silver', old('colors', $category->colors ?? []))) ? 'checked' : '' }}>
-        <label class="btn btn-outline-secondary d-flex align-items-center gap-2 px-3 py-2" for="color_silver">
-            <span class="rounded-circle d-inline-block" style="width: 14px; height: 14px; background-color: #c0c0c0;"></span>
-            <span class="fw-semibold text-dark">Bạc</span>
-        </label>
+@section('title', 'Cập Nhật Danh Mục')
 
-        <!-- Trắng (Thêm viền mỏng) -->
-        <input type="checkbox" class="btn-check" id="color_white" name="colors[]" value="white" autocomplete="off" {{ (is_array(old('colors', $category->colors ?? [])) && in_array('white', old('colors', $category->colors ?? []))) ? 'checked' : '' }}>
-        <label class="btn btn-outline-secondary d-flex align-items-center gap-2 px-3 py-2" for="color_white">
-            <span class="rounded-circle d-inline-block border border-secondary-subtle" style="width: 14px; height: 14px; background-color: #ffffff;"></span>
-            <span class="fw-semibold text-dark">Trắng</span>
-        </label>
+@section('content')
+<div class="container mt-4" style="max-width: 850px;">
+    <div class="row mb-4 align-items-center">
+        <div class="col-md-8">
+            <h1 class="h3 mb-0 fw-bold text-primary">
+                <i class="bi bi-pencil-square me-2"></i>Cập Nhật Danh Mục: {{ $category->name }}
+            </h1>
+        </div>
+        <div class="col-md-4 text-end">
+            <a href="{{ route('categories.index') }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i> Quay Lại
+            </a>
+        </div>
+    </div>
 
-        <!-- Xám -->
-        <input type="checkbox" class="btn-check" id="color_grey" name="colors[]" value="grey" autocomplete="off" {{ (is_array(old('colors', $category->colors ?? [])) && in_array('grey', old('colors', $category->colors ?? []))) ? 'checked' : '' }}>
-        <label class="btn btn-outline-secondary d-flex align-items-center gap-2 px-3 py-2" for="color_grey">
-            <span class="rounded-circle d-inline-block" style="width: 14px; height: 14px; background-color: #6c757d;"></span>
-            <span class="fw-semibold text-dark">Xám</span>
-        </label>
+    @if ($errors->any())
+        <div class="alert alert-danger alert-dismissible fade show mb-4" role="alert">
+            <strong>Lỗi nhập liệu!</strong> Vui lòng kiểm tra lại thông tin dưới đây:
+            <ul class="mb-0 mt-2 ps-3">
+                @foreach ($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    @endif
 
-        <!-- Vàng Đồng -->
-        <input type="checkbox" class="btn-check" id="color_gold" name="colors[]" value="gold" autocomplete="off" {{ (is_array(old('colors', $category->colors ?? [])) && in_array('gold', old('colors', $category->colors ?? []))) ? 'checked' : '' }}>
-        <label class="btn btn-outline-secondary d-flex align-items-center gap-2 px-3 py-2" for="color_gold">
-            <span class="rounded-circle d-inline-block" style="width: 14px; height: 14px; background-color: #d4af37;"></span>
-            <span class="fw-semibold text-dark">Vàng Đồng</span>
-        </label>
+    <div class="card shadow-sm border-0 rounded-4">
+        <div class="card-body p-4">
+            <form action="{{ route('categories.update', $category) }}" method="POST">
+                @csrf
+                @method('PUT')
+
+                <!-- Tên Danh Mục -->
+                <div class="mb-3">
+                    <label for="name" class="form-label fw-bold">Tên Danh Mục <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control @error('name') is-invalid @enderror" id="name" name="name" value="{{ old('name', $category->name) }}" required>
+                </div>
+
+                <!-- Mô Tả Danh Mục -->
+                <div class="mb-3">
+                    <label for="description" class="form-label fw-bold">Mô Tả Danh Mục</label>
+                    <textarea class="form-control @error('description') is-invalid @enderror" id="description" name="description" rows="3">{{ old('description', $category->description) }}</textarea>
+                </div>
+
+                <!-- Danh Sách Màu Sắc Hỗ Trợ -->
+                <div class="mb-4 p-3 bg-light border rounded-3">
+                    <label class="form-label fw-bold d-block mb-1">
+                        <i class="bi bi-palette me-1"></i> Danh Sách Màu Sắc Hỗ Trợ
+                    </label>
+                    <p class="text-muted small mb-3">Tích chọn các màu sắc khả dụng cho các sản phẩm thuộc danh mục này:</p>
+
+                    @php
+                        $colorList = [
+                            'Đen'       => ['bg' => '#000000', 'border' => false],
+                            'Bạc'       => ['bg' => '#c0c0c0', 'border' => false],
+                            'Trắng'     => ['bg' => '#ffffff', 'border' => true],
+                            'Xám'       => ['bg' => '#6c757d', 'border' => false],
+                            'Inox'      => ['bg' => '#e2e8f0', 'border' => true],
+                            'Vàng Đồng' => ['bg' => '#d4af37', 'border' => false],
+                            'Đỏ'        => ['bg' => '#dc3545', 'border' => false],
+                            'Vàng'      => ['bg' => '#ffc107', 'border' => false],
+                            'Xanh Dương' => ['bg' => '#0d6efd', 'border' => false],
+                            'Xanh Lá'   => ['bg' => '#198754', 'border' => false],
+                        ];
+
+                        $currentColors = old('colors', $category->colors ?? []);
+                        if (is_string($currentColors)) {
+                            $currentColors = json_decode($currentColors, true) ?? [];
+                        }
+                    @endphp
+
+                    <div class="d-flex flex-wrap gap-2 align-items-center">
+                        @foreach($colorList as $colorName => $style)
+                            @php
+                                $elementId = 'color_edit_' . Str::slug($colorName, '_');
+                                $isChecked = is_array($currentColors) && in_array($colorName, $currentColors);
+                            @endphp
+
+                            <input type="checkbox" class="btn-check" id="{{ $elementId }}" name="colors[]" value="{{ $colorName }}" autocomplete="off" {{ $isChecked ? 'checked' : '' }}>
+                            <label class="btn btn-outline-secondary d-flex align-items-center gap-2 px-3 py-2 bg-white" for="{{ $elementId }}">
+                                <span class="rounded-circle d-inline-block {{ $style['border'] ? 'border border-secondary-subtle' : '' }}" style="width: 14px; height: 14px; background-color: {{ $style['bg'] }};"></span>
+                                <span class="fw-semibold text-dark">{{ $colorName }}</span>
+                            </label>
+                        @endforeach
+                    </div>
+                </div>
+
+                <!-- Trạng Thái Kích Hoạt -->
+                <div class="mb-4">
+                    <label for="is_active" class="form-label fw-bold">Trạng Thái Kích Hoạt</label>
+                    <select class="form-select @error('is_active') is-invalid @enderror" id="is_active" name="is_active">
+                        <option value="1" {{ old('is_active', $category->is_active) ? 'selected' : '' }}>🟢 Hiển thị (Kích hoạt)</option>
+                        <option value="0" {{ !old('is_active', $category->is_active) ? 'selected' : '' }}>🔴 Ẩn (Khóa)</option>
+                    </select>
+                </div>
+
+                <!-- Nút Thao Tác -->
+                <div class="d-flex justify-content-end gap-2 border-top pt-3">
+                    <a href="{{ route('categories.index') }}" class="btn btn-outline-secondary px-4">Hủy</a>
+                    <button type="submit" class="btn btn-primary px-4 fw-bold">
+                        <i class="bi bi-check-circle me-1"></i> Lưu Thay Đổi
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
+@endsection
