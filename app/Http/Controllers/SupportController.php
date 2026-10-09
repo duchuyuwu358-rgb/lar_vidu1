@@ -20,7 +20,7 @@ class SupportController extends Controller
     }
 
     /**
-     * 2. Phía Khách hàng: Lưu thư & Tệp đính kèm vào CSDL
+     * 2. Phía Khách hàng: Lưu thư & Tệp đính kèm vào CSDL (Mặc định status = pending)
      */
     public function sendSupport(Request $request)
     {
@@ -52,7 +52,7 @@ class SupportController extends Controller
             'subject'         => $validated['subject'],
             'message'         => $validated['message'],
             'attachment_path' => $attachmentPath,
-            'status'          => 'pending',
+            'status'          => 'pending', // Mặc định luôn là 'pending' (Đang chờ xử lý)
             'user_id'         => auth()->id(),
         ];
 
@@ -80,7 +80,7 @@ class SupportController extends Controller
     }
 
     /**
-     * 4. Phía Admin & Nhân viên: Thống kê số lượng + Danh sách hòm thư
+     * 4. Phía Admin: Thống kê số lượng + Danh sách hòm thư
      */
     public function adminIndex(Request $request)
     {
@@ -111,7 +111,7 @@ class SupportController extends Controller
     }
 
     /**
-     * 5. Phía Admin & Nhân viên: Phản hồi thư, lưu CSDL 2 chiều & Gửi Mail
+     * 5. Phía Admin: Phản hồi thư, lưu CSDL 2 chiều & Gửi Mail
      */
     public function adminReply(Request $request, $id)
     {
@@ -161,7 +161,7 @@ class SupportController extends Controller
     }
 
     /**
-     * 6. Phía Admin & Nhân viên: Xóa thư hỗ trợ
+     * 6. Phía Admin: Xóa thư hỗ trợ
      */
     public function destroy($id)
     {
