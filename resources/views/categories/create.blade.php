@@ -1,13 +1,13 @@
 @extends('layouts.app')
 
-@section('title', 'Cập Nhật Danh Mục')
+@section('title', 'Thêm Danh Mục Mới')
 
 @section('content')
 <div class="container mt-4" style="max-width: 850px;">
     <div class="row mb-4 align-items-center">
         <div class="col-md-8">
             <h1 class="h3 mb-0 fw-bold text-primary">
-                <i class="bi bi-pencil-square me-2"></i>Cập Nhật Danh Mục: {{ $category->name }}
+                <i class="bi bi-folder-plus me-2"></i>Thêm Danh Mục Sản Phẩm
             </h1>
         </div>
         <div class="col-md-4 text-end">
@@ -31,20 +31,19 @@
 
     <div class="card shadow-sm border-0 rounded-4">
         <div class="card-body p-4">
-            <form action="{{ route('categories.update', $category) }}" method="POST">
+            <form action="{{ route('categories.store') }}" method="POST">
                 @csrf
-                @method('PUT')
 
                 <!-- Tên Danh Mục -->
                 <div class="mb-3">
                     <label for="name" class="form-label fw-bold">Tên Danh Mục <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control @error('name') is-invalid @enderror" id="name" name="name" value="{{ old('name', $category->name) }}" required>
+                    <input type="text" class="form-control @error('name') is-invalid @enderror" id="name" name="name" value="{{ old('name') }}" placeholder="VD: Máy Hút Mùi Kính Cong, Kính Phẳng..." required>
                 </div>
 
                 <!-- Mô Tả Danh Mục -->
                 <div class="mb-3">
                     <label for="description" class="form-label fw-bold">Mô Tả Danh Mục</label>
-                    <textarea class="form-control @error('description') is-invalid @enderror" id="description" name="description" rows="3">{{ old('description', $category->description) }}</textarea>
+                    <textarea class="form-control @error('description') is-invalid @enderror" id="description" name="description" rows="3" placeholder="Mô tả ngắn gọn về nhóm sản phẩm này...">{{ old('description') }}</textarea>
                 </div>
 
                 <!-- Danh Sách Màu Sắc Hỗ Trợ -->
@@ -56,29 +55,29 @@
 
                     @php
                         $colorList = [
-                            'Đen'       => ['bg' => '#000000', 'border' => false],
-                            'Bạc'       => ['bg' => '#c0c0c0', 'border' => false],
-                            'Trắng'     => ['bg' => '#ffffff', 'border' => true],
-                            'Xám'       => ['bg' => '#6c757d', 'border' => false],
-                            'Inox'      => ['bg' => '#e2e8f0', 'border' => true],
-                            'Vàng Đồng' => ['bg' => '#d4af37', 'border' => false],
-                            'Đỏ'        => ['bg' => '#dc3545', 'border' => false],
-                            'Vàng'      => ['bg' => '#ffc107', 'border' => false],
+                            'Đen'        => ['bg' => '#000000', 'border' => false],
+                            'Bạc'        => ['bg' => '#c0c0c0', 'border' => false],
+                            'Trắng'      => ['bg' => '#ffffff', 'border' => true],
+                            'Xám'        => ['bg' => '#6c757d', 'border' => false],
+                            'Inox'       => ['bg' => '#e2e8f0', 'border' => true],
+                            'Vàng Đồng'  => ['bg' => '#d4af37', 'border' => false],
+                            'Đỏ'         => ['bg' => '#dc3545', 'border' => false],
+                            'Vàng'       => ['bg' => '#ffc107', 'border' => false],
                             'Xanh Dương' => ['bg' => '#0d6efd', 'border' => false],
-                            'Xanh Lá'   => ['bg' => '#198754', 'border' => false],
+                            'Xanh Lá'    => ['bg' => '#198754', 'border' => false],
                         ];
 
-                        $currentColors = old('colors', $category->colors ?? []);
-                        if (is_string($currentColors)) {
-                            $currentColors = json_decode($currentColors, true) ?? [];
+                        $oldColors = old('colors', []);
+                        if (is_string($oldColors)) {
+                            $oldColors = json_decode($oldColors, true) ?? [];
                         }
                     @endphp
 
                     <div class="d-flex flex-wrap gap-2 align-items-center">
                         @foreach($colorList as $colorName => $style)
                             @php
-                                $elementId = 'color_edit_' . Str::slug($colorName, '_');
-                                $isChecked = is_array($currentColors) && in_array($colorName, $currentColors);
+                                $elementId = 'color_create_' . \Illuminate\Support\Str::slug($colorName, '_');
+                                $isChecked = is_array($oldColors) && in_array($colorName, $oldColors);
                             @endphp
 
                             <input type="checkbox" class="btn-check" id="{{ $elementId }}" name="colors[]" value="{{ $colorName }}" autocomplete="off" {{ $isChecked ? 'checked' : '' }}>
@@ -94,8 +93,8 @@
                 <div class="mb-4">
                     <label for="is_active" class="form-label fw-bold">Trạng Thái Kích Hoạt</label>
                     <select class="form-select @error('is_active') is-invalid @enderror" id="is_active" name="is_active">
-                        <option value="1" {{ old('is_active', $category->is_active) ? 'selected' : '' }}>🟢 Hiển thị (Kích hoạt)</option>
-                        <option value="0" {{ !old('is_active', $category->is_active) ? 'selected' : '' }}>🔴 Ẩn (Khóa)</option>
+                        <option value="1" {{ old('is_active', '1') == '1' ? 'selected' : '' }}>🟢 Hiển thị (Kích hoạt)</option>
+                        <option value="0" {{ old('is_active') == '0' ? 'selected' : '' }}>🔴 Ẩn (Khóa)</option>
                     </select>
                 </div>
 
@@ -103,7 +102,7 @@
                 <div class="d-flex justify-content-end gap-2 border-top pt-3">
                     <a href="{{ route('categories.index') }}" class="btn btn-outline-secondary px-4">Hủy</a>
                     <button type="submit" class="btn btn-primary px-4 fw-bold">
-                        <i class="bi bi-check-circle me-1"></i> Lưu Thay Đổi
+                        <i class="bi bi-plus-circle me-1"></i> Tạo Danh Mục
                     </button>
                 </div>
             </form>
