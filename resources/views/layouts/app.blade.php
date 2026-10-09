@@ -415,7 +415,7 @@
                                    class="btn btn-sm btn-warning text-dark fw-bold px-2 py-1 rounded-pill shadow-sm me-1" 
                                    style="font-size: 0.78rem;" 
                                    title="Bấm để mở trang xác minh email">
-                                    <i class="bi bi-exclamation-circle-fill me-1"></i>Chưa xác minh (Bấm xác minh)
+                                    <i class="bi bi-exclamation-circle-fill me-1"></i>Chưa xác minh
                                 </a>
                             @endif
 
