@@ -627,6 +627,7 @@
                     }).catch(() => {});
             }
 
+            /* HÀM HIỂN THỊ CHAT BÊN NHÂN VIÊN (ĐÃ SỬA VÀ LỌC LỖI TRÌNH BÀY) */
             window.openAdminUserChat = function(userId, userName) {
                 activeAdminUserId = userId;
                 if (userName) activeAdminUserName = userName;
@@ -639,25 +640,43 @@
                     .then(r => r.json())
                     .then(msgs => {
                         let html = '';
+                        let lastIsSystem = false;
+
                         if (!msgs || msgs.length === 0) {
                             html = `<div class="text-center text-muted small py-4">Bắt đầu trò chuyện với <b>${activeAdminUserName}</b></div>`;
                         } else {
                             msgs.forEach(m => {
                                 let text = m.content || m.message || '';
-                                if (text === 'exit' || text === 'connect_staff') return;
-
-                                if (text.includes('🎧') || text.includes('Hệ thống:')) {
-                                    html += `<div class="text-center text-muted extra-small my-2"><span class="bg-white px-2 py-1 rounded border shadow-sm">${text}</span></div>`;
+                                if (!text || text === 'exit' || text === 'connect_staff' || text.includes('🤖') || text.includes('XFAN Bot')) {
                                     return;
                                 }
 
+                                if (text.includes('🎧') || text.includes('Hệ thống:')) {
+                                    if (lastIsSystem) return; // Chống hiển thị 2 thông báo liên tiếp
+                                    lastIsSystem = true;
+                                    let cleanText = text.replace('🎧', '').trim();
+                                    html += `
+                                        <div class="text-center my-2">
+                                            <span class="badge bg-light text-secondary border fw-normal px-2 py-1 rounded-pill shadow-sm" style="font-size: 0.75rem;">
+                                                <i class="bi bi-headset text-primary me-1"></i>${cleanText}
+                                            </span>
+                                        </div>`;
+                                    return;
+                                }
+
+                                lastIsSystem = false;
                                 let isMe = (m.sender_id != userId);
-                                html += `<div class="${isMe ? 'msg-bubble-sent' : 'msg-bubble-received'}"><div class="small">${text}</div></div>`;
+                                html += `
+                                    <div class="${isMe ? 'msg-bubble-sent' : 'msg-bubble-received'}">
+                                        <div class="small">${text}</div>
+                                    </div>`;
                             });
                         }
+
                         if (html === '') {
                             html = `<div class="text-center text-muted small py-4">Chưa có tin nhắn trực tiếp với <b>${activeAdminUserName}</b></div>`;
                         }
+
                         adminMessagesBox.innerHTML = html;
                         adminMessagesBox.scrollTop = adminMessagesBox.scrollHeight;
                     }).catch(() => {});
@@ -776,7 +795,15 @@
                     } else {
                         cachedHistory.forEach(m => {
                             let text = m.content || m.message || '';
-                            if (text === 'connect_staff' || text === 'exit') return;
+                            if (text === 'connect_staff' || text === 'exit' || text.includes('🤖') || text.includes('XFAN Bot')) return;
+
+                            if (text.includes('🎧') || text.includes('Hệ thống:')) {
+                                let div = document.createElement('div');
+                                div.className = 'text-center my-2';
+                                div.innerHTML = `<span class="badge bg-light text-secondary border fw-normal px-2 py-1 rounded-pill shadow-sm" style="font-size: 0.75rem;"><i class="bi bi-headset text-primary me-1"></i>${text.replace('🎧', '').trim()}</span>`;
+                                chatHistoryContainer.appendChild(div);
+                                return;
+                            }
 
                             let isMe = (m.sender_id == currentUserId || m.type === 'user' || m.sender === 'user');
                             appendBubbleToBox(chatHistoryContainer, text, isMe ? 'sent' : 'received', isMe ? 'Bạn' : 'Nhân viên tư vấn');
