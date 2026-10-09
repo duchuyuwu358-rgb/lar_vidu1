@@ -77,7 +77,7 @@
                                                 </div>
                                                 <div class="modal-body p-4">
                                                     <!-- Nội dung đã gửi -->
-                                                    <div class="mb-4 p-3 bg-light rounded-3 border">
+                                                    <div class="p-3 bg-light rounded-3 border">
                                                         <div class="d-flex justify-content-between align-items-center mb-2">
                                                             <strong class="text-dark"><i class="bi bi-person-circle me-1 text-primary"></i>Nội dung trao đổi:</strong>
                                                             <small class="text-muted">{{ $req->created_at ? $req->created_at->format('H:i d/m/Y') : '' }}</small>
@@ -113,18 +113,14 @@
                                                         @endif
                                                     </div>
 
-                                                    <!-- Nội dung Admin phản hồi -->
-                                                    @if(!empty($req->reply_content))
-                                                        <div class="p-3 bg-success-subtle rounded-3 border border-success-subtle">
+                                                    <!-- Nội dung Admin trả lời riêng (Chỉ hiện khi câu trả lời khác nội dung đã gửi) -->
+                                                    @if(!empty($req->reply_content) && $req->reply_content !== ($req->message ?? $req->content))
+                                                        <div class="mt-3 p-3 bg-success-subtle rounded-3 border border-success-subtle">
                                                             <div class="d-flex justify-content-between align-items-center mb-2">
                                                                 <strong class="text-success"><i class="bi bi-shield-check me-1"></i>Ban Quản Trị XFAN Store Trả Lời:</strong>
                                                                 <small class="text-muted">{{ $req->updated_at ? $req->updated_at->format('H:i d/m/Y') : '' }}</small>
                                                             </div>
                                                             <p class="mb-0 text-dark fw-semibold small" style="white-space: pre-wrap;">{{ $req->reply_content }}</p>
-                                                        </div>
-                                                    @else
-                                                        <div class="p-3 bg-warning-subtle text-warning-emphasis rounded-3 border border-warning-subtle text-center">
-                                                            <i class="bi bi-clock-history me-1"></i>Yêu cầu của bạn đang được Ban quản trị xử lý. Vui lòng quay lại sau!
                                                         </div>
                                                     @endif
                                                 </div>

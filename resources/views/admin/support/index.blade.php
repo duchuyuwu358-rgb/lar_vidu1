@@ -81,7 +81,7 @@
         <div class="card-body p-0">
             <div class="table-responsive">
                 <table class="table table-hover align-middle mb-0">
-                    <thead class="table-light">
+                    <thead class="table-light text-nowrap">
                         <tr>
                             <th class="ps-3" style="width: 70px;">ID</th>
                             <th>Khách hàng</th>
@@ -90,20 +90,20 @@
                             <th class="text-center">Tệp đính kèm</th>
                             <th class="text-center">Trạng thái</th>
                             <th>Ngày gửi</th>
-                            <th class="text-end pe-3">Thao tác</th>
+                            <th class="text-end pe-3" style="min-width: 175px;">Thao tác</th>
                         </tr>
                     </thead>
                     <tbody>
                         @forelse($supportRequests as $req)
                             <tr>
                                 <td class="ps-3 fw-bold">#{{ $req->id }}</td>
-                                <td class="fw-semibold">{{ $req->name }}</td>
-                                <td>
+                                <td class="fw-semibold text-nowrap">{{ $req->name }}</td>
+                                <td class="text-nowrap">
                                     <div><i class="bi bi-envelope me-1"></i>{{ $req->email }}</div>
                                     @if($req->phone)<small class="text-muted"><i class="bi bi-telephone me-1"></i>{{ $req->phone }}</small>@endif
                                 </td>
                                 <td><span class="fw-bold text-dark">{{ $req->subject }}</span></td>
-                                <td class="text-center">
+                                <td class="text-center text-nowrap">
                                     @if($req->attachment_path)
                                         <a href="{{ asset('storage/' . $req->attachment_path) }}" target="_blank" class="badge bg-info-subtle text-info border border-info-subtle px-2 py-1 text-decoration-none">
                                             <i class="bi bi-paperclip me-1"></i>Mở Tệp Khách Gửi
@@ -112,7 +112,7 @@
                                         <span class="text-muted fs-7">Không có</span>
                                     @endif
                                 </td>
-                                <td class="text-center">
+                                <td class="text-center text-nowrap">
                                     @if($req->status === 'replied' || !empty($req->reply_content))
                                         <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
                                             <i class="bi bi-check-circle-fill me-1"></i>Đã phản hồi
@@ -123,19 +123,19 @@
                                         </span>
                                     @endif
                                 </td>
-                                <td>{{ $req->created_at ? $req->created_at->format('H:i - d/m/Y') : '' }}</td>
+                                <td class="text-nowrap">{{ $req->created_at ? $req->created_at->format('H:i - d/m/Y') : '' }}</td>
                                 
-                                <!-- CÂN ĐỐI NÚT XEM & NÚT XÓA NGANG HÀNG -->
-                                <td class="text-end pe-3">
-                                    <div class="d-inline-flex align-items-center gap-2">
-                                        <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 shadow-sm d-inline-flex align-items-center" data-bs-toggle="modal" data-bs-target="#viewSupportModal{{ $req->id }}">
-                                            <i class="bi bi-eye-fill me-1"></i> Xem & Phản hồi
+                                <!-- CÂN ĐỐI NÚT XEM & NÚT XÓA NGANG HÀNG CHUẨN ĐẸP -->
+                                <td class="text-end pe-3 text-nowrap">
+                                    <div class="d-inline-flex align-items-center justify-content-end gap-2 flex-nowrap">
+                                        <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 shadow-sm text-nowrap d-inline-flex align-items-center" data-bs-toggle="modal" data-bs-target="#viewSupportModal{{ $req->id }}">
+                                            <i class="bi bi-eye-fill me-1"></i>Xem & Phản hồi
                                         </button>
 
-                                        <form action="{{ route('admin.support.destroy', $req->id) }}" method="POST" class="d-inline mb-0" onsubmit="return confirm('Bạn có chắc muốn xóa thư này?');">
+                                        <form action="{{ route('admin.support.destroy', $req->id) }}" method="POST" class="d-inline-block m-0" onsubmit="return confirm('Bạn có chắc muốn xóa thư này?');">
                                             @csrf
                                             @method('DELETE')
-                                            <button type="submit" class="btn btn-sm btn-outline-danger rounded-circle d-inline-flex align-items-center justify-content-center p-2" style="width: 32px; height: 32px;" title="Xóa thư">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger rounded-circle d-inline-flex align-items-center justify-content-center p-0 shadow-sm" style="width: 32px; height: 32px;" title="Xóa thư">
                                                 <i class="bi bi-trash-fill"></i>
                                             </button>
                                         </form>
