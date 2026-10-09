@@ -19,11 +19,11 @@ class ChatController extends Controller
     private function getAdminSenderId()
     {
         $admin = User::where('role', 'admin')->first();
-        return $admin ? $admin->id : 2; // Mặc định Admin ID = 2 từ CSDL lar_vidu1
+        return $admin ? $admin->id : 2; // Mặc định Admin ID = 2 từ CSDL
     }
 
     /**
-     * Lấy trạng thái chế độ Chat (Bot hay Admin)
+     * Lấy trạng thái chế độ Chat (Bot hay Admin/Nhân viên)
      */
     private function getIsAdminMode($userId)
     {
@@ -37,7 +37,7 @@ class ChatController extends Controller
     }
 
     /**
-     * Cập nhật trạng thái chế độ Chat (Bot hay Admin)
+     * Cập nhật trạng thái chế độ Chat (Bot hay Admin/Nhân viên)
      */
     private function setIsAdminMode($userId, bool $status)
     {
@@ -51,9 +51,7 @@ class ChatController extends Controller
     }
 
     /**
-     * ==========================================
-     * 0. HIỂN THỊ GIAO DIỆN CHAT ADMIN
-     * ==========================================
+     * Hiển thị giao diện quản lý Chat
      */
     public function index()
     {
@@ -64,12 +62,6 @@ class ChatController extends Controller
         }
         return view('admin.portal');
     }
-
-    /**
-     * ==========================================
-     * 1. DÀNH CHO KHÁCH HÀNG (USER)
-     * ==========================================
-     */
 
     /**
      * Lấy danh sách tin nhắn của khách hàng đang đăng nhập
@@ -96,7 +88,7 @@ class ChatController extends Controller
     }
 
     /**
-     * Khách hàng gửi tin nhắn (XFAN Bot + Kết nối Admin + Lệnh exit)
+     * Khách hàng gửi tin nhắn (Xử lý ngắt Bot tuyệt đối khi đã ở chế độ Nhân viên)
      */
     public function sendUserMessage(Request $request)
     {
@@ -116,7 +108,7 @@ class ChatController extends Controller
         $textLower = mb_strtolower($text);
         $adminId   = $this->getAdminSenderId();
 
-        // 1. Kiểm tra Lệnh EXIT để thoát khỏi Chat Admin quay lại XFAN Bot
+        // 1. Lệnh EXIT: Thoát khỏi chế độ Chat Nhân viên -> Quay lại Bot
         if (in_array($textLower, ['exit', '/exit', 'thoát', 'thoat', 'quit'])) {
             $this->setIsAdminMode($userId, false);
 
@@ -127,7 +119,7 @@ class ChatController extends Controller
                 'is_read'     => false,
             ]);
 
-            $reply = "🤖 **XFAN Bot:** Đã thoát cuộc trò chuyện với Admin! XFAN Bot sẵn sàng hỗ trợ bạn tư vấn sản phẩm, dịch vụ. Bạn cần giúp gì tiếp theo?";
+            $reply = "🤖 **XFAN Bot:** Đã thoát cuộc trò chuyện với Nhân viên! XFAN Bot sẵn sàng hỗ trợ bạn tư vấn sản phẩm, dịch vụ. Bạn cần giúp gì tiếp theo?";
 
             ChatMessage::create([
                 'sender_id'   => $adminId,
@@ -144,35 +136,27 @@ class ChatController extends Controller
             ]);
         }
 
-        // 2. Nếu đang trong chế độ Chat trực tiếp với Admin
-        if ($this->getIsAdminMode($userId)) {
-            $userMsg = ChatMessage::create([
-                'sender_id'   => $userId,
-                'receiver_id' => $adminId,
-                'content'     => $text,
-                'is_read'     => false,
-            ]);
+        // 2. Lệnh CONNECT: Kích hoạt chế độ Chat Nhân viên
+        $isConnectCommand = in_array($textLower, ['connect_staff', 'connect_admin', 'kết nối']) ||
+            str_contains($textLower, 'tư vấn viên') ||
+            str_contains($textLower, 'gặp admin') ||
+            str_contains($textLower, 'kết nối admin') ||
+            str_contains($textLower, 'kết nối nhân viên');
 
-            return response()->json([
-                'status' => 'success',
-                'mode'   => 'admin',
-                'data'   => $userMsg
-            ]);
-        }
-
-        // 3. Chế độ XFAN Bot tự động
-        $userMsg = ChatMessage::create([
-            'sender_id'   => $userId,
-            'receiver_id' => $adminId,
-            'content'     => $text,
-            'is_read'     => false,
-        ]);
-
-        // Yêu cầu chuyển sang tư vấn viên Admin
-        if (str_contains($textLower, 'tư vấn viên') || str_contains($textLower, 'gặp admin') || str_contains($textLower, 'kết nối admin')) {
+        if ($isConnectCommand) {
             $this->setIsAdminMode($userId, true);
 
-            $reply = "🎧 **Hệ thống:** Đã kết nối với Tư vấn viên Admin! (Bạn có thể gõ **'exit'** bất kỳ lúc nào để quay lại XFAN Bot).";
+            $userMsg = null;
+            if ($textLower !== 'connect_staff') {
+                $userMsg = ChatMessage::create([
+                    'sender_id'   => $userId,
+                    'receiver_id' => $adminId,
+                    'content'     => $text,
+                    'is_read'     => false,
+                ]);
+            }
+
+            $reply = "🎧 **Hệ thống:** Đã kết nối với Nhân viên tư vấn! Vui lòng gửi câu hỏi bên dưới (Bấm 'Thoát Nhân viên' hoặc gõ **'exit'** để quay lại XFAN Bot).";
 
             ChatMessage::create([
                 'sender_id'   => $adminId,
@@ -189,7 +173,31 @@ class ChatController extends Controller
             ]);
         }
 
-        // Phản hồi tự động thông minh từ XFAN Bot
+        // 3. Đang trong chế độ CHAT NHÂN VIÊN -> LƯU CSDL & KHÔNG ĐƯỢC CHẠY BOT CỦA HỆ THỐNG!
+        if ($this->getIsAdminMode($userId)) {
+            $userMsg = ChatMessage::create([
+                'sender_id'   => $userId,
+                'receiver_id' => $adminId,
+                'content'     => $text,
+                'is_read'     => false,
+            ]);
+
+            return response()->json([
+                'status' => 'success',
+                'mode'   => 'admin',
+                'reply'  => null, // Trả về null để Bot KHÔNG phản hồi
+                'data'   => $userMsg
+            ]);
+        }
+
+        // 4. Đang ở chế độ XFAN Bot tự động
+        $userMsg = ChatMessage::create([
+            'sender_id'   => $userId,
+            'receiver_id' => $adminId,
+            'content'     => $text,
+            'is_read'     => false,
+        ]);
+
         $reply = $this->generateSmartBotReply($text);
 
         ChatMessage::create([
@@ -208,7 +216,7 @@ class ChatController extends Controller
     }
 
     /**
-     * Sinh câu trả lời tự động cho XFAN Bot
+     * Câu trả lời tự động cho XFAN Bot
      */
     private function generateSmartBotReply(string $text): string
     {
@@ -229,11 +237,11 @@ class ChatController extends Controller
             return "🤖 **XFAN Bot:** Xin chào! Tôi là trợ lý ảo XFAN. Bạn muốn tìm hiểu dòng máy hút mùi nào hay dịch vụ lắp đặt của chúng tôi?";
         }
 
-        return "🤖 **XFAN Bot:** Cảm ơn bạn đã nhắn tin: '{$text}'. Tôi có thể hỗ trợ bạn chọn máy hút mùi cao cấp hoặc đặt lịch vệ sinh. Để trò chuyện trực tiếp với nhân viên hỗ trợ, bạn vui lòng gõ **'Tư vấn viên'**.";
+        return "🤖 **XFAN Bot:** Cảm ơn bạn đã nhắn tin: '{$text}'. Tôi có thể hỗ trợ bạn chọn máy hút mùi cao cấp hoặc đặt lịch vệ sinh. Để trò chuyện trực tiếp với nhân viên hỗ trợ, bạn vui lòng chọn **'Kết nối trực tiếp với Nhân viên tư vấn'**.";
     }
 
     /**
-     * Kiểm tra số tin nhắn chưa đọc của khách hàng
+     * Đếm số tin nhắn chưa đọc của người dùng
      */
     public function checkUserUnread()
     {
@@ -250,7 +258,7 @@ class ChatController extends Controller
     }
 
     /**
-     * Đánh dấu tất cả tin nhắn gửi tới khách hàng là ĐÃ ĐỌC
+     * Đánh dấu tất cả tin nhắn gửi tới người dùng là đã đọc
      */
     public function markUserRead()
     {
@@ -265,13 +273,7 @@ class ChatController extends Controller
     }
 
     /**
-     * ==========================================
-     * 2. DÀNH CHO ADMIN
-     * ==========================================
-     */
-
-    /**
-     * Admin lấy danh sách khách hàng đã nhắn tin (kèm tin nhắn mới nhất & số tin chưa đọc)
+     * Admin/Nhân viên lấy danh sách khách hàng
      */
     public function getAdminUsers()
     {
@@ -282,10 +284,9 @@ class ChatController extends Controller
         $userIds   = $senders->merge($receivers)->unique();
 
         $users = User::whereIn('id', $userIds)
-            ->select('id', 'name', 'email')
+            ->select('id', 'name', 'email', 'role')
             ->get()
             ->map(function ($user) use ($adminId) {
-                // Đếm số tin nhắn chưa đọc
                 $user->unread_count = ChatMessage::where('sender_id', $user->id)
                     ->where(function ($q) use ($adminId) {
                         $q->where('receiver_id', $adminId)->orWhereNull('receiver_id');
@@ -293,7 +294,6 @@ class ChatController extends Controller
                     ->where('is_read', false)
                     ->count();
 
-                // Lấy nội dung và thời gian tin nhắn mới nhất
                 $latestMsg = ChatMessage::where(function ($q) use ($user) {
                     $q->where('sender_id', $user->id)
                       ->orWhere('receiver_id', $user->id);
@@ -304,7 +304,6 @@ class ChatController extends Controller
 
                 return $user;
             })
-            // Sắp xếp khách hàng mới nhắn tin lên đầu
             ->sortByDesc(function ($user) {
                 return $user->last_activity ? $user->last_activity->timestamp : 0;
             })
@@ -314,13 +313,12 @@ class ChatController extends Controller
     }
 
     /**
-     * Admin xem tin nhắn riêng với 1 User & tự động đánh dấu ĐÃ ĐỌC
+     * Admin/Nhân viên lấy nội dung tin nhắn với 1 User
      */
     public function getAdminMessages($userId)
     {
         $adminId = Auth::id();
 
-        // Đánh dấu tất cả tin nhắn từ User này gửi cho Admin thành ĐÃ ĐỌC
         ChatMessage::where('sender_id', $userId)
             ->where(function ($q) use ($adminId) {
                 $q->where('receiver_id', $adminId)->orWhereNull('receiver_id');
@@ -344,7 +342,7 @@ class ChatController extends Controller
     }
 
     /**
-     * Admin phản hồi tin nhắn cho 1 User
+     * Admin/Nhân viên gửi tin nhắn cho 1 User
      */
     public function sendAdminMessage(Request $request)
     {
@@ -365,14 +363,13 @@ class ChatController extends Controller
             'is_read'     => false,
         ]);
 
-        // Kích hoạt chế độ Chat Admin cho User đó
         $this->setIsAdminMode($request->user_id, true);
 
         return response()->json(['status' => 'success', 'data' => $chat]);
     }
 
     /**
-     * Đếm tổng số tin nhắn chưa đọc của tất cả khách hàng gửi đến Admin
+     * Đếm tổng số tin nhắn chưa đọc đối với Nhân viên
      */
     public function checkAdminUnread()
     {

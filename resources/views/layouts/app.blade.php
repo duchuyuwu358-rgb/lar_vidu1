@@ -305,7 +305,7 @@
             </div>
         </aside>
 
-        {{-- KHUNG CHAT DÀNH CHO NHÂN VIÊN (ĐẶT Ở GÓC DƯỚI BÊN PHẢI VỊ TRÍ GỐC) --}}
+        {{-- KHUNG CHAT DÀNH CHO NHÂN VIÊN --}}
         @if ($isStaff)
             <button type="button" id="btnAdminChatToggle" class="btn btn-dark rounded-pill shadow-lg px-3 py-2 floating-chat-btn position-relative">
                 <i class="bi bi-chat-dots-fill text-warning me-1"></i>
@@ -532,7 +532,7 @@
                             let emailName = (u.email || '').toLowerCase();
                             let userName = (u.name || '').toLowerCase();
                             
-                            // LỌC HOÀN TOÀN TÀI KHOẢN ADMIN TRONG CHAT LIST
+                            // LỌC HOÀN TOÀN TÀI KHOẢN ADMIN/STAFF
                             if (roleName === 'admin' || roleName === 'staff' || emailName.includes('admin') || userName.includes('admin')) {
                                 return;
                             }
@@ -600,7 +600,7 @@
                 });
             }
 
-            /* LOGIC CHAT PHÍA KHÁCH HÀNG (BOT TỰ ĐỘNG + TRÒ CHUYỆN NHÂN VIÊN TƯ VẤN) */
+            /* LOGIC CHAT PHÍA KHÁCH HÀNG */
             const btnUserToggle = document.getElementById('btnUserChatToggle');
             const userPanel = document.getElementById('userChatPanel');
             const btnUserClose = document.getElementById('btnUserChatClose');
@@ -646,7 +646,7 @@
                     cachedHistory = msgs;
 
                     if (data.is_admin || data.is_staff) {
-                        connectStaffChat();
+                        connectStaffChat(false); // Kết nối lại không cần gửi lại tin connect_staff
                     } else if (msgs && msgs.length > 0) {
                         if (btnContinueChat) btnContinueChat.classList.remove('d-none');
                     } else {
@@ -656,7 +656,7 @@
                 .catch(() => {});
             }
 
-            window.connectStaffChat = function() {
+            window.connectStaffChat = function(triggerServer = true) {
                 if (!isUserLoggedIn) {
                     appendBubbleToBox(botWelcomeContainer, 'Vui lòng <a href="/login" class="fw-bold">Đăng nhập</a> để kết nối trực tiếp với Nhân viên tư vấn.', 'received', 'XFAN Bot');
                     return;
@@ -678,6 +678,15 @@
                 }
 
                 if (botWelcomeContainer) botWelcomeContainer.classList.add('d-none');
+
+                if (triggerServer) {
+                    const userSendUrl = "{{ Route::has('user.chat.send') ? route('user.chat.send') : url('/user/chat/send') }}";
+                    fetch(userSendUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
+                        body: JSON.stringify({ message: 'connect_staff' })
+                    });
+                }
 
                 if (chatHistoryContainer) {
                     chatHistoryContainer.innerHTML = '';
@@ -715,7 +724,7 @@
             };
 
             function appendBubbleToBox(targetBox, text, type = 'received', senderName = 'XFAN Bot') {
-                if (!targetBox) return;
+                if (!targetBox || !text) return;
                 const div = document.createElement('div');
                 div.className = type === 'sent' ? 'msg-bubble-sent' : 'msg-bubble-received';
                 if (type === 'received') {
@@ -762,7 +771,7 @@
                         appendBubbleToBox(botWelcomeContainer, `💰 <b>Mức giá sản phẩm tại XFAN Store:</b><br>Các mẫu máy hút mùi tại cửa hàng hiện có mức giá dao động từ <b>${minPriceFormatted}</b> đến <b>${maxPriceFormatted}</b> tùy thuộc vào kiểu dáng và công suất.`, 'received', 'XFAN Bot');
                     
                     } else if (actionKey === 'connect_staff') {
-                        connectStaffChat();
+                        connectStaffChat(true);
                     }
                 }, 300);
             };
@@ -773,42 +782,31 @@
                     let msg = userInput.value.trim();
                     if (!msg) return;
 
-                    if (!isConnectedToStaff) {
-                        connectStaffChat();
-                        if (!isUserLoggedIn) return;
-                    }
-
-                    appendBubbleToBox(chatHistoryContainer, msg, 'sent');
                     userInput.value = '';
 
-                    const userSendUrl = "{{ Route::has('user.chat.send') ? route('user.chat.send') : url('/user/chat/send') }}";
+                    if (isConnectedToStaff) {
+                        appendBubbleToBox(chatHistoryContainer, msg, 'sent');
 
-                    fetch(userSendUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
-                        body: JSON.stringify({ message: msg })
-                    })
-                    .then(r => r.ok ? r.json() : null)
-                    .then(data => {
-                        if (!data) return;
-
-                        if (data.mode === 'bot') {
-                            resetToBotMenu();
-                            if (data.reply) {
-                                appendBubbleToBox(botWelcomeContainer, data.reply, 'received', 'XFAN Bot');
+                        const userSendUrl = "{{ Route::has('user.chat.send') ? route('user.chat.send') : url('/user/chat/send') }}";
+                        fetch(userSendUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
+                            body: JSON.stringify({ message: msg })
+                        })
+                        .then(r => r.ok ? r.json() : null)
+                        .then(data => {
+                            if (!data) return;
+                            if (data.mode === 'bot') {
+                                resetToBotMenu();
+                                if (data.reply) {
+                                    appendBubbleToBox(botWelcomeContainer, data.reply, 'received', 'XFAN Bot');
+                                }
                             }
-                        } else if (data.mode === 'staff' || data.mode === 'admin') {
-                            if (!isConnectedToStaff) {
-                                connectStaffChat();
-                            }
-                            if (data.reply) {
-                                appendBubbleToBox(chatHistoryContainer, data.reply, 'received', 'Nhân viên tư vấn');
-                            }
-                        } else if (data.reply) {
-                            appendBubbleToBox(chatHistoryContainer, data.reply, 'received', 'Nhân viên tư vấn');
-                        }
-                    })
-                    .catch(() => {});
+                        });
+                    } else {
+                        appendBubbleToBox(botWelcomeContainer, msg, 'sent');
+                        connectStaffChat(true);
+                    }
                 });
             }
         });
