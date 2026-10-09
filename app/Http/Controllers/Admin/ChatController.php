@@ -13,18 +13,12 @@ use Illuminate\Support\Facades\View;
 
 class ChatController extends Controller
 {
-    /**
-     * Lấy ID tài khoản Admin/Cửa hàng mặc định
-     */
     private function getAdminSenderId()
     {
         $admin = User::where('role', 'admin')->first();
         return $admin ? $admin->id : 2;
     }
 
-    /**
-     * Lấy trạng thái chế độ Chat (Bot hay Nhân viên)
-     */
     private function getIsAdminMode($userId)
     {
         if (Schema::hasTable('chat_sessions')) {
@@ -36,9 +30,6 @@ class ChatController extends Controller
         return (bool) session("is_admin_chat_{$userId}", false);
     }
 
-    /**
-     * Cập nhật trạng thái chế độ Chat (Bot hay Nhân viên)
-     */
     private function setIsAdminMode($userId, bool $status)
     {
         if (Schema::hasTable('chat_sessions')) {
@@ -50,9 +41,6 @@ class ChatController extends Controller
         session(["is_admin_chat_{$userId}" => $status]);
     }
 
-    /**
-     * Giao diện quản lý Chat Admin/Nhân viên
-     */
     public function index()
     {
         if (View::exists('admin.chat')) {
@@ -63,9 +51,6 @@ class ChatController extends Controller
         return view('admin.portal');
     }
 
-    /**
-     * Lấy danh sách tin nhắn của khách hàng đang đăng nhập
-     */
     public function getUserMessages()
     {
         $userId = Auth::id();
@@ -87,16 +72,10 @@ class ChatController extends Controller
         ]);
     }
 
-    /**
-     * Khách hàng gửi tin nhắn
-     */
     public function sendUserMessage(Request $request)
     {
         $request->validate([
             'message' => ['required', 'string', 'max:2000'],
-        ], [
-            'message.required' => 'Nội dung tin nhắn không được để trống.',
-            'message.max'      => 'Tin nhắn không được vượt quá 2000 ký tự.',
         ]);
 
         $userId = Auth::id();
@@ -108,7 +87,7 @@ class ChatController extends Controller
         $textLower = mb_strtolower($text);
         $adminId   = $this->getAdminSenderId();
 
-        // 1. Thoát khỏi chế độ Nhân viên tư vấn
+        // 1. Khách hàng bấm thoát khỏi chế độ Nhân viên tư vấn
         if (in_array($textLower, ['exit', '/exit', 'thoát', 'thoat', 'quit'])) {
             $this->setIsAdminMode($userId, false);
 
@@ -119,9 +98,17 @@ class ChatController extends Controller
             ]);
         }
 
-        // 2. Kích hoạt chế độ Nhân viên tư vấn khi bấm nút
+        // 2. Kích hoạt chuyển sang Nhân viên tư vấn
         if ($textLower === 'connect_staff' || $textLower === 'connect_admin') {
             $this->setIsAdminMode($userId, true);
+
+            // Lưu 1 dòng thông báo trong tin nhắn
+            ChatMessage::create([
+                'sender_id'   => $userId,
+                'receiver_id' => $adminId,
+                'content'     => '🎧 Khách hàng yêu cầu kết nối với Nhân viên tư vấn.',
+                'is_read'     => false,
+            ]);
 
             return response()->json([
                 'status' => 'success',
@@ -130,7 +117,7 @@ class ChatController extends Controller
             ]);
         }
 
-        // 3. Đang ở chế độ Chat trực tiếp với Nhân viên -> Gửi tin cho Nhân viên, chờ Nhân viên reply
+        // 3. Đang ở chế độ Chat với Nhân viên -> Gửi thẳng cho Nhân viên
         if ($this->getIsAdminMode($userId)) {
             $userMsg = ChatMessage::create([
                 'sender_id'   => $userId,
@@ -147,7 +134,7 @@ class ChatController extends Controller
             ]);
         }
 
-        // 4. Đang ở chế độ XFAN Bot -> Phản hồi tự động bằng Bot
+        // 4. Trả lời bằng Bot tự động
         $userMsg = ChatMessage::create([
             'sender_id'   => $userId,
             'receiver_id' => $adminId,
@@ -172,14 +159,10 @@ class ChatController extends Controller
         ]);
     }
 
-    /**
-     * Sinh phản hồi tự động thông minh cho Bot
-     */
     private function generateSmartBotReply(string $text): string
     {
         $textLower = mb_strtolower($text);
 
-        // Tìm kiếm sản phẩm theo từ khóa (dành cho mọi cụm từ từ người dùng nhập)
         if (str_contains($textLower, 'máy hút mùi') || str_contains($textLower, 'giá') || str_contains($textLower, 'sản phẩm') || str_contains($textLower, 'under cabinet') || str_contains($textLower, 'cabinet') || str_contains($textLower, 'hood')) {
             $query = Hood::query();
             
@@ -213,39 +196,7 @@ class ChatController extends Controller
     }
 
     /**
-     * Đếm số tin nhắn chưa đọc của người dùng
-     */
-    public function checkUserUnread()
-    {
-        $userId = Auth::id();
-        if (!$userId) {
-            return response()->json(['unread_count' => 0]);
-        }
-
-        $count = ChatMessage::where('receiver_id', $userId)
-            ->where('is_read', false)
-            ->count();
-
-        return response()->json(['unread_count' => $count]);
-    }
-
-    /**
-     * Đánh dấu tin nhắn là đã đọc
-     */
-    public function markUserRead()
-    {
-        $userId = Auth::id();
-        if ($userId) {
-            ChatMessage::where('receiver_id', $userId)
-                ->where('is_read', false)
-                ->update(['is_read' => true]);
-        }
-
-        return response()->json(['status' => 'success']);
-    }
-
-    /**
-     * Nhân viên lấy danh sách Khách hàng
+     * Nhân viên lấy danh sách Khách hàng (CHỈ HIỂN THỊ KHI ĐÃ BẤM KẾT NỐI NHÂN VIÊN)
      */
     public function getAdminUsers()
     {
@@ -254,11 +205,24 @@ class ChatController extends Controller
             ->pluck('id')
             ->toArray();
 
+        // Lấy danh sách ID khách hàng đang ở chế độ Nhân viên tư vấn
+        $activeHumanUserIds = [];
+        if (Schema::hasTable('chat_sessions')) {
+            $activeHumanUserIds = \App\Models\ChatSession::where('is_admin_chat', true)
+                ->pluck('user_id')
+                ->toArray();
+        }
+
         $senders   = ChatMessage::whereNotNull('sender_id')->whereNotIn('sender_id', $staffAndAdminIds)->pluck('sender_id');
         $receivers = ChatMessage::whereNotNull('receiver_id')->whereNotIn('receiver_id', $staffAndAdminIds)->pluck('receiver_id');
-        $userIds   = $senders->merge($receivers)->unique();
+        $allUserIds = $senders->merge($receivers)->unique();
 
-        $users = User::whereIn('id', $userIds)
+        // Lọc kỹ: Chỉ giữ lại các khách hàng đã gửi yêu cầu kết nối Nhân viên
+        $validUserIds = $allUserIds->filter(function ($id) use ($activeHumanUserIds) {
+            return in_array($id, $activeHumanUserIds) || $this->getIsAdminMode($id);
+        })->values();
+
+        $users = User::whereIn('id', $validUserIds)
             ->select('id', 'name', 'email', 'role')
             ->get()
             ->map(function ($user) {
@@ -266,8 +230,6 @@ class ChatController extends Controller
                     ->where('is_read', false)
                     ->where('content', 'not like', '%🤖%')
                     ->where('content', 'not like', '%XFAN Bot%')
-                    ->where('content', 'not like', '%🎧%')
-                    ->where('content', 'not like', '%Hệ thống:%')
                     ->where('content', '!=', 'exit')
                     ->where('content', '!=', 'connect_staff')
                     ->count();
@@ -278,8 +240,6 @@ class ChatController extends Controller
                 })
                 ->where('content', 'not like', '%🤖%')
                 ->where('content', 'not like', '%XFAN Bot%')
-                ->where('content', 'not like', '%🎧%')
-                ->where('content', 'not like', '%Hệ thống:%')
                 ->where('content', '!=', 'exit')
                 ->where('content', '!=', 'connect_staff')
                 ->latest()
@@ -298,9 +258,6 @@ class ChatController extends Controller
         return response()->json($users);
     }
 
-    /**
-     * Nhân viên xem tin nhắn với 1 Khách hàng
-     */
     public function getAdminMessages($userId)
     {
         ChatMessage::where('sender_id', $userId)
@@ -316,8 +273,6 @@ class ChatController extends Controller
               ->orWhere(function ($sub) {
                   $sub->where('content', 'not like', '%🤖%')
                       ->where('content', 'not like', '%XFAN Bot%')
-                      ->where('content', 'not like', '%🎧%')
-                      ->where('content', 'not like', '%Hệ thống:%')
                       ->where('content', '!=', 'exit')
                       ->where('content', '!=', 'connect_staff');
               });
@@ -328,19 +283,11 @@ class ChatController extends Controller
         return response()->json($messages);
     }
 
-    /**
-     * Nhân viên trả lời tin nhắn cho 1 Khách hàng
-     */
     public function sendAdminMessage(Request $request)
     {
         $request->validate([
             'user_id' => ['required', 'exists:users,id'],
             'message' => ['required', 'string', 'max:2000'],
-        ], [
-            'user_id.required' => 'Không xác định được người nhận.',
-            'user_id.exists'   => 'Tài khoản người dùng không tồn tại.',
-            'message.required' => 'Nội dung tin nhắn không được để trống.',
-            'message.max'      => 'Tin nhắn không được vượt quá 2000 ký tự.',
         ]);
 
         $chat = ChatMessage::create([
@@ -355,9 +302,6 @@ class ChatController extends Controller
         return response()->json(['status' => 'success', 'data' => $chat]);
     }
 
-    /**
-     * Kiểm tra tổng số tin nhắn chưa đọc đối với Nhân viên
-     */
     public function checkAdminUnread()
     {
         $staffAndAdminIds = User::whereIn('role', ['admin', 'staff'])
@@ -371,8 +315,6 @@ class ChatController extends Controller
         ->where('is_read', false)
         ->where('content', 'not like', '%🤖%')
         ->where('content', 'not like', '%XFAN Bot%')
-        ->where('content', 'not like', '%🎧%')
-        ->where('content', 'not like', '%Hệ thống:%')
         ->where('content', '!=', 'exit')
         ->where('content', '!=', 'connect_staff')
         ->count();

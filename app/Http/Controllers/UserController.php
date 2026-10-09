@@ -36,7 +36,7 @@ class UserController extends Controller
     }
 
     /**
-     * Thêm tài khoản mới
+     * Thêm tài khoản mới (Tự động xác minh ngay lập tức)
      */
     public function store(Request $request)
     {
@@ -58,10 +58,11 @@ class UserController extends Controller
             'email'             => $validated['email'],
             'password'          => Hash::make($validated['password']),
             'role'              => $validated['role'],
-            'email_verified_at' => now(), // Tự động xác minh tài khoản do Admin tạo
+            'status'            => 1,
+            'email_verified_at' => now(), // Tự động hiển thị tài khoản đã xác minh
         ]);
 
-        return redirect()->route('admin.users.index')->with('success', 'Thêm tài khoản mới thành công!');
+        return redirect()->route('admin.users.index')->with('success', 'Thêm tài khoản mới thành công (Đã xác minh)!');
     }
 
     /**
@@ -87,7 +88,6 @@ class UserController extends Controller
             'role'  => $validated['role'],
         ];
 
-        // Nếu Admin nhập mật khẩu mới thì tiến hành cập nhật mã hóa mới
         if (!empty($validated['password'])) {
             $updateData['password'] = Hash::make($validated['password']);
         }
@@ -102,7 +102,6 @@ class UserController extends Controller
      */
     public function destroy(User $user)
     {
-        // Ràng buộc bảo vệ: Không cho phép Admin tự xóa tài khoản đang đăng nhập
         if ($user->id === auth()->id()) {
             return redirect()->route('admin.users.index')->with('error', 'Bạn không thể tự xóa tài khoản đang đăng nhập của chính mình!');
         }

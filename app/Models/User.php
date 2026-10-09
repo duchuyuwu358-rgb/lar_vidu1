@@ -16,8 +16,6 @@ class User extends Authenticatable implements MustVerifyEmail
 
     /**
      * Các thuộc tính có thể gán hàng loạt (Mass Assignment).
-     *
-     * @var list<string>
      */
     protected $fillable = [
         'name',
@@ -25,14 +23,12 @@ class User extends Authenticatable implements MustVerifyEmail
         'password',
         'role',
         'status',
-        'email_verified_at',
+        'email_verified_at', // Bắt buộc có để tự động xác minh
         'google_id',
     ];
 
     /**
      * Các thuộc tính cần ẩn khi chuyển đổi thành Array/JSON.
-     *
-     * @var list<string>
      */
     protected $hidden = [
         'password',
@@ -41,8 +37,6 @@ class User extends Authenticatable implements MustVerifyEmail
 
     /**
      * Chuyển đổi kiểu dữ liệu (Type casting).
-     *
-     * @return array<string, string>
      */
     protected function casts(): array
     {
@@ -53,49 +47,31 @@ class User extends Authenticatable implements MustVerifyEmail
         ];
     }
 
-    /**
-     * Kiểm tra người dùng có phải Admin hay không.
-     */
     public function isAdmin(): bool
     {
         return $this->role === 'admin';
     }
 
-    /**
-     * Kiểm tra người dùng có phải Nhân viên (Staff) hay không.
-     */
     public function isStaff(): bool
     {
         return $this->role === 'staff';
     }
 
-    /**
-     * Kiểm tra người dùng có phải Khách hàng hay không.
-     */
     public function isCustomer(): bool
     {
         return in_array($this->role, ['customer', 'user']);
     }
 
-    /**
-     * Kiểm tra tài khoản có đang bị khóa hay không.
-     */
     public function isBlocked(): bool
     {
         return isset($this->status) && (int) $this->status === 0;
     }
 
-    /**
-     * Mối quan hệ với Đơn hàng (Orders).
-     */
     public function orders(): HasMany
     {
         return $this->hasMany(Order::class, 'user_id');
     }
 
-    /**
-     * Mối quan hệ với Tin nhắn Chat (ChatMessage).
-     */
     public function chatMessages(): HasMany
     {
         return $this->hasMany(ChatMessage::class, 'sender_id');
