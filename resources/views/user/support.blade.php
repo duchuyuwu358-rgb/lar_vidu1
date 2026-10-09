@@ -47,11 +47,24 @@
                         <textarea name="message" class="form-control" rows="5" required placeholder="Mô tả chi tiết yêu cầu hỗ trợ...">{{ old('message') }}</textarea>
                     </div>
 
-                    <!-- Ô TẢI TỆP ĐÍNH KÈM (PDF, WORD, HÌNH ẢNH) -->
+                    <!-- Ô TẢI TỆP ĐÍNH KÈM & KHUNG HIỂN THỊ XEM TRƯỚC ẢNH -->
                     <div class="col-md-12">
                         <label class="form-label fw-bold">Tệp đính kèm / Hình ảnh (Tùy chọn):</label>
-                        <input type="file" name="attachment" class="form-control" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+                        <div class="input-group">
+                            <input type="file" name="attachment" id="supportAttachment" class="form-control" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp" onchange="previewSupportImage(event)">
+                            <button type="button" class="btn btn-outline-danger d-none" id="btnRemovePreview" onclick="removeSupportImage()">
+                                <i class="bi bi-x-circle-fill me-1"></i> Xóa ảnh
+                            </button>
+                        </div>
                         <div class="form-text text-muted">Hỗ trợ các định dạng: <b>.pdf, .doc, .docx, .jpg, .png</b> (Dung lượng tối đa 10MB).</div>
+
+                        <!-- KHUNG HIỂN THỊ XEM TRƯỚC ẢNH (PREVIEW) -->
+                        <div id="imagePreviewContainer" class="mt-3 p-3 bg-light border rounded-3 text-center d-none">
+                            <div class="fw-bold small text-secondary mb-2 text-start">
+                                <i class="bi bi-image me-1"></i> Hình ảnh đính kèm (Xem trước):
+                            </div>
+                            <img id="imagePreview" src="#" alt="Xem trước hình ảnh đính kèm" class="img-thumbnail shadow-sm rounded-3" style="max-height: 250px; object-fit: contain;">
+                        </div>
                     </div>
 
                     <div class="col-md-12 d-flex justify-content-between align-items-center mt-4">
@@ -63,4 +76,40 @@
         </div>
     </div>
 </div>
+
+<script>
+    function previewSupportImage(event) {
+        const fileInput = event.target;
+        const file = fileInput.files[0];
+        const previewContainer = document.getElementById('imagePreviewContainer');
+        const previewImg = document.getElementById('imagePreview');
+        const removeBtn = document.getElementById('btnRemovePreview');
+
+        if (file && file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                previewImg.src = e.target.result;
+                previewContainer.classList.remove('d-none');
+                if (removeBtn) removeBtn.classList.remove('d-none');
+            };
+            reader.readAsDataURL(file);
+        } else {
+            previewContainer.classList.add('d-none');
+            previewImg.src = '#';
+            if (removeBtn) removeBtn.classList.add('d-none');
+        }
+    }
+
+    function removeSupportImage() {
+        const fileInput = document.getElementById('supportAttachment');
+        const previewContainer = document.getElementById('imagePreviewContainer');
+        const previewImg = document.getElementById('imagePreview');
+        const removeBtn = document.getElementById('btnRemovePreview');
+
+        fileInput.value = '';
+        previewImg.src = '#';
+        previewContainer.classList.add('d-none');
+        removeBtn.classList.add('d-none');
+    }
+</script>
 @endsection

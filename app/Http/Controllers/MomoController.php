@@ -9,6 +9,8 @@ use App\Models\PaymentTransaction;
 use App\Mail\OrderStatusUpdatedMail;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Route;
 
 class MomoController extends Controller
 {
@@ -28,7 +30,9 @@ class MomoController extends Controller
         }
     }
 
-    // Khởi tạo thanh toán MoMo
+    /**
+     * Khởi tạo thanh toán MoMo
+     */
     public function startPayment(Order $order, MomoService $momoService)
     {
         $transaction = PaymentTransaction::create([
@@ -36,7 +40,7 @@ class MomoController extends Controller
             'user_id'        => auth()->id() ?? $order->user_id,
             'gateway'        => 'momo',
             'payment_method' => 'momo',
-            'amount'         => $order->total_price ?? $order->total_amount,
+            'amount'         => $order->total_price ?? $order->total_amount ?? $order->total ?? 0,
             'status'         => 'pending',
         ]);
 
@@ -53,7 +57,9 @@ class MomoController extends Controller
         }
     }
 
-    // Xử lý khi MoMo chuyển hướng khách hàng về lại website
+    /**
+     * Xử lý khi MoMo chuyển hướng khách hàng quay lại website
+     */
     public function callback(Request $request, MomoService $momoService)
     {
         $payload = $request->all();
@@ -67,11 +73,21 @@ class MomoController extends Controller
             return redirect('/orders')->with('error', 'Không tìm thấy thông tin đơn hàng.');
         }
 
+        // TỰ ĐỘNG KHÔI PHỤC SESSION ĐĂNG NHẬP CHO KHÁCH HÀNG NẾU MẤT COOKIE KHI REDIRECT TỪ MOMO
+        if (!Auth::check() && $order->user_id) {
+            Auth::loginUsingId($order->user_id);
+        }
+
         $transaction = PaymentTransaction::where('order_id', $order->id)->latest()->first();
 
         $resultCode       = isset($payload['resultCode']) ? (int)$payload['resultCode'] : -1;
         $isValidSignature = $momoService->isValidSuccessfulResponse($payload);
         $transId          = $payload['transId'] ?? null;
+
+        // Xác định đường dẫn hiển thị chi tiết đơn hàng an toàn
+        $showOrderRoute = Route::has('orders.show')
+            ? route('orders.show', $order->id)
+            : (Route::has('user.orders.show') ? route('user.orders.show', $order->id) : url("/orders/{$order->id}"));
 
         if ($resultCode === 0 && $isValidSignature) {
             if ($transaction) {
@@ -90,16 +106,17 @@ class MomoController extends Controller
 
             $order->update($updateData);
 
-            // Xóa giỏ hàng
+            // Xóa giỏ hàng khỏi Session
             session()->forget('cart');
 
-            // Gửi Mail
+            // Gửi Mail thông báo đơn hàng
             $this->sendOrderStatusEmail($order);
 
-            return redirect()->route('orders.show', $order->id)
+            return redirect($showOrderRoute)
                 ->with('success', 'Thanh toán đơn hàng qua MoMo thành công! Email xác nhận đã được gửi đến hộp thư của bạn.');
         }
 
+        // Trường hợp Thanh toán thất bại hoặc Hủy giao dịch
         if ($transaction) {
             $momoService->markFailed($transaction, $payload);
         }
@@ -109,11 +126,13 @@ class MomoController extends Controller
             'status'         => 'cancelled'
         ]);
 
-        return redirect()->route('orders.show', $order->id)
+        return redirect($showOrderRoute)
             ->with('error', 'Thanh toán không thành công hoặc đã bị hủy!');
     }
 
-    // Xử lý thông báo ngầm (IPN) từ server MoMo
+    /**
+     * Xử lý thông báo ngầm (IPN) từ server MoMo -> Server của bạn
+     */
     public function ipn(Request $request, MomoService $momoService)
     {
         $payload = $request->all();
