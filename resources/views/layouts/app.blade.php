@@ -97,18 +97,18 @@
             color: #4b5563; 
             text-decoration: none; 
             font-weight: 500; 
-            padding: 0.5rem 0.75rem;
-            font-size: 0.88rem;
+            padding: 0.45rem 0.65rem;
+            font-size: 0.86rem;
             border-radius: 8px; 
             transition: all 0.2s ease; 
             display: inline-flex; 
             align-items: center; 
-            gap: 6px;
+            gap: 5px;
             white-space: nowrap !important; /* CỐ ĐỊNH CHỮ TRÊN 1 HÀNG */
             line-height: 1.2;
         }
         .user-nav-link i {
-            font-size: 1rem;
+            font-size: 0.95rem;
         }
         .user-nav-link:hover { color: #2563eb; background-color: #f1f5f9; }
         .user-nav-link.active { color: #2563eb; font-weight: 600; background-color: #eff6ff; }
@@ -306,17 +306,17 @@
         </div>
     @endif
 
-    {{-- NAVBAR TOPBAR CỬA HÀNG KHÁCH HÀNG - CĂN THẲNG MỘT HÀNG THẨM MỸ --}}
+    {{-- NAVBAR TOPBAR CỬA HÀNG KHÁCH HÀNG - RỘNG RÃI TRẢI ĐỀU CHỐNG KHUẤT CHỮ --}}
     @if (!$isAdminManagementPage)
-        <nav class="navbar navbar-expand-lg navbar-light user-navbar py-2 mb-4">
-            <div class="{{ $isAdminOrStaff ? 'container-fluid px-4' : 'container' }} d-flex align-items-center justify-content-between flex-nowrap">
+        <nav class="navbar navbar-expand-xl navbar-light user-navbar py-2 mb-4">
+            <div class="container-fluid px-3 px-lg-4 d-flex align-items-center justify-content-between flex-nowrap">
                 
                 {{-- LOGO + DANH SÁCH MENU --}}
-                <div class="d-flex align-items-center gap-2 me-3 overflow-hidden">
-                    <a class="navbar-brand fw-bold text-primary fs-5 m-0 d-flex align-items-center me-3 text-nowrap" href="{{ Route::has('storefront') ? route('storefront') : url('/') }}">
+                <div class="d-flex align-items-center gap-2 me-2">
+                    <a class="navbar-brand fw-bold text-primary fs-5 m-0 d-flex align-items-center me-2 me-lg-3 text-nowrap" href="{{ Route::has('storefront') ? route('storefront') : url('/') }}">
                         <i class="fas fa-fan me-2"></i>XFAN STORE
                     </a>
-                    <div class="d-flex align-items-center gap-1 border-start ps-3" style="border-color: #e5e7eb !important;">
+                    <div class="d-flex align-items-center gap-1 border-start ps-2 ps-lg-3" style="border-color: #e5e7eb !important;">
                         <a href="{{ Route::has('storefront') ? route('storefront') : url('/') }}" class="user-nav-link {{ request()->routeIs('storefront*') || request()->is('/') ? 'active' : '' }}">
                             <i class="bi bi-shop"></i><span>Cửa hàng</span>
                         </a>
@@ -339,7 +339,7 @@
                 </div>
 
                 {{-- THÔNG TIN TÀI KHOẢN & ĐĂNG XUẤT --}}
-                <div class="d-flex align-items-center gap-2 text-nowrap flex-shrink-0">
+                <div class="d-flex align-items-center gap-2 text-nowrap flex-shrink-0 ms-auto">
                     @auth
                         @if (!$isAdminOrStaff)
                             <span class="text-secondary small me-1">Xin chào, <strong>{{ Auth::user()->name }}</strong></span>
