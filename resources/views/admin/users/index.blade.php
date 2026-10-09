@@ -79,13 +79,13 @@
                                     <i class="bi bi-calendar3 me-1"></i>{{ $u->created_at ? $u->created_at->format('d/m/Y H:i') : 'Chưa rõ' }}
                                 </td>
                                 <td>
-                                    @if($u->email_verified_at)
-                                        <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
-                                            <i class="bi bi-check-circle me-1"></i>Đã xác minh
+                                    @if($u->isVerified())
+                                        <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 rounded-pill">
+                                            <i class="bi bi-patch-check-fill me-1"></i>Đã xác minh
                                         </span>
                                     @else
-                                        <span class="badge bg-warning-subtle text-warning border border-warning-subtle px-2 py-1">
-                                            <i class="bi bi-clock me-1"></i>Chưa xác minh
+                                        <span class="badge bg-warning-subtle text-warning border border-warning-subtle px-2 py-1 rounded-pill">
+                                            <i class="bi bi-clock-history me-1"></i>Chưa xác minh
                                         </span>
                                     @endif
                                 </td>
@@ -110,12 +110,10 @@
                                 </td>
                                 <td class="text-end pe-3">
                                     <div class="d-inline-flex gap-1">
-                                        <!-- Nút Sửa & Đổi mật khẩu -->
                                         <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editUserModal{{ $u->id }}">
                                             <i class="bi bi-pencil-square me-1"></i>Sửa / Đổi MK
                                         </button>
 
-                                        <!-- Nút Xóa (cho phép xóa bất kỳ tài khoản nào trừ chính tài khoản đang đăng nhập) -->
                                         @if($u->id !== auth()->id())
                                             <form action="{{ route('admin.users.destroy', $u->id) }}" method="POST" onsubmit="return confirm('Bạn có chắc chắn muốn xóa tài khoản {{ $u->email }} không?');">
                                                 @csrf
@@ -127,7 +125,7 @@
                                         @endif
                                     </div>
 
-                                    <!-- Modal Sửa & Đổi mật khẩu cho user #{{ $u->id }} -->
+                                    <!-- Modal Sửa & Đổi mật khẩu -->
                                     <div class="modal fade text-start" id="editUserModal{{ $u->id }}" tabindex="-1">
                                         <div class="modal-dialog">
                                             <div class="modal-content">
@@ -163,7 +161,6 @@
                                                         <div class="mb-3">
                                                             <label class="form-label fw-bold text-danger">Đặt Lại Mật Khẩu Mới</label>
                                                             <input type="password" name="password" class="form-control" placeholder="Nhập mật khẩu mới (để trống nếu không đổi)...">
-                                                            <small class="text-muted d-block mt-1">Mật khẩu lưu trong CSDL mã hóa 1 chiều. Nhập mật khẩu mới tại đây nếu muốn thiết lập lại mật khẩu mới cho người dùng.</small>
                                                         </div>
                                                     </div>
                                                     <div class="modal-footer">

@@ -11,7 +11,6 @@ use Illuminate\Notifications\Notifiable;
 
 class User extends Authenticatable implements MustVerifyEmail
 {
-    /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
     /**
@@ -23,7 +22,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'password',
         'role',
         'status',
-        'email_verified_at', // Bắt buộc có để tự động xác minh
+        'email_verified_at',
         'google_id',
     ];
 
@@ -45,6 +44,14 @@ class User extends Authenticatable implements MustVerifyEmail
             'password'          => 'hashed',
             'status'            => 'integer',
         ];
+    }
+
+    /**
+     * Kiểm tra tài khoản đã xác minh hay chưa (Tạo bởi Admin / Đăng ký Google / Đã bấm Link Mail)
+     */
+    public function isVerified(): bool
+    {
+        return !empty($this->email_verified_at) || !empty($this->google_id);
     }
 
     public function isAdmin(): bool

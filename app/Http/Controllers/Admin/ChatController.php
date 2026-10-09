@@ -58,12 +58,12 @@ class ChatController extends Controller
             return response()->json(['error' => 'Chưa đăng nhập'], 401);
         }
 
+        $isAdminMode = $this->getIsAdminMode($userId);
+
         $messages = ChatMessage::where(function ($q) use ($userId) {
             $q->where('sender_id', $userId)
               ->orWhere('receiver_id', $userId);
         })->orderBy('created_at', 'asc')->get();
-
-        $isAdminMode = $this->getIsAdminMode($userId);
 
         return response()->json([
             'status'   => 'success',
@@ -72,6 +72,9 @@ class ChatController extends Controller
         ]);
     }
 
+    /**
+     * Khách hàng gửi tin nhắn
+     */
     public function sendUserMessage(Request $request)
     {
         $request->validate([
@@ -94,7 +97,7 @@ class ChatController extends Controller
             return response()->json([
                 'status' => 'success',
                 'mode'   => 'bot',
-                'reply'  => null
+                'reply'  => '🤖 Bạn đã thoát khỏi chế độ Nhân viên tư vấn. XFAN Bot sẵn sàng hỗ trợ bạn!'
             ]);
         }
 
@@ -102,22 +105,23 @@ class ChatController extends Controller
         if ($textLower === 'connect_staff' || $textLower === 'connect_admin') {
             $this->setIsAdminMode($userId, true);
 
-            // Lưu 1 dòng thông báo trong tin nhắn
-            ChatMessage::create([
+            // Lưu 1 dòng thông báo trong CSDL để Nhân viên nhận thông báo cuộc trò chuyện mới
+            $sysMsg = ChatMessage::create([
                 'sender_id'   => $userId,
                 'receiver_id' => $adminId,
-                'content'     => '🎧 Khách hàng yêu cầu kết nối với Nhân viên tư vấn.',
+                'content'     => '🎧 Khách hàng đã yêu cầu kết nối trực tiếp với Nhân viên tư vấn.',
                 'is_read'     => false,
             ]);
 
             return response()->json([
                 'status' => 'success',
                 'mode'   => 'admin',
-                'reply'  => null
+                'reply'  => '✅ Đã kết nối với Nhân viên tư vấn! Vui lòng nhập nội dung cần hỗ trợ.',
+                'data'   => $sysMsg
             ]);
         }
 
-        // 3. Đang ở chế độ Chat với Nhân viên -> Gửi thẳng cho Nhân viên
+        // 3. Đang ở chế độ Chat trực tiếp với Nhân viên -> Lưu CSDL để chuyển cho Nhân viên
         if ($this->getIsAdminMode($userId)) {
             $userMsg = ChatMessage::create([
                 'sender_id'   => $userId,
@@ -134,28 +138,18 @@ class ChatController extends Controller
             ]);
         }
 
-        // 4. Trả lời bằng Bot tự động
-        $userMsg = ChatMessage::create([
-            'sender_id'   => $userId,
-            'receiver_id' => $adminId,
-            'content'     => $text,
-            'is_read'     => false,
-        ]);
-
+        // 4. Đang ở chế độ XFAN Bot -> Phản hồi tự động qua JSON, KHÔNG LƯU VÀO CSDL ĐỂ TRÁNH LÀM RÁC HÒM THƯ NHÂN VIÊN
         $reply = $this->generateSmartBotReply($text);
-
-        ChatMessage::create([
-            'sender_id'   => $adminId,
-            'receiver_id' => $userId,
-            'content'     => $reply,
-            'is_read'     => false,
-        ]);
 
         return response()->json([
             'status' => 'success',
             'mode'   => 'bot',
             'reply'  => $reply,
-            'data'   => $userMsg
+            'data'   => [
+                'sender_id'  => $userId,
+                'content'    => $text,
+                'created_at' => now()->toIso8601String()
+            ]
         ]);
     }
 
@@ -205,7 +199,6 @@ class ChatController extends Controller
             ->pluck('id')
             ->toArray();
 
-        // Lấy danh sách ID khách hàng đang ở chế độ Nhân viên tư vấn
         $activeHumanUserIds = [];
         if (Schema::hasTable('chat_sessions')) {
             $activeHumanUserIds = \App\Models\ChatSession::where('is_admin_chat', true)
@@ -215,12 +208,12 @@ class ChatController extends Controller
 
         $senders   = ChatMessage::whereNotNull('sender_id')->whereNotIn('sender_id', $staffAndAdminIds)->pluck('sender_id');
         $receivers = ChatMessage::whereNotNull('receiver_id')->whereNotIn('receiver_id', $staffAndAdminIds)->pluck('receiver_id');
-        $allUserIds = $senders->merge($receivers)->unique();
+        $chatUserIds = $senders->merge($receivers)->unique()->toArray();
 
-        // Lọc kỹ: Chỉ giữ lại các khách hàng đã gửi yêu cầu kết nối Nhân viên
-        $validUserIds = $allUserIds->filter(function ($id) use ($activeHumanUserIds) {
-            return in_array($id, $activeHumanUserIds) || $this->getIsAdminMode($id);
-        })->values();
+        // CHỈ LẤY các người dùng thực sự đang bật chế độ Nhân viên tư vấn
+        $validUserIds = array_unique(array_merge($activeHumanUserIds, array_filter($chatUserIds, function($id) {
+            return $this->getIsAdminMode($id);
+        })));
 
         $users = User::whereIn('id', $validUserIds)
             ->select('id', 'name', 'email', 'role')
@@ -228,24 +221,16 @@ class ChatController extends Controller
             ->map(function ($user) {
                 $user->unread_count = ChatMessage::where('sender_id', $user->id)
                     ->where('is_read', false)
-                    ->where('content', 'not like', '%🤖%')
-                    ->where('content', 'not like', '%XFAN Bot%')
-                    ->where('content', '!=', 'exit')
-                    ->where('content', '!=', 'connect_staff')
                     ->count();
 
                 $latestMsg = ChatMessage::where(function ($q) use ($user) {
                     $q->where('sender_id', $user->id)
                       ->orWhere('receiver_id', $user->id);
                 })
-                ->where('content', 'not like', '%🤖%')
-                ->where('content', 'not like', '%XFAN Bot%')
-                ->where('content', '!=', 'exit')
-                ->where('content', '!=', 'connect_staff')
                 ->latest()
                 ->first();
 
-                $user->latest_message = $latestMsg ? ($latestMsg->content ?? $latestMsg->message ?? '') : '';
+                $user->latest_message = $latestMsg ? ($latestMsg->content ?? '') : '';
                 $user->last_activity  = $latestMsg ? $latestMsg->created_at : null;
 
                 return $user;
@@ -267,15 +252,6 @@ class ChatController extends Controller
         $messages = ChatMessage::where(function ($q) use ($userId) {
             $q->where('sender_id', $userId)
               ->orWhere('receiver_id', $userId);
-        })
-        ->where(function ($q) {
-            $q->whereNull('content')
-              ->orWhere(function ($sub) {
-                  $sub->where('content', 'not like', '%🤖%')
-                      ->where('content', 'not like', '%XFAN Bot%')
-                      ->where('content', '!=', 'exit')
-                      ->where('content', '!=', 'connect_staff');
-              });
         })
         ->orderBy('created_at', 'asc')
         ->get();
@@ -313,10 +289,6 @@ class ChatController extends Controller
             $q->select('id')->from('users')->whereNotIn('id', $staffAndAdminIds);
         })
         ->where('is_read', false)
-        ->where('content', 'not like', '%🤖%')
-        ->where('content', 'not like', '%XFAN Bot%')
-        ->where('content', '!=', 'exit')
-        ->where('content', '!=', 'connect_staff')
         ->count();
 
         return response()->json(['unread_count' => $count]);
