@@ -111,23 +111,25 @@
         .user-nav-link:hover { color: #2563eb; background-color: #f1f5f9; }
         .user-nav-link.active { color: #2563eb; font-weight: 600; background-color: #eff6ff; }
 
-        /* NÚT TỔNG: ĐẶT Ở GÓC DƯỚI BÊN PHẢI (RIGHT: 24px) */
+        /* NÚT TỔNG CHAT: ĐẶT Ở GÓC DƯỚI BÊN PHẢI */
         .floating-chat-btn {
             position: fixed !important;
             bottom: 24px !important;
             right: 24px !important;
             z-index: 99999 !important;
             cursor: pointer;
+            padding: 10px 20px !important;
+            font-size: 0.95rem !important;
         }
 
-        /* KHUNG CHAT KHÁCH HÀNG */
+        /* KHUNG CHAT KHÁCH HÀNG: LÀM TO RA DỄ NHÌN (420px x 600px) */
         .custom-chat-panel {
             position: fixed !important;
             bottom: 85px !important;
             right: 24px !important;
-            width: 380px !important;
-            max-width: 92vw !important;
-            height: 560px !important;
+            width: 420px !important;
+            max-width: 94vw !important;
+            height: 600px !important;
             background: #f8fafc !important;
             border-radius: 16px !important;
             z-index: 100000 !important;
@@ -135,18 +137,18 @@
             display: none;
             flex-direction: column;
             overflow: hidden;
-            border: 1px solid #e2e8f0;
+            border: 1px solid #cbd5e1;
         }
         .custom-chat-panel.active { display: flex !important; }
 
-        /* KHUNG CHAT NHÂN VIÊN: CẤU TRÚC 2 CỘT Ở GÓC DƯỚI BÊN PHẢI */
+        /* KHUNG CHAT NHÂN VIÊN: LÀM TO RA DỄ NHÌN (680px x 580px) */
         .custom-chat-panel-staff {
             position: fixed !important;
             bottom: 85px !important;
             right: 24px !important;
-            width: 620px !important;
-            max-width: 92vw !important;
-            height: 540px !important;
+            width: 680px !important;
+            max-width: 94vw !important;
+            height: 580px !important;
             background: #ffffff !important;
             border-radius: 16px !important;
             z-index: 100000 !important;
@@ -163,26 +165,28 @@
             display: flex; justify-content: space-between; align-items: center;
         }
 
-        /* NÚT TỰ ĐỘNG BOT */
+        /* NÚT OPTION BOT */
         .chat-option-btn {
-            background: #ffffff; color: #334155; border: 1px solid #e2e8f0;
-            border-radius: 20px; padding: 10px 16px; font-size: 0.88rem; font-weight: 500;
-            text-align: center; margin-bottom: 8px; width: 100%; transition: all 0.2s ease;
+            background: #ffffff; color: #334155; border: 1px solid #cbd5e1;
+            border-radius: 20px; padding: 11px 18px; font-size: 0.92rem; font-weight: 500;
+            text-align: center; margin-bottom: 10px; width: 100%; transition: all 0.2s ease;
             cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
-        .chat-option-btn:hover { background-color: #f1f5f9; border-color: #cbd5e1; color: #0284c7; transform: translateY(-1px); }
+        .chat-option-btn:hover { background-color: #f1f5f9; border-color: #94a3b8; color: #0284c7; transform: translateY(-1px); }
         .btn-resume-chat { background: #eff6ff !important; color: #2563eb !important; border: 1.5px solid #3b82f6 !important; font-weight: 700 !important; }
         .btn-resume-chat:hover { background: #dbeafe !important; }
 
-        .chat-date-badge { text-align: center; font-size: 0.75rem; color: #64748b; margin: 10px 0; font-weight: 500; }
+        /* BONG BÓNG TIN NHẮN LÀM TO RA DỄ ĐỌC */
+        .chat-date-badge { text-align: center; font-size: 0.78rem; color: #64748b; margin: 10px 0; font-weight: 500; }
         .msg-bubble-sent {
-            background-color: #2563eb; color: white; border-radius: 14px 14px 0px 14px;
-            max-width: 82%; margin-left: auto; padding: 10px 14px; margin-bottom: 10px; font-size: 0.9rem; word-break: break-word;
+            background-color: #2563eb; color: white; border-radius: 16px 16px 0px 16px;
+            max-width: 85%; margin-left: auto; padding: 12px 16px; margin-bottom: 12px; font-size: 0.95rem; line-height: 1.45; word-break: break-word;
+            box-shadow: 0 2px 4px rgba(37,99,235,0.2);
         }
         .msg-bubble-received {
-            background-color: #ffffff; color: #1e293b; border: 1px solid #e2e8f0;
-            border-radius: 14px 14px 14px 0px; max-width: 85%; padding: 10px 14px; margin-bottom: 10px; font-size: 0.9rem; word-break: break-word;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+            background-color: #ffffff; color: #1e293b; border: 1px solid #cbd5e1;
+            border-radius: 16px 16px 16px 0px; max-width: 88%; padding: 12px 16px; margin-bottom: 12px; font-size: 0.95rem; line-height: 1.45; word-break: break-word;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
         }
         .chat-user-item { cursor: pointer; transition: all 0.2s ease; }
         .chat-user-item:hover, .chat-user-item.active { background-color: #0d6efd !important; color: #ffffff !important; }
@@ -326,9 +330,9 @@
             </div>
         </aside>
 
-        {{-- KHUNG CHAT CỦA NHÂN VIÊN: CẤU TRÚC 2 CỘT NẰM Ở GÓC DƯỚI BÊN PHẢI --}}
+        {{-- KHUNG CHAT CỦA NHÂN VIÊN: 2 CỘT TẠI GÓC DƯỚI BÊN PHẢI --}}
         @if ($isStaff)
-            <button type="button" id="btnAdminChatToggle" class="btn btn-dark rounded-pill shadow-lg px-3 py-2 floating-chat-btn position-relative">
+            <button type="button" id="btnAdminChatToggle" class="btn btn-dark rounded-pill shadow-lg floating-chat-btn position-relative">
                 <i class="bi bi-chat-dots-fill text-warning me-1"></i>
                 <span class="fw-bold">Chat Khách hàng</span>
                 <span id="adminChatBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-circle bg-danger p-2 border border-light d-none"></span>
@@ -342,7 +346,7 @@
 
                 <div class="d-flex flex-grow-1 overflow-hidden">
                     <!-- CỘT BÊN TRÁI: DANH SÁCH KHÁCH HÀNG -->
-                    <div class="bg-light border-end p-2 overflow-auto" id="adminChatUsersList" style="width: 200px; min-width: 180px; flex-shrink: 0;">
+                    <div class="bg-light border-end p-2 overflow-auto" id="adminChatUsersList" style="width: 210px; min-width: 190px; flex-shrink: 0;">
                         <div class="text-center text-muted small py-3">Đang tải danh sách...</div>
                     </div>
 
@@ -428,9 +432,9 @@
         </nav>
     @endif
 
-    {{-- KHUNG CHAT BONG BÓNG KHÁCH HÀNG (BOT TỰ ĐỘNG + KẾT NỐI NHÂN VIÊN TƯ VẤN) --}}
+    {{-- KHUNG CHAT KHÁCH HÀNG (420px x 600px - TO RÕ) --}}
     @if (!$isAdminOrStaff && !$isAuthPage)
-        <button type="button" id="btnUserChatToggle" class="btn btn-primary rounded-pill shadow-lg px-3 py-2 floating-chat-btn position-relative">
+        <button type="button" id="btnUserChatToggle" class="btn btn-primary rounded-pill shadow-lg floating-chat-btn position-relative">
             <i class="bi bi-chat-dots-fill me-1"></i>
             <span class="fw-bold">Nhắn tin cho chúng tôi</span>
         </button>
@@ -442,7 +446,7 @@
                     <span id="chatStatusSubtitle" class="text-white-50 extra-small" style="font-size: 0.75rem;">Hệ thống tư vấn tự động</span>
                 </div>
                 <div class="d-flex align-items-center gap-2">
-                    <button type="button" id="btnExitStaffChat" class="btn btn-sm btn-outline-warning text-warning border-warning d-none px-2 py-1" style="font-size: 0.75rem; font-weight: 600;" onclick="exitStaffChat()">
+                    <button type="button" id="btnExitStaffChat" class="btn btn-sm btn-outline-warning text-warning border-warning d-none px-2 py-1" style="font-size: 0.78rem; font-weight: 600;" onclick="exitStaffChat()">
                         <i class="bi bi-box-arrow-left me-1"></i>Thoát Nhân viên
                     </button>
                     <button type="button" id="btnUserChatClose" class="btn-close btn-close-white"></button>
@@ -455,7 +459,7 @@
                 <!-- KHUNG BOT CÂU HỎI CHỌN NHANH -->
                 <div id="botWelcomeContainer">
                     <div class="msg-bubble-received">
-                        <div class="fw-bold mb-1 text-primary" style="font-size:0.8rem">XFAN Bot</div>
+                        <div class="fw-bold mb-1 text-primary" style="font-size:0.85rem">XFAN Bot</div>
                         <div>Xin chào, tôi có thể giúp gì cho bạn? Vui lòng chọn một trong các yêu cầu bên dưới:</div>
                     </div>
 
@@ -565,8 +569,8 @@
                             html += `
                                 <div class="chat-user-item p-2 rounded-3 mb-2 border shadow-sm d-flex align-items-center justify-content-between ${isActive}" onclick="openAdminUserChat(${u.id}, '${u.name}')">
                                     <div class="overflow-hidden me-1">
-                                        <div class="fw-bold small text-truncate" style="max-width: 120px;">${u.name}</div>
-                                        <div class="text-muted extra-small text-truncate" style="font-size:0.72rem; max-width: 120px;">${u.email ?? ''}</div>
+                                        <div class="fw-bold small text-truncate" style="max-width: 125px;">${u.name}</div>
+                                        <div class="text-muted extra-small text-truncate" style="font-size:0.72rem; max-width: 125px;">${u.email ?? ''}</div>
                                     </div>
                                     ${badgeHtml}
                                 </div>`;
@@ -593,8 +597,8 @@
                         } else {
                             msgs.forEach(m => {
                                 let text = m.content || m.message || '';
-                                // BỘ LỌC FRONTEND: Không hiển thị tin nhắn tự động của Bot/Hệ thống
-                                if (text.includes('🤖') || text.includes('XFAN Bot') || text.includes('🎧') || text.includes('Hệ thống:')) {
+                                // BỘ LỌC FRONTEND: Bỏ hoàn toàn các tin tự động/exit/connect khỏi màn hình Nhân viên
+                                if (text.includes('🤖') || text.includes('XFAN Bot') || text.includes('🎧') || text.includes('Hệ thống:') || text === 'exit' || text === 'connect_staff') {
                                     return;
                                 }
 
@@ -723,6 +727,8 @@
                     } else {
                         cachedHistory.forEach(m => {
                             let text = m.content || m.message || '';
+                            if (text === 'connect_staff' || text === 'exit') return;
+
                             let isMe = (m.sender_id == currentUserId || m.type === 'user' || m.sender === 'user');
                             appendBubbleToBox(chatHistoryContainer, text, isMe ? 'sent' : 'received', isMe ? 'Bạn' : 'Nhân viên tư vấn');
                         });
@@ -739,12 +745,8 @@
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken },
                     body: JSON.stringify({ message: 'exit' })
                 })
-                .then(r => r.ok ? r.json() : null)
-                .then(data => {
+                .then(() => {
                     resetToBotMenu();
-                    if (data && data.reply) {
-                        appendBubbleToBox(botWelcomeContainer, data.reply, 'received', 'XFAN Bot');
-                    }
                 })
                 .catch(() => {
                     resetToBotMenu();
@@ -756,7 +758,7 @@
                 const div = document.createElement('div');
                 div.className = type === 'sent' ? 'msg-bubble-sent' : 'msg-bubble-received';
                 if (type === 'received') {
-                    div.innerHTML = `<div class="fw-bold mb-1 text-primary" style="font-size:0.8rem">${senderName}</div><div>${text}</div>`;
+                    div.innerHTML = `<div class="fw-bold mb-1 text-primary" style="font-size:0.85rem">${senderName}</div><div>${text}</div>`;
                 } else {
                     div.innerHTML = `<div>${text}</div>`;
                 }

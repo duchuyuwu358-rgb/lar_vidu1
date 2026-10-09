@@ -88,7 +88,7 @@ class ChatController extends Controller
     }
 
     /**
-     * Khách hàng gửi tin nhắn
+     * Khách hàng gửi tin nhắn (Xử lý âm thầm thoát/kết nối không để lại rác CSDL)
      */
     public function sendUserMessage(Request $request)
     {
@@ -108,35 +108,18 @@ class ChatController extends Controller
         $textLower = mb_strtolower($text);
         $adminId   = $this->getAdminSenderId();
 
-        // 1. Lệnh EXIT: Quay lại Bot
+        // 1. Lệnh EXIT từ nút "Thoát Nhân viên": Âm thầm tắt mode admin, KHÔNG lưu tin 'exit' vào CSDL
         if (in_array($textLower, ['exit', '/exit', 'thoát', 'thoat', 'quit'])) {
             $this->setIsAdminMode($userId, false);
-
-            $userMsg = ChatMessage::create([
-                'sender_id'   => $userId,
-                'receiver_id' => $adminId,
-                'content'     => $text,
-                'is_read'     => false,
-            ]);
-
-            $reply = "🤖 **XFAN Bot:** Đã thoát cuộc trò chuyện với Nhân viên! XFAN Bot sẵn sàng hỗ trợ bạn tư vấn sản phẩm, dịch vụ. Bạn cần giúp gì tiếp theo?";
-
-            ChatMessage::create([
-                'sender_id'   => $adminId,
-                'receiver_id' => $userId,
-                'content'     => $reply,
-                'is_read'     => false,
-            ]);
 
             return response()->json([
                 'status' => 'success',
                 'mode'   => 'bot',
-                'reply'  => $reply,
-                'data'   => $userMsg
+                'reply'  => null
             ]);
         }
 
-        // 2. Lệnh CONNECT: Kích hoạt chế độ nhắn với Nhân viên
+        // 2. Lệnh CONNECT từ nút "Kết nối": Bật mode admin, KHÔNG lưu tin nhắn rác vào CSDL
         $isConnectCommand = in_array($textLower, ['connect_staff', 'connect_admin', 'kết nối']) ||
             str_contains($textLower, 'tư vấn viên') ||
             str_contains($textLower, 'gặp admin') ||
@@ -146,35 +129,20 @@ class ChatController extends Controller
         if ($isConnectCommand) {
             $this->setIsAdminMode($userId, true);
 
-            $userMsg = null;
-            if ($textLower !== 'connect_staff') {
-                $userMsg = ChatMessage::create([
-                    'sender_id'   => $userId,
-                    'receiver_id' => $adminId,
-                    'content'     => $text,
-                    'is_read'     => false,
+            // Nếu chỉ bấm nút kết nối tự động thì không tạo tin nhắn chữ trong CSDL
+            if ($textLower === 'connect_staff' || $textLower === 'connect_admin') {
+                return response()->json([
+                    'status' => 'success',
+                    'mode'   => 'admin',
+                    'reply'  => null
                 ]);
             }
-
-            $reply = "🎧 **Hệ thống:** Đã kết nối với Nhân viên tư vấn! Vui lòng gửi câu hỏi bên dưới (Bấm 'Thoát Nhân viên' hoặc gõ **'exit'** để quay lại XFAN Bot).";
-
-            ChatMessage::create([
-                'sender_id'   => $adminId,
-                'receiver_id' => $userId,
-                'content'     => $reply,
-                'is_read'     => false,
-            ]);
-
-            return response()->json([
-                'status' => 'success',
-                'mode'   => 'admin',
-                'reply'  => $reply,
-                'data'   => $userMsg
-            ]);
         }
 
-        // 3. Đang ở chế độ Chat với Nhân viên -> Lưu CSDL và KHÔNG chạy Bot
-        if ($this->getIsAdminMode($userId)) {
+        // 3. Đang ở chế độ Chat với Nhân viên -> Lưu CSDL để Nhân viên xem & KHÔNG trả về tin nhắn Bot
+        if ($this->getIsAdminMode($userId) || $isConnectCommand) {
+            $this->setIsAdminMode($userId, true);
+
             $userMsg = ChatMessage::create([
                 'sender_id'   => $userId,
                 'receiver_id' => $adminId,
@@ -296,6 +264,8 @@ class ChatController extends Controller
                     ->where('content', 'not like', '%XFAN Bot%')
                     ->where('content', 'not like', '%🎧%')
                     ->where('content', 'not like', '%Hệ thống:%')
+                    ->where('content', '!=', 'exit')
+                    ->where('content', '!=', 'connect_staff')
                     ->count();
 
                 $latestMsg = ChatMessage::where(function ($q) use ($user) {
@@ -306,6 +276,8 @@ class ChatController extends Controller
                 ->where('content', 'not like', '%XFAN Bot%')
                 ->where('content', 'not like', '%🎧%')
                 ->where('content', 'not like', '%Hệ thống:%')
+                ->where('content', '!=', 'exit')
+                ->where('content', '!=', 'connect_staff')
                 ->latest()
                 ->first();
 
@@ -323,16 +295,14 @@ class ChatController extends Controller
     }
 
     /**
-     * Nhân viên xem tin nhắn với 1 Khách hàng (ĐÃ LỌC BỎ HOÀN TOÀN TIN NHẮN TỰ ĐỘNG BOT)
+     * Nhân viên xem tin nhắn với 1 Khách hàng
      */
     public function getAdminMessages($userId)
     {
-        // 1. Đánh dấu tất cả tin nhắn do Khách hàng này gửi là ĐÃ ĐỌC
         ChatMessage::where('sender_id', $userId)
             ->where('is_read', false)
             ->update(['is_read' => true]);
 
-        // 2. Lấy danh sách tin nhắn và LỌC BỎ hoàn toàn các tin nhắn chứa nội dung Bot/Hệ thống
         $messages = ChatMessage::where(function ($q) use ($userId) {
             $q->where('sender_id', $userId)
               ->orWhere('receiver_id', $userId);
@@ -343,7 +313,9 @@ class ChatController extends Controller
                   $sub->where('content', 'not like', '%🤖%')
                       ->where('content', 'not like', '%XFAN Bot%')
                       ->where('content', 'not like', '%🎧%')
-                      ->where('content', 'not like', '%Hệ thống:%');
+                      ->where('content', 'not like', '%Hệ thống:%')
+                      ->where('content', '!=', 'exit')
+                      ->where('content', '!=', 'connect_staff');
               });
         })
         ->orderBy('created_at', 'asc')
@@ -397,6 +369,8 @@ class ChatController extends Controller
         ->where('content', 'not like', '%XFAN Bot%')
         ->where('content', 'not like', '%🎧%')
         ->where('content', 'not like', '%Hệ thống:%')
+        ->where('content', '!=', 'exit')
+        ->where('content', '!=', 'connect_staff')
         ->count();
 
         return response()->json(['unread_count' => $count]);
