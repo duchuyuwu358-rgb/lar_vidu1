@@ -19,12 +19,10 @@ class HoodController extends Controller
             return;
         }
 
-        // Xóa file trong storage/app/public/
         if (Storage::disk('public')->exists($path)) {
             Storage::disk('public')->delete($path);
         }
 
-        // Xóa file nếu tồn tại trực tiếp trong public/
         if (file_exists(public_path($path))) {
             @unlink(public_path($path));
         }
@@ -35,13 +33,11 @@ class HoodController extends Controller
      */
     private function handleImageUpload(Request $request, ?string $oldImagePath = null): ?string
     {
-        // 1. Trường hợp người dùng chọn Tải file ảnh trực tiếp
         if ($request->hasFile('image')) {
             $this->deleteOldImage($oldImagePath);
             return $request->file('image')->store('hoods', 'public');
         }
 
-        // 2. Trường hợp người dùng Copy-Paste ảnh Base64 vào ô nhập
         $imageInput = $request->input('image');
         if (is_string($imageInput) && Str::startsWith($imageInput, 'data:image')) {
             $this->deleteOldImage($oldImagePath);
@@ -55,13 +51,11 @@ class HoodController extends Controller
             $imageData = base64_decode(substr($imageInput, strpos($imageInput, ',') + 1));
             $fileName = 'hoods/hood_' . uniqid() . '.' . $extension;
 
-            // Lưu trực tiếp vào storage/app/public/hoods/
             Storage::disk('public')->put($fileName, $imageData);
 
             return $fileName;
         }
 
-        // 3. Giữ nguyên đường dẫn ảnh cũ nếu không có thay đổi
         if (is_string($imageInput) && !empty($imageInput) && !Str::startsWith($imageInput, 'data:image')) {
             return $imageInput;
         }
@@ -229,7 +223,6 @@ class HoodController extends Controller
             $validated['stock_quantity'] = 0;
         }
 
-        // Lưu ảnh vào hoods
         $validated['image'] = $this->handleImageUpload($request);
 
         Hood::create($validated);
@@ -237,14 +230,15 @@ class HoodController extends Controller
         return redirect()->route('hoods.index')->with('success', 'Thêm máy hút mùi thành công!');
     }
 
-    public function show(Hood $hood)
+    public function show($hood)
     {
-        $hood->load('category');
+        $hood = $hood instanceof Hood ? $hood : Hood::with('category')->findOrFail($hood);
         return view('hoods.show', compact('hood'));
     }
 
-    public function edit(Hood $hood)
+    public function edit($hood)
     {
+        $hood = $hood instanceof Hood ? $hood : Hood::findOrFail($hood);
         $categories = Category::all();
         $types = [
             'wall-mounted'  => 'Treo tường',
@@ -256,8 +250,10 @@ class HoodController extends Controller
         return view('hoods.edit', compact('hood', 'categories', 'types'));
     }
 
-    public function update(Request $request, Hood $hood)
+    public function update(Request $request, $hood)
     {
+        $hood = $hood instanceof Hood ? $hood : Hood::findOrFail($hood);
+
         $validated = $request->validate([
             'name'            => ['required', 'string', 'max:255'],
             'model'           => ['nullable', 'string', 'max:255'],
@@ -300,7 +296,6 @@ class HoodController extends Controller
             $validated['stock_quantity'] = 0;
         }
 
-        // Cập nhật ảnh vào hoods
         if ($request->hasFile('image') || $request->filled('image')) {
             $validated['image'] = $this->handleImageUpload($request, $hood->image);
         }
@@ -310,8 +305,9 @@ class HoodController extends Controller
         return redirect()->route('hoods.index')->with('success', 'Cập nhật máy hút mùi thành công!');
     }
 
-    public function destroy(Hood $hood)
+    public function destroy($hood)
     {
+        $hood = $hood instanceof Hood ? $hood : Hood::findOrFail($hood);
         $this->deleteOldImage($hood->image);
 
         $hood->delete();

@@ -25,7 +25,7 @@
 
     <div class="card shadow-sm">
         <div class="card-body p-4">
-            <form action="{{ route('hoods.update', $hood) }}" method="POST" enctype="multipart/form-data">
+            <form action="{{ route('hoods.update', ['hood' => $hood->id ?? $hood]) }}" method="POST" enctype="multipart/form-data">
                 @csrf
                 @method('PUT')
 

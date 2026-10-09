@@ -125,7 +125,7 @@ Route::middleware('auth')->group(function () {
     // ========================================================
     Route::middleware('verified')->group(function () {
 
-        // HÒM THƯ HỖ TRỢ & THƯ PHẢN HỒI (Chỉ tài khoản đã xác minh Email mới truy cập được)
+        // HÒM THƯ HỖ TRỢ & THƯ PHẢN HỒI
         Route::get('/ho-tro', [SupportController::class, 'showForm'])->name('user.support.form');
         Route::post('/ho-tro/send', [SupportController::class, 'sendSupport'])->name('user.support.send');
         Route::get('/ho-tro/lich-su', [SupportController::class, 'userHistory'])->name('user.support.history');
@@ -174,7 +174,7 @@ Route::middleware('auth')->group(function () {
             Route::get('/dashboard', fn() => redirect()->route('admin.portal'))->name('admin.dashboard');
             Route::get('/portal/export-excel', [AdminPortalController::class, 'exportExcel'])->name('admin.portal.export');
 
-            // Quản lý Hòm Thư Hỗ Trợ (Khách hàng gửi đến)
+            // Quản lý Hòm Thư Hỗ Trợ
             Route::get('/support-requests', [SupportController::class, 'adminIndex'])->name('admin.support.index');
             Route::post('/support-requests/{id}/reply', [SupportController::class, 'adminReply'])->name('admin.support.reply');
             Route::delete('/support-requests/{id}', [SupportController::class, 'destroy'])->name('admin.support.destroy');
@@ -195,16 +195,16 @@ Route::middleware('auth')->group(function () {
 
             // Resource quản lý danh mục, sản phẩm, dịch vụ, coupon
             Route::resource('categories', CategoryController::class)->names('admin.categories');
-            Route::resource('categories-short', CategoryController::class)->names('categories');
+            Route::resource('categories-short', CategoryController::class)->names('categories')->parameters(['categories-short' => 'category']);
 
             Route::resource('hoods', HoodController::class)->names('admin.hoods');
-            Route::resource('hoods-short', HoodController::class)->names('hoods');
+            Route::resource('hoods-short', HoodController::class)->names('hoods')->parameters(['hoods-short' => 'hood']);
 
             Route::resource('services', AdminServicePackageController::class)->names('admin.services');
-            Route::resource('services-short', AdminServicePackageController::class)->names('services');
+            Route::resource('services-short', AdminServicePackageController::class)->names('services')->parameters(['services-short' => 'service']);
 
             Route::resource('coupons', CouponController::class)->names('admin.coupons');
-            Route::resource('coupons-short', CouponController::class)->names('coupons');
+            Route::resource('coupons-short', CouponController::class)->names('coupons')->parameters(['coupons-short' => 'coupon']);
 
             // Thư Hỗ trợ Bán hàng & Khuyến mại Email
             Route::get('/send-promotion-mail', [AdminPortalController::class, 'showPromotionForm'])->name('admin.promotion.form');
