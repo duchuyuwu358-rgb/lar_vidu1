@@ -19,7 +19,7 @@ class MomoController extends Controller
      */
     private function sendOrderStatusEmail(Order $order)
     {
-        $recipientEmail = $order->email ?? $order->user->email ?? null;
+        $recipientEmail = $order->customer_email ?? $order->email ?? $order->user->email ?? null;
 
         if ($recipientEmail) {
             try {
@@ -35,12 +35,15 @@ class MomoController extends Controller
      */
     public function startPayment(Order $order, MomoService $momoService)
     {
+        // Tính tiền chuẩn xác từ đơn hàng
+        $amount = $order->total_amount ?? $order->total_price ?? $order->total ?? 0;
+
         $transaction = PaymentTransaction::create([
             'order_id'       => $order->id,
             'user_id'        => auth()->id() ?? $order->user_id,
             'gateway'        => 'momo',
             'payment_method' => 'momo',
-            'amount'         => $order->total_price ?? $order->total_amount ?? $order->total ?? 0,
+            'amount'         => $amount,
             'status'         => 'pending',
         ]);
 
@@ -73,18 +76,24 @@ class MomoController extends Controller
             return redirect('/orders')->with('error', 'Không tìm thấy thông tin đơn hàng.');
         }
 
-        // TỰ ĐỘNG KHÔI PHỤC SESSION ĐĂNG NHẬP CHO KHÁCH HÀNG NẾU MẤT COOKIE KHI REDIRECT TỪ MOMO
+        // Tự động khôi phục phiên đăng nhập nếu mất Cookie khi redirect từ MoMo
         if (!Auth::check() && $order->user_id) {
             Auth::loginUsingId($order->user_id);
         }
 
-        $transaction = PaymentTransaction::where('order_id', $order->id)->latest()->first();
+        // Tìm đúng bản ghi giao dịch theo gateway_order_id hoặc order_id
+        $transaction = null;
+        if (!empty($payload['orderId'])) {
+            $transaction = PaymentTransaction::where('gateway_order_id', $payload['orderId'])->first();
+        }
+        if (!$transaction) {
+            $transaction = PaymentTransaction::where('order_id', $order->id)->latest()->first();
+        }
 
         $resultCode       = isset($payload['resultCode']) ? (int)$payload['resultCode'] : -1;
         $isValidSignature = $momoService->isValidSuccessfulResponse($payload);
-        $transId          = $payload['transId'] ?? null;
 
-        // Xác định đường dẫn hiển thị chi tiết đơn hàng an toàn
+        // Đường dẫn trả về giao diện đơn hàng an toàn
         $showOrderRoute = Route::has('orders.show')
             ? route('orders.show', $order->id)
             : (Route::has('user.orders.show') ? route('user.orders.show', $order->id) : url("/orders/{$order->id}"));
@@ -94,17 +103,11 @@ class MomoController extends Controller
                 $momoService->markPaid($transaction, $payload);
             }
 
-            $updateData = [
+            // Cập nhật trạng thái đơn hàng (Chỉ cập nhật các trường có sẵn trong CSDL)
+            $order->update([
                 'payment_status' => 'paid',
                 'status'         => 'processing',
-            ];
-
-            if ($transId) {
-                $updateData['momo_transaction_id'] = $transId;
-                $updateData['transaction_id']      = $transId;
-            }
-
-            $order->update($updateData);
+            ]);
 
             // Xóa giỏ hàng khỏi Session
             session()->forget('cart');
@@ -145,28 +148,26 @@ class MomoController extends Controller
             return response()->json(['message' => 'Order not found'], 404);
         }
 
-        $transaction = PaymentTransaction::where('order_id', $order->id)->latest()->first();
+        $transaction = null;
+        if (!empty($payload['orderId'])) {
+            $transaction = PaymentTransaction::where('gateway_order_id', $payload['orderId'])->first();
+        }
+        if (!$transaction) {
+            $transaction = PaymentTransaction::where('order_id', $order->id)->latest()->first();
+        }
 
         $resultCode       = isset($payload['resultCode']) ? (int)$payload['resultCode'] : -1;
         $isValidSignature = $momoService->isValidSuccessfulResponse($payload);
-        $transId          = $payload['transId'] ?? null;
 
         if ($resultCode === 0 && $isValidSignature) {
             if ($transaction) {
                 $momoService->markPaid($transaction, $payload);
             }
 
-            $updateData = [
+            $order->update([
                 'payment_status' => 'paid',
                 'status'         => 'processing',
-            ];
-
-            if ($transId) {
-                $updateData['momo_transaction_id'] = $transId;
-                $updateData['transaction_id']      = $transId;
-            }
-
-            $order->update($updateData);
+            ]);
 
             $this->sendOrderStatusEmail($order);
 
