@@ -29,10 +29,13 @@ class MomoController extends Controller
         }
     }
 
-    private function restoreStockIfCancelled(Order $order): void
+    /**
+     * Chỉ gọi hàm này khi người dùng CHỦ ĐỘNG HỦY giao dịch
+     */
+    private function restoreStockAndCancelOrder(Order $order): void
     {
         if (in_array(strtolower((string) $order->payment_status), ['paid']) || 
-            in_array(strtolower((string) $order->status), ['paid', 'processing', 'completed', 'shipping'])) {
+            in_array(strtolower((string) $order->status), ['paid', 'processing', 'completed', 'shipping', 'cancelled'])) {
             return;
         }
 
@@ -118,7 +121,7 @@ class MomoController extends Controller
             : (Route::has('user.orders.show') ? route('user.orders.show', $order->id) : (Route::has('orders.index') ? route('orders.index') : url("/orders/{$order->id}")));
 
         try {
-            // Đã thanh toán thành công thì dừng
+            // Nếu đã thanh toán thành công thì không cho thanh toán lại
             if (in_array(strtolower((string) $order->payment_status), ['paid']) || 
                 in_array(strtolower((string) $order->status), ['paid', 'processing', 'completed', 'shipping'])) {
                 return redirect($showOrderRoute)->with('info', 'Đơn hàng này đã được thanh toán thành công.');
@@ -126,13 +129,13 @@ class MomoController extends Controller
 
             $amount = $order->total_amount ?? $order->total_price ?? $order->total ?? 0;
 
-            // Hủy toàn bộ transaction pending cũ của đơn hàng này để làm sạch
+            // Đánh dấu các lượt transaction pending cũ thành failed để tạo lượt thanh toán hoàn toàn MỚI
             PaymentTransaction::where('order_id', $order->id)
                 ->where('gateway', 'momo')
                 ->where('status', 'pending')
-                ->update(['status' => 'failed', 'message' => 'Tạo lượt thanh toán mới']);
+                ->update(['status' => 'failed', 'message' => 'Khởi tạo lượt thanh toán mới']);
 
-            // Luôn tạo Transaction MỚI để cấp orderId & Token MỚI 100% cho MoMo
+            // Tạo Transaction MỚI
             $transaction = PaymentTransaction::create([
                 'order_id' => $order->id,
                 'gateway'  => 'momo',
@@ -140,7 +143,7 @@ class MomoController extends Controller
                 'status'   => 'pending',
             ]);
 
-            // Gọi MoMo mở cổng Visa (payWithCC)
+            // Gọi MoMo payWithCC (Visa)
             $result = $momoService->createPayment($order, $transaction, 'payWithCC');
 
             if (!empty($result['payUrl'])) {
@@ -148,12 +151,11 @@ class MomoController extends Controller
             }
 
             Log::error('MoMo Start Payment Failed: ', $result);
-            $this->restoreStockIfCancelled($order);
 
-            return redirect($showOrderRoute)->with('error', 'Lỗi MoMo: ' . ($result['message'] ?? 'Không thể khởi tạo thanh toán.'));
+            // KHÔNG hủy đơn hàng ở đây, giữ đơn hàng pending để user thử lại
+            return redirect($showOrderRoute)->with('error', 'Không thể kết nối MoMo: ' . ($result['message'] ?? 'Thử lại sau.'));
         } catch (\Exception $e) {
             Log::error('MoMo Start Payment Exception: ' . $e->getMessage());
-            $this->restoreStockIfCancelled($order);
 
             return redirect($showOrderRoute)->with('error', 'Lỗi khởi tạo thanh toán: ' . $e->getMessage());
         }
@@ -190,7 +192,7 @@ class MomoController extends Controller
             ? route('orders.show', $order->id)
             : (Route::has('user.orders.show') ? route('user.orders.show', $order->id) : (Route::has('orders.index') ? route('orders.index') : url("/orders/{$order->id}")));
 
-        // Thanh toán thành công
+        // 1. THANH TOÁN THÀNH CÔNG (resultCode = 0)
         if (($resultCode === 0 && $isValidSignature) || strtolower((string)$order->payment_status) === 'paid') {
             if ($transaction) {
                 $momoService->markPaid($transaction, $payload);
@@ -205,18 +207,30 @@ class MomoController extends Controller
             $this->sendOrderStatusEmail($order);
 
             return redirect($showOrderRoute)
-                ->with('success', 'Thanh toán đơn hàng qua MoMo Visa thành công!');
+                ->with('success', 'Thanh toán đơn hàng qua MoMo thành công!');
         }
 
-        // Thanh toán thất bại hoặc hủy giữa chừng
+        // 2. NGƯỜI DÙNG BẤM "QUAY VỀ / HỦY GIAO DỊCH" TRÊN MOMO (resultCode = 1006)
+        if ($resultCode === 1006) {
+            if ($transaction) {
+                $momoService->markFailed($transaction, $payload);
+            }
+
+            // Hủy đơn hàng và hoàn lại tồn kho
+            $this->restoreStockAndCancelOrder($order);
+
+            return redirect($showOrderRoute)
+                ->with('info', 'Bạn đã hủy giao dịch thanh toán MoMo.');
+        }
+
+        // 3. ĐIỀN SAI THẺ / NGÂN HÀNG TỪ CHỐI / LỖI KHÁC (resultCode khác 0 và khác 1006)
         if ($transaction) {
             $momoService->markFailed($transaction, $payload);
         }
 
-        $this->restoreStockIfCancelled($order);
-
+        // GIỮ NGUYÊN ĐƠN HÀNG (Pending/Unpaid), KHÔNG HOÀN KHO, ĐỂ KHÁCH BẤM THANH TOÁN LAI
         return redirect($showOrderRoute)
-            ->with('error', 'Thanh toán không thành công hoặc đã bị hủy!');
+            ->with('error', 'Thanh toán chưa thành công (' . ($payload['message'] ?? 'Thẻ bị từ chối') . '). Đơn hàng của bạn vẫn được lưu, hãy bấm nút "Thanh toán qua MoMo" để thử lại!');
     }
 
     public function ipn(Request $request, MomoService $momoService)
@@ -257,23 +271,32 @@ class MomoController extends Controller
             return response()->json(['message' => 'Success'], 200);
         }
 
+        if ($resultCode === 1006) {
+            if ($transaction) {
+                $momoService->markFailed($transaction, $payload);
+            }
+            $this->restoreStockAndCancelOrder($order);
+            return response()->json(['message' => 'User cancelled'], 200);
+        }
+
         if ($transaction) {
             $momoService->markFailed($transaction, $payload);
         }
 
-        $this->restoreStockIfCancelled($order);
-
-        return response()->json(['message' => 'Invalid signature or failed transaction'], 400);
+        return response()->json(['message' => 'Transaction failed'], 400);
     }
 
+    /**
+     * Cho phép bấm Hủy đơn từ giao diện Web
+     */
     public function cancelPayment(Order $order)
     {
         $showOrderRoute = Route::has('orders.show')
             ? route('orders.show', $order->id)
             : (Route::has('user.orders.show') ? route('user.orders.show', $order->id) : (Route::has('orders.index') ? route('orders.index') : url("/orders/{$order->id}")));
 
-        $this->restoreStockIfCancelled($order);
+        $this->restoreStockAndCancelOrder($order);
 
-        return redirect($showOrderRoute)->with('info', 'Đã hủy thanh toán đơn hàng thành công.');
+        return redirect($showOrderRoute)->with('info', 'Đã hủy đơn hàng thành công.');
     }
 }
