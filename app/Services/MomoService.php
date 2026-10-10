@@ -11,25 +11,23 @@ use Illuminate\Support\Facades\Log;
 class MomoService
 {
     /**
-     * Bộ cấu hình MoMo Sandbox API v2 chính thức
+     * Bộ cấu hình MoMo Sandbox API v2
      */
     protected function getConfigs(): array
     {
-        // Lấy cấu hình từ file .env (hoặc từ cài đặt Environment trên Render)
-        // Nếu không có, sẽ tự động dùng bộ khóa Sandbox mặc định của MoMo.
         return [
             'endpoint'    => env('MOMO_ENDPOINT', 'https://test-payment.momo.vn/v2/gateway/api/create'),
             'partnerCode' => env('MOMO_PARTNER_CODE', 'MOMO'),
-            'accessKey'   => env('MOMO_ACCESS_KEY', 'F8BBA842ECF85'),
-            'secretKey'   => env('MOMO_SECRET_KEY', 'K951B6FA68A05B09A0A629B51E6E028F'),
+            'accessKey'   => env('MOMO_ACCESS_KEY', 'F8s3S2yB2256o25g'),
+            'secretKey'   => env('MOMO_SECRET_KEY', 'At92FuRBn126253652362536'),
             'verifySsl'   => env('MOMO_VERIFY_SSL', false),
         ];
     }
 
     /**
-     * Khởi tạo giao dịch thanh toán MoMo bằng thẻ Visa/Credit Card (payWithCC)
+     * Khởi tạo giao dịch thanh toán MoMo (Mặc định requestType = captureWallet)
      */
-    public function createPayment(Order $order, PaymentTransaction $transaction, string $requestType = 'payWithCC'): array
+    public function createPayment(Order $order, PaymentTransaction $transaction, string $requestType = 'captureWallet'): array
     {
         $cfg = $this->getConfigs();
 
@@ -49,13 +47,13 @@ class MomoService
         $scheme        = (request()->secure() || app()->environment('production') || str_contains($host, 'onrender.com')) ? 'https' : request()->getScheme();
         $currentDomain = $scheme . '://' . $host;
 
-        $redirectUrl = $currentDomain . '/payment/momo/callback';
-        $ipnUrl      = $currentDomain . '/payment/momo/ipn';
+        $redirectUrl = env('MOMO_REDIRECT_URL', $currentDomain . '/payment/momo/callback');
+        $ipnUrl      = env('MOMO_IPN_URL', $currentDomain . '/payment/momo/ipn');
 
         $extraData = ""; 
         $requestId = (string) time();
 
-        // Chuỗi mã hóa HMAC SHA256 với requestType = payWithCC
+        // Chuỗi mã hóa HMAC SHA256 chuẩn MoMo API v2
         $rawHash = "accessKey={$cfg['accessKey']}&amount={$strAmount}&extraData={$extraData}&ipnUrl={$ipnUrl}&orderId={$orderId}&orderInfo={$orderInfo}&partnerCode={$cfg['partnerCode']}&redirectUrl={$redirectUrl}&requestId={$requestId}&requestType={$requestType}";
 
         $signature = hash_hmac('sha256', $rawHash, $cfg['secretKey']);
@@ -91,7 +89,7 @@ class MomoService
 
             $result = $response->json() ?? [];
 
-            Log::info('MoMo RawHash Visa: ' . $rawHash);
+            Log::info('MoMo RawHash Payload: ' . $rawHash);
             Log::info('MoMo Response:', $result);
 
             $transaction->update([

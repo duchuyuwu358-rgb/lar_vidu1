@@ -120,7 +120,6 @@ class MomoController extends Controller
         try {
             $amount = $order->total_amount ?? $order->total_price ?? $order->total ?? 0;
 
-            // Loại bỏ hoàn toàn user_id & payment_method để không bị lỗi 1054 Unknown column
             $transaction = PaymentTransaction::where('order_id', $order->id)
                 ->where('gateway', 'momo')
                 ->latest()
@@ -135,7 +134,8 @@ class MomoController extends Controller
                 ]);
             }
 
-            $result = $momoService->createPayment($order, $transaction);
+            // Gọi MoMo với requestType = captureWallet
+            $result = $momoService->createPayment($order, $transaction, 'captureWallet');
 
             if (!empty($result['payUrl'])) {
                 return redirect()->away($result['payUrl']);

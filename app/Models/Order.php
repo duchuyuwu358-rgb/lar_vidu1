@@ -9,11 +9,6 @@ class Order extends Model
 {
     use HasFactory;
 
-    /**
-     * Các trường được phép gán dữ liệu hàng loạt (Mass Assignment)
-     *
-     * @var array<int, string>
-     */
     protected $fillable = [
         'user_id',
         'total_price',
@@ -21,8 +16,8 @@ class Order extends Model
         'payment_status',
         'status',
         'momo_transaction_id',
-        'transaction_id',     // Bổ sung để tương thích lưu mã giao dịch chung
-        'ghn_order_code',     // Mã vận đơn GHN
+        'transaction_id',
+        'ghn_order_code',
         'address',
         'phone',
         'name',
@@ -30,9 +25,14 @@ class Order extends Model
     ];
 
     /**
-     * Danh sách định nghĩa trạng thái đơn hàng chuẩn cho hệ thống
+     * Bảng ánh xạ trạng thái đơn hàng đầy đủ
      */
     public const STATUSES = [
+        'pending' => [
+            'label' => 'Chờ xử lý',
+            'badge' => 'bg-warning text-dark',
+            'icon'  => 'fas fa-clock',
+        ],
         'pending_payment' => [
             'label' => 'Chờ thanh toán',
             'badge' => 'bg-warning text-dark',
@@ -63,67 +63,75 @@ class Order extends Model
             'badge' => 'bg-danger',
             'icon'  => 'fas fa-times-circle',
         ],
+        'failed' => [
+            'label' => 'Đã hủy / Thất bại',
+            'badge' => 'bg-danger',
+            'icon'  => 'fas fa-times-circle',
+        ],
     ];
 
-    /**
-     * Accessor: Tự động hiển thị Mã đơn dạng ORD-00023
-     */
     public function getOrderCodeAttribute()
     {
         return 'ORD-' . str_pad($this->id, 5, '0', STR_PAD_LEFT);
     }
 
-    /**
-     * Accessor: Tên nhãn hiển thị trạng thái
-     */
     public function getStatusLabelAttribute()
     {
-        return self::STATUSES[$this->status]['label'] ?? 'Không xác định';
+        $status = (string) $this->status;
+        if (isset(self::STATUSES[$status])) {
+            return self::STATUSES[$status]['label'];
+        }
+
+        switch ($status) {
+            case '0': return 'Chờ xử lý';
+            case '1': return 'Đang xử lý';
+            case '2': return 'Hoàn thành';
+            case '3': return 'Đã hủy / Thất bại';
+            default: return 'Chờ xác nhận (' . $status . ')';
+        }
     }
 
-    /**
-     * Accessor: Class màu sắc badge Bootstrap
-     */
     public function getStatusBadgeAttribute()
     {
-        return self::STATUSES[$this->status]['badge'] ?? 'bg-secondary';
+        $status = (string) $this->status;
+        if (isset(self::STATUSES[$status])) {
+            return self::STATUSES[$status]['badge'];
+        }
+
+        switch ($status) {
+            case '0': return 'bg-warning text-dark';
+            case '1': return 'bg-info text-white';
+            case '2': return 'bg-success';
+            case '3': return 'bg-danger';
+            default: return 'bg-secondary';
+        }
     }
 
-    /**
-     * Accessor: Class biểu tượng FontAwesome
-     */
     public function getStatusIconAttribute()
     {
-        return self::STATUSES[$this->status]['icon'] ?? 'fas fa-info-circle';
+        $status = (string) $this->status;
+        if (isset(self::STATUSES[$status])) {
+            return self::STATUSES[$status]['icon'];
+        }
+
+        return 'fas fa-info-circle';
     }
 
-    /**
-     * Quan hệ với bảng User (Khách hàng đặt)
-     */
     public function user()
     {
         return $this->belongsTo(User::class);
     }
 
-    /**
-     * Quan hệ với chi tiết lịch sử giao dịch thanh toán
-     */
     public function paymentTransactions()
     {
         return $this->hasMany(PaymentTransaction::class, 'order_id');
     }
 
-    /**
-     * Quan hệ với chi tiết đơn hàng OrderItem
-     */
     public function orderItems()
     {
         return $this->hasMany(OrderItem::class);
     }
 
-    /**
-     * Tương thích mã nguồn gọi $order->items
-     */
     public function items()
     {
         return $this->hasMany(OrderItem::class);
