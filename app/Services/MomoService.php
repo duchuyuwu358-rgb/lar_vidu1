@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Log;
 class MomoService
 {
     /**
-     * Lấy cấu hình MoMo (Đọc từ config và tự sửa AccessKey cũ nếu có)
+     * Lấy cấu hình MoMo (Đọc từ config và tự động bổ sung fallback key chuẩn)
      */
     protected function getConfigs(): array
     {
@@ -19,7 +19,6 @@ class MomoService
         $accessKey   = config('services.momo.access_key', 'klm99x0Za7RdUODe');
         $secretKey   = config('services.momo.secret_key', 'at67qH6mk8w5Y1nAyMoYKMWACiEi2bsa');
 
-        // Tự động điều chỉnh nếu Render hoặc Env vẫn đang giữ AccessKey cũ
         if (empty($accessKey) || $accessKey === 'klm05TvNBzhg7h7j') {
             $accessKey = 'klm99x0Za7RdUODe';
         }
@@ -38,9 +37,9 @@ class MomoService
     }
 
     /**
-     * Khởi tạo giao dịch thanh toán MoMo
+     * Khởi tạo giao dịch thanh toán MoMo (Hỗ trợ mở cổng Thẻ Visa / MasterCard / Ví MoMo)
      */
-    public function createPayment(Order $order, PaymentTransaction $transaction): array
+    public function createPayment(Order $order, PaymentTransaction $transaction, string $requestType = 'payWithMethod'): array
     {
         $cfg = $this->getConfigs();
 
@@ -58,11 +57,16 @@ class MomoService
         $redirectUrl = config('services.momo.redirect_url') ?: $baseUrl . '/payment/momo/callback';
         $ipnUrl      = config('services.momo.ipn_url') ?: $baseUrl . '/payment/momo/ipn';
 
-        $extraData   = ""; 
-        $requestId   = (string) time();
-        $requestType = 'captureWallet';
+        // Ép buộc dùng giao thức HTTPS an toàn khi đẩy lên môi trường Production / Render
+        if (app()->environment('production') || str_contains($baseUrl, 'onrender.com')) {
+            $redirectUrl = str_replace('http://', 'https://', $redirectUrl);
+            $ipnUrl      = str_replace('http://', 'https://', $ipnUrl);
+        }
 
-        // Tạo chữ ký HMAC SHA256 chuẩn alphabet
+        $extraData = ""; 
+        $requestId = (string) time();
+
+        // Tạo chữ ký HMAC SHA256 chuẩn theo bảng chữ cái
         $rawHash = "accessKey={$cfg['accessKey']}&amount={$amount}&extraData={$extraData}&ipnUrl={$ipnUrl}&orderId={$orderId}&orderInfo={$orderInfo}&partnerCode={$cfg['partnerCode']}&redirectUrl={$redirectUrl}&requestId={$requestId}&requestType={$requestType}";
 
         $signature = hash_hmac('sha256', $rawHash, $cfg['secretKey']);
@@ -146,7 +150,7 @@ class MomoService
     }
 
     /**
-     * Kiểm tra chữ ký bảo mật trả về từ MoMo
+     * Kiểm tra chữ ký bảo mật phản hồi từ MoMo
      */
     public function isValidResponse(array $payload): bool
     {

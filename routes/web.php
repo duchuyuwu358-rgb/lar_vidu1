@@ -46,9 +46,13 @@ Route::match(['get', 'post'], '/dich-vu/add-to-cart-alias/{id}', [ServicePackage
 Route::get('/auth/google', [AuthController::class, 'redirectToGoogle'])->name('auth.google');
 Route::get('/auth/google/callback', [AuthController::class, 'handleGoogleCallback'])->name('auth.google.callback');
 
-// MoMo Callbacks & IPN
+// MoMo Callbacks & IPN (Đã thêm withoutMiddleware để không bị chặn CSRF 419)
 Route::get('/payment/momo/callback', [MomoController::class, 'callback'])->name('user.payment.momo.callback');
-Route::post('/payment/momo/ipn', [MomoController::class, 'ipn'])->name('payment.momo.ipn');
+Route::post('/payment/momo/ipn', [MomoController::class, 'ipn'])
+    ->withoutMiddleware([
+        \Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class,
+    ])
+    ->name('payment.momo.ipn');
 
 // GHN Webhook
 Route::post('/ghn/webhook', [OrderController::class, 'handleGhnWebhook'])
