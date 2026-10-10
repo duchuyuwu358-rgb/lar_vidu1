@@ -134,8 +134,8 @@ class MomoController extends Controller
                 ]);
             }
 
-            // Mở thẳng trang Visa / Mastercard (payWithCC)
-            $result = $momoService->createPayment($order, $transaction, 'payWithCC');
+            
+            $result = $momoService->createPayment($order, $transaction, 'payWithATM');
 
             if (!empty($result['payUrl'])) {
                 return redirect()->away($result['payUrl']);
