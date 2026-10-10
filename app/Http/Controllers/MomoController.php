@@ -11,9 +11,13 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\DB;
 
 class MomoController extends Controller
 {
+    /**
+     * Gửi Gmail thông báo cập nhật đơn hàng
+     */
     private function sendOrderStatusEmail(Order $order)
     {
         $recipientEmail = $order->customer_email ?? $order->email ?? $order->user->email ?? null;
@@ -27,6 +31,47 @@ class MomoController extends Controller
         }
     }
 
+    /**
+     * HOÀN LẠI SỐ LƯỢNG TỒN KHO NẾU THANH TOÁN THẤT BẠI HOẶC BỊ HỦY
+     */
+    private function restoreStockIfCancelled(Order $order): void
+    {
+        // Bỏ qua nếu đơn hàng đã ở trạng thái hoàn thành, đang xử lý, đã hủy hoặc đã thanh toán thành công
+        if (in_array($order->status, ['cancelled', 'paid', 'processing', 'completed'])) {
+            return;
+        }
+
+        DB::transaction(function () use ($order) {
+            // Lấy danh sách sản phẩm trong đơn hàng (hỗ trợ các tên quan hệ phổ biến)
+            $items = $order->items ?? $order->orderDetails ?? $order->details ?? [];
+
+            foreach ($items as $item) {
+                $product  = $item->hood ?? $item->product ?? null;
+                $quantity = $item->quantity ?? $item->qty ?? 0;
+
+                if ($product && $quantity > 0) {
+                    // Cộng trả lại số lượng sản phẩm vào kho
+                    if (isset($product->stock_quantity)) {
+                        $product->increment('stock_quantity', $quantity);
+                    } elseif (isset($product->stock)) {
+                        $product->increment('stock', $quantity);
+                    } elseif (isset($product->quantity)) {
+                        $product->increment('quantity', $quantity);
+                    }
+                }
+            }
+
+            // Cập nhật trạng thái đơn hàng sang Hủy & Thanh toán thất bại
+            $order->update([
+                'payment_status' => 'failed',
+                'status'         => 'cancelled'
+            ]);
+        });
+    }
+
+    /**
+     * Khởi tạo thanh toán MoMo
+     */
     public function startPayment(Order $order, MomoService $momoService)
     {
         $amount = $order->total_amount ?? $order->total_price ?? $order->total ?? 0;
@@ -53,6 +98,9 @@ class MomoController extends Controller
         }
     }
 
+    /**
+     * Xử lý khi MoMo chuyển hướng khách hàng về lại website
+     */
     public function callback(Request $request, MomoService $momoService)
     {
         $payload = $request->all();
@@ -65,6 +113,7 @@ class MomoController extends Controller
             return redirect('/orders')->with('error', 'Không tìm thấy thông tin đơn hàng.');
         }
 
+        // Tự động duy trì phiên đăng nhập
         if (!Auth::check() && $order->user_id) {
             Auth::loginUsingId($order->user_id);
         }
@@ -84,6 +133,7 @@ class MomoController extends Controller
             ? route('orders.show', $order->id)
             : (Route::has('user.orders.show') ? route('user.orders.show', $order->id) : url("/orders/{$order->id}"));
 
+        // THANH TOÁN THÀNH CÔNG
         if ($resultCode === 0 && $isValidSignature) {
             if ($transaction) {
                 $momoService->markPaid($transaction, $payload);
@@ -101,19 +151,20 @@ class MomoController extends Controller
                 ->with('success', 'Thanh toán đơn hàng qua thẻ ATM thành công!');
         }
 
+        // THANH TOÁN THẤT BẠI HOẶC BỊ HỦY -> HOÀN TỒN KHO SẢN PHẨM
         if ($transaction) {
             $momoService->markFailed($transaction, $payload);
         }
 
-        $order->update([
-            'payment_status' => 'failed',
-            'status'         => 'cancelled'
-        ]);
+        $this->restoreStockIfCancelled($order);
 
         return redirect($showOrderRoute)
             ->with('error', 'Thanh toán không thành công hoặc đã bị hủy!');
     }
 
+    /**
+     * Xử lý thông báo ngầm IPN từ MoMo
+     */
     public function ipn(Request $request, MomoService $momoService)
     {
         $payload = $request->all();
@@ -137,6 +188,7 @@ class MomoController extends Controller
         $resultCode       = isset($payload['resultCode']) ? (int)$payload['resultCode'] : -1;
         $isValidSignature = $momoService->isValidSuccessfulResponse($payload);
 
+        // THANH TOÁN THÀNH CÔNG
         if ($resultCode === 0 && $isValidSignature) {
             if ($transaction) {
                 $momoService->markPaid($transaction, $payload);
@@ -152,14 +204,12 @@ class MomoController extends Controller
             return response()->json(['message' => 'Success'], 200);
         }
 
+        // THANH TOÁN THẤT BẠI HOẶC BỊ HỦY -> HOÀN TỒN KHO SẢN PHẨM
         if ($transaction) {
             $momoService->markFailed($transaction, $payload);
         }
 
-        $order->update([
-            'payment_status' => 'failed',
-            'status'         => 'cancelled'
-        ]);
+        $this->restoreStockIfCancelled($order);
 
         return response()->json(['message' => 'Invalid signature or failed transaction'], 400);
     }
