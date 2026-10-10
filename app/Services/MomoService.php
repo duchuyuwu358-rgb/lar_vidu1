@@ -11,13 +11,13 @@ use Illuminate\Support\Facades\Log;
 class MomoService
 {
     /**
-     * Lấy cấu hình MoMo
+     * Lấy cấu hình MoMo (Đã làm sạch khoảng trắng thừa)
      */
     protected function getConfigs(): array
     {
-        $partnerCode = config('services.momo.partner_code', 'MOMOBKUN20180529');
-        $accessKey   = config('services.momo.access_key', 'klm99x0Za7RdUODe');
-        $secretKey   = config('services.momo.secret_key', 'at67qH6mk8w5Y1nAyMoYKMWACiEi2bsa');
+        $partnerCode = trim((string) config('services.momo.partner_code', 'MOMOBKUN20180529'));
+        $accessKey   = trim((string) config('services.momo.access_key', 'klm99x0Za7RdUODe'));
+        $secretKey   = trim((string) config('services.momo.secret_key', 'at67qH6mk8w5Y1nAyMoYKMWACiEi2bsa'));
 
         if (empty($accessKey) || $accessKey === 'klm05TvNBzhg7h7j') {
             $accessKey = 'klm99x0Za7RdUODe';
@@ -28,7 +28,7 @@ class MomoService
         }
 
         return [
-            'endpoint'     => config('services.momo.endpoint', 'https://test-payment.momo.vn/v2/gateway/api/create'),
+            'endpoint'     => trim((string) config('services.momo.endpoint', 'https://test-payment.momo.vn/v2/gateway/api/create')),
             'partnerCode'  => $partnerCode,
             'accessKey'    => $accessKey,
             'secretKey'    => $secretKey,
@@ -37,7 +37,7 @@ class MomoService
     }
 
     /**
-     * Khởi tạo giao dịch thanh toán MoMo (Dùng requestType = captureWallet chuẩn Sandbox)
+     * Khởi tạo giao dịch thanh toán MoMo
      */
     public function createPayment(Order $order, PaymentTransaction $transaction, string $requestType = 'captureWallet'): array
     {
@@ -53,12 +53,24 @@ class MomoService
         $orderInfo = 'Thanh toan don hang ' . $cleanCode;
         $orderId   = $order->id . '_' . $transaction->id . '_' . time();
 
-        $baseUrl     = request()->schemeAndHttpHost();
-        $redirectUrl = config('services.momo.redirect_url') ?: $baseUrl . '/payment/momo/callback';
-        $ipnUrl      = config('services.momo.ipn_url') ?: $baseUrl . '/payment/momo/ipn';
+        // Tự động nhận diện Domain thực tế đang truy cập (Ví dụ: https://lar-vidu1-kov7.onrender.com)
+        $host   = request()->getHost();
+        $scheme = (request()->secure() || app()->environment('production') || str_contains($host, 'onrender.com')) ? 'https' : request()->getScheme();
+        $currentDomain = $scheme . '://' . $host;
 
-        // Ép buộc dùng giao thức HTTPS khi chạy trên Render
-        if (app()->environment('production') || str_contains($baseUrl, 'onrender.com')) {
+        $envRedirect = trim((string) config('services.momo.redirect_url'));
+        $envIpn      = trim((string) config('services.momo.ipn_url'));
+
+        // Nếu URL cấu hình không chứa domain hiện tại, tự động lấy domain hiện tại để tránh lỗi signature
+        $redirectUrl = (!empty($envRedirect) && str_contains($envRedirect, $host)) 
+            ? $envRedirect 
+            : $currentDomain . '/payment/momo/callback';
+
+        $ipnUrl = (!empty($envIpn) && str_contains($envIpn, $host)) 
+            ? $envIpn 
+            : $currentDomain . '/payment/momo/ipn';
+
+        if (app()->environment('production') || str_contains($host, 'onrender.com')) {
             $redirectUrl = str_replace('http://', 'https://', $redirectUrl);
             $ipnUrl      = str_replace('http://', 'https://', $ipnUrl);
         }
@@ -66,7 +78,7 @@ class MomoService
         $extraData = ""; 
         $requestId = (string) time();
 
-        // Tạo chữ ký HMAC SHA256 chuẩn
+        // Tạo chữ ký HMAC SHA256 chuẩn alphabet
         $rawHash = "accessKey={$cfg['accessKey']}&amount={$amount}&extraData={$extraData}&ipnUrl={$ipnUrl}&orderId={$orderId}&orderInfo={$orderInfo}&partnerCode={$cfg['partnerCode']}&redirectUrl={$redirectUrl}&requestId={$requestId}&requestType={$requestType}";
 
         $signature = hash_hmac('sha256', $rawHash, $cfg['secretKey']);
