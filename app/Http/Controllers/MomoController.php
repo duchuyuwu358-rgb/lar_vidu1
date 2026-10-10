@@ -134,8 +134,8 @@ class MomoController extends Controller
                 ]);
             }
 
-            // Gọi MoMo với requestType = captureWallet
-            $result = $momoService->createPayment($order, $transaction, 'captureWallet');
+            // Mở thẳng trang Visa / Mastercard (payWithCC)
+            $result = $momoService->createPayment($order, $transaction, 'payWithCC');
 
             if (!empty($result['payUrl'])) {
                 return redirect()->away($result['payUrl']);
@@ -185,6 +185,7 @@ class MomoController extends Controller
             ? route('orders.show', $order->id)
             : (Route::has('user.orders.show') ? route('user.orders.show', $order->id) : (Route::has('orders.index') ? route('orders.index') : url("/orders/{$order->id}")));
 
+        // Thanh toán thành công
         if (($resultCode === 0 && $isValidSignature) || strtolower((string)$order->payment_status) === 'paid') {
             if ($transaction) {
                 $momoService->markPaid($transaction, $payload);
@@ -199,9 +200,10 @@ class MomoController extends Controller
             $this->sendOrderStatusEmail($order);
 
             return redirect($showOrderRoute)
-                ->with('success', 'Thanh toán đơn hàng qua MoMo thành công!');
+                ->with('success', 'Thanh toán đơn hàng qua MoMo Visa thành công!');
         }
 
+        // Thanh toán thất bại hoặc hủy giữa chừng
         if ($transaction) {
             $momoService->markFailed($transaction, $payload);
         }

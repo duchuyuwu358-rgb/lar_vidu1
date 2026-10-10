@@ -11,23 +11,23 @@ use Illuminate\Support\Facades\Log;
 class MomoService
 {
     /**
-     * Bộ cấu hình MoMo Sandbox API v2
+     * Bộ cấu hình MoMo Sandbox API v2 đồng bộ khóa Lab06
      */
     protected function getConfigs(): array
-{
-    return [
-        'endpoint'    => env('MOMO_ENDPOINT', 'https://test-payment.momo.vn/v2/gateway/api/create'),
-        'partnerCode' => env('MOMO_PARTNER_CODE', 'MOMOBKUN20180529'),
-        'accessKey'   => env('MOMO_ACCESS_KEY', 'klm05TvNBzhg7h7j'),
-        'secretKey'   => env('MOMO_SECRET_KEY', 'at67qH6mk8w5Y1nAyMoYKMWACiEi2bsa'),
-        'verifySsl'   => env('MOMO_VERIFY_SSL', false),
-    ];
-}
+    {
+        return [
+            'endpoint'    => env('MOMO_ENDPOINT', 'https://test-payment.momo.vn/v2/gateway/api/create'),
+            'partnerCode' => env('MOMO_PARTNER_CODE', 'MOMOBKUN20180529'),
+            'accessKey'   => env('MOMO_ACCESS_KEY', 'klm05TvNBzhg7h7j'),
+            'secretKey'   => env('MOMO_SECRET_KEY', 'at67qH6mk8w5Y1nAyMoYKMWACiEi2bsa'),
+            'verifySsl'   => env('MOMO_VERIFY_SSL', false),
+        ];
+    }
 
     /**
-     * Khởi tạo giao dịch thanh toán MoMo (Mặc định requestType = captureWallet)
+     * Mặc định requestType = payWithCC
      */
-    public function createPayment(Order $order, PaymentTransaction $transaction, string $requestType = 'captureWallet'): array
+    public function createPayment(Order $order, PaymentTransaction $transaction, string $requestType = 'payWithCC'): array
     {
         $cfg = $this->getConfigs();
 
@@ -53,7 +53,7 @@ class MomoService
         $extraData = ""; 
         $requestId = (string) time();
 
-        // Chuỗi mã hóa HMAC SHA256 chuẩn MoMo API v2
+        // Chuỗi mã hóa HMAC SHA256 cho payWithCC
         $rawHash = "accessKey={$cfg['accessKey']}&amount={$strAmount}&extraData={$extraData}&ipnUrl={$ipnUrl}&orderId={$orderId}&orderInfo={$orderInfo}&partnerCode={$cfg['partnerCode']}&redirectUrl={$redirectUrl}&requestId={$requestId}&requestType={$requestType}";
 
         $signature = hash_hmac('sha256', $rawHash, $cfg['secretKey']);
@@ -89,7 +89,7 @@ class MomoService
 
             $result = $response->json() ?? [];
 
-            Log::info('MoMo RawHash Payload: ' . $rawHash);
+            Log::info("MoMo RawHash ({$requestType}): " . $rawHash);
             Log::info('MoMo Response:', $result);
 
             $transaction->update([
@@ -133,11 +133,6 @@ class MomoService
             'response_payload' => $payload,
             'status'           => 'failed',
         ]);
-    }
-
-    public function isValidSuccessfulResponse(array $payload): bool
-    {
-        return $this->isSuccessful($payload) && $this->isValidResponse($payload);
     }
 
     public function isValidResponse(array $payload): bool
