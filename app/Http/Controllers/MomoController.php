@@ -34,7 +34,6 @@ class MomoController extends Controller
      */
     private function restoreStockIfCancelled(Order $order): void
     {
-        // Tuyệt đối KHÔNG hủy/hoàn kho nếu đơn hàng đã được ghi nhận thanh toán thành công
         if (in_array(strtolower((string) $order->payment_status), ['paid']) || 
             in_array(strtolower((string) $order->status), ['paid', 'processing', 'completed', 'shipping'])) {
             return;
@@ -124,14 +123,20 @@ class MomoController extends Controller
         try {
             $amount = $order->total_amount ?? $order->total_price ?? $order->total ?? 0;
 
-            $transaction = PaymentTransaction::create([
-                'order_id'       => $order->id,
-                'user_id'        => auth()->id() ?? $order->user_id,
-                'gateway'        => 'momo',
-                'payment_method' => 'momo_wallet',
-                'amount'         => $amount,
-                'status'         => 'pending',
-            ]);
+            // Tìm transaction đã được tạo trước đó hoặc tạo mới với đúng các cột có trong bảng CSDL
+            $transaction = PaymentTransaction::where('order_id', $order->id)
+                ->where('gateway', 'momo')
+                ->latest()
+                ->first();
+
+            if (!$transaction) {
+                $transaction = PaymentTransaction::create([
+                    'order_id' => $order->id,
+                    'gateway'  => 'momo',
+                    'amount'   => $amount,
+                    'status'   => 'pending',
+                ]);
+            }
 
             $result = $momoService->createPayment($order, $transaction);
 
