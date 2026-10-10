@@ -25,7 +25,7 @@ class MomoService
     }
 
     /**
-     * Mặc định requestType = payWithCC
+     * Mặc định requestType = payWithCC (Visa/Mastercard)
      */
     public function createPayment(Order $order, PaymentTransaction $transaction, string $requestType = 'payWithCC'): array
     {
@@ -41,6 +41,8 @@ class MomoService
         $rawCode   = $order->order_code ?? (string)$order->id;
         $cleanCode = preg_replace('/[^a-zA-Z0-9-]/', '', $rawCode);
         $orderInfo = 'Thanh toan don hang ' . $cleanCode;
+
+        // Sinh orderId độc nhất tuyệt đối cho mỗi lượt gọi
         $orderId   = $order->id . '_' . $transaction->id . '_' . time();
 
         $host          = request()->getHost();

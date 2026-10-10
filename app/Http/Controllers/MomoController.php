@@ -118,23 +118,29 @@ class MomoController extends Controller
             : (Route::has('user.orders.show') ? route('user.orders.show', $order->id) : (Route::has('orders.index') ? route('orders.index') : url("/orders/{$order->id}")));
 
         try {
-            $amount = $order->total_amount ?? $order->total_price ?? $order->total ?? 0;
-
-            $transaction = PaymentTransaction::where('order_id', $order->id)
-                ->where('gateway', 'momo')
-                ->latest()
-                ->first();
-
-            if (!$transaction) {
-                $transaction = PaymentTransaction::create([
-                    'order_id' => $order->id,
-                    'gateway'  => 'momo',
-                    'amount'   => $amount,
-                    'status'   => 'pending',
-                ]);
+            // Đã thanh toán thành công thì dừng
+            if (in_array(strtolower((string) $order->payment_status), ['paid']) || 
+                in_array(strtolower((string) $order->status), ['paid', 'processing', 'completed', 'shipping'])) {
+                return redirect($showOrderRoute)->with('info', 'Đơn hàng này đã được thanh toán thành công.');
             }
 
-            
+            $amount = $order->total_amount ?? $order->total_price ?? $order->total ?? 0;
+
+            // Hủy toàn bộ transaction pending cũ của đơn hàng này để làm sạch
+            PaymentTransaction::where('order_id', $order->id)
+                ->where('gateway', 'momo')
+                ->where('status', 'pending')
+                ->update(['status' => 'failed', 'message' => 'Tạo lượt thanh toán mới']);
+
+            // Luôn tạo Transaction MỚI để cấp orderId & Token MỚI 100% cho MoMo
+            $transaction = PaymentTransaction::create([
+                'order_id' => $order->id,
+                'gateway'  => 'momo',
+                'amount'   => $amount,
+                'status'   => 'pending',
+            ]);
+
+            // Gọi MoMo mở cổng Visa (payWithCC)
             $result = $momoService->createPayment($order, $transaction, 'payWithCC');
 
             if (!empty($result['payUrl'])) {
@@ -142,7 +148,6 @@ class MomoController extends Controller
             }
 
             Log::error('MoMo Start Payment Failed: ', $result);
-
             $this->restoreStockIfCancelled($order);
 
             return redirect($showOrderRoute)->with('error', 'Lỗi MoMo: ' . ($result['message'] ?? 'Không thể khởi tạo thanh toán.'));
@@ -259,5 +264,16 @@ class MomoController extends Controller
         $this->restoreStockIfCancelled($order);
 
         return response()->json(['message' => 'Invalid signature or failed transaction'], 400);
+    }
+
+    public function cancelPayment(Order $order)
+    {
+        $showOrderRoute = Route::has('orders.show')
+            ? route('orders.show', $order->id)
+            : (Route::has('user.orders.show') ? route('user.orders.show', $order->id) : (Route::has('orders.index') ? route('orders.index') : url("/orders/{$order->id}")));
+
+        $this->restoreStockIfCancelled($order);
+
+        return redirect($showOrderRoute)->with('info', 'Đã hủy thanh toán đơn hàng thành công.');
     }
 }
