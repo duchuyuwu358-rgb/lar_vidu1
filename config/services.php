@@ -37,13 +37,13 @@ return [
         'from_district_id' => env('GHN_FROM_DISTRICT_ID'),
     ],
 
-    // CẤU HÌNH VÍ MOMO (Đã tối ưu fallback key chuẩn)
+    // CẤU HÌNH VÍ MOMO (Cố định khóa Sandbox v2 chính thức)
     'momo' => [
-        'endpoint'     => env('MOMO_ENDPOINT', 'https://test-payment.momo.vn/v2/gateway/api/create'),
-        'partner_code' => env('MOMO_PARTNER_CODE', 'MOMOBKUN20180529'),
-        'access_key'   => env('MOMO_ACCESS_KEY', 'klm99x0Za7RdUODe'),
-        'secret_key'   => env('MOMO_SECRET_KEY', 'at67qH6mk8w5Y1nAyMoYKMWACiEi2bsa'),
-        'verify_ssl'   => env('MOMO_VERIFY_SSL', false),
+        'endpoint'     => 'https://test-payment.momo.vn/v2/gateway/api/create',
+        'partner_code' => 'MOMO',
+        'access_key'   => 'F8BBA842ECF82',
+        'secret_key'   => 'K951B6PE1waDMi640xX08332A9UWE15i',
+        'verify_ssl'   => false,
         'redirect_url' => env('MOMO_REDIRECT_URL'),
         'ipn_url'      => env('MOMO_IPN_URL'),
     ],

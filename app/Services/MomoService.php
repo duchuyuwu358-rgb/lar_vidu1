@@ -11,31 +11,21 @@ use Illuminate\Support\Facades\Log;
 class MomoService
 {
     /**
-     * Lấy cấu hình MoMo Sandbox API v2 chuẩn chính thức
+     * Bộ cấu hình MoMo Sandbox API v2 chính thức
      */
     protected function getConfigs(): array
     {
-        $partnerCode = config('services.momo.partner_code', 'MOMO');
-        $accessKey   = config('services.momo.access_key', 'F8BBA842ECF82');
-        $secretKey   = config('services.momo.secret_key', 'K951B6PE1waDMi640xX08332A9UWE15i');
-
-        if ($partnerCode === 'MOMOBKUN20180529' || empty($partnerCode)) {
-            $partnerCode = 'MOMO';
-            $accessKey   = 'F8BBA842ECF82';
-            $secretKey   = 'K951B6PE1waDMi640xX08332A9UWE15i';
-        }
-
         return [
             'endpoint'    => 'https://test-payment.momo.vn/v2/gateway/api/create',
-            'partnerCode' => $partnerCode,
-            'accessKey'   => $accessKey,
-            'secretKey'   => $secretKey,
+            'partnerCode' => 'MOMO',
+            'accessKey'   => 'F8BBA842ECF82',
+            'secretKey'   => 'K951B6PE1waDMi640xX08332A9UWE15i',
             'verifySsl'   => false,
         ];
     }
 
     /**
-     * Khởi tạo thanh toán MoMo Gateway (captureWallet)
+     * Khởi tạo giao dịch thanh toán MoMo
      */
     public function createPayment(Order $order, PaymentTransaction $transaction, string $requestType = 'captureWallet'): array
     {
@@ -53,17 +43,12 @@ class MomoService
         $orderInfo = 'Thanh toan don hang ' . $cleanCode;
         $orderId   = $order->id . '_' . $transaction->id . '_' . time();
 
-        $redirectUrl = config('services.momo.redirect_url');
-        $ipnUrl      = config('services.momo.ipn_url');
+        $host          = request()->getHost();
+        $scheme        = (request()->secure() || app()->environment('production') || str_contains($host, 'onrender.com')) ? 'https' : request()->getScheme();
+        $currentDomain = $scheme . '://' . $host;
 
-        if (empty($redirectUrl) || empty($ipnUrl) || str_contains($redirectUrl, '127.0.0.1')) {
-            $host          = request()->getHost();
-            $scheme        = (request()->secure() || app()->environment('production') || str_contains($host, 'onrender.com')) ? 'https' : request()->getScheme();
-            $currentDomain = $scheme . '://' . $host;
-
-            $redirectUrl = $currentDomain . '/payment/momo/callback';
-            $ipnUrl      = $currentDomain . '/payment/momo/ipn';
-        }
+        $redirectUrl = $currentDomain . '/payment/momo/callback';
+        $ipnUrl      = $currentDomain . '/payment/momo/ipn';
 
         $extraData = ""; 
         $requestId = (string) time();
