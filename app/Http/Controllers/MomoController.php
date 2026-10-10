@@ -36,13 +36,11 @@ class MomoController extends Controller
      */
     private function restoreStockIfCancelled(Order $order): void
     {
-        // Bỏ qua nếu đơn hàng đã ở trạng thái hoàn thành, đang xử lý, đã hủy hoặc đã thanh toán thành công
         if (in_array($order->status, ['cancelled', 'paid', 'processing', 'completed'])) {
             return;
         }
 
         DB::transaction(function () use ($order) {
-            // Lấy danh sách sản phẩm trong đơn hàng (hỗ trợ các tên quan hệ phổ biến)
             $items = $order->items ?? $order->orderDetails ?? $order->details ?? [];
 
             foreach ($items as $item) {
@@ -50,7 +48,6 @@ class MomoController extends Controller
                 $quantity = $item->quantity ?? $item->qty ?? 0;
 
                 if ($product && $quantity > 0) {
-                    // Cộng trả lại số lượng sản phẩm vào kho
                     if (isset($product->stock_quantity)) {
                         $product->increment('stock_quantity', $quantity);
                     } elseif (isset($product->stock)) {
@@ -61,7 +58,6 @@ class MomoController extends Controller
                 }
             }
 
-            // Cập nhật trạng thái đơn hàng sang Hủy & Thanh toán thất bại
             $order->update([
                 'payment_status' => 'failed',
                 'status'         => 'cancelled'
@@ -80,7 +76,7 @@ class MomoController extends Controller
             'order_id'       => $order->id,
             'user_id'        => auth()->id() ?? $order->user_id,
             'gateway'        => 'momo',
-            'payment_method' => 'momo_atm',
+            'payment_method' => 'momo_wallet',
             'amount'         => $amount,
             'status'         => 'pending',
         ]);
@@ -113,7 +109,6 @@ class MomoController extends Controller
             return redirect('/orders')->with('error', 'Không tìm thấy thông tin đơn hàng.');
         }
 
-        // Tự động duy trì phiên đăng nhập
         if (!Auth::check() && $order->user_id) {
             Auth::loginUsingId($order->user_id);
         }
@@ -127,7 +122,7 @@ class MomoController extends Controller
         }
 
         $resultCode       = isset($payload['resultCode']) ? (int)$payload['resultCode'] : -1;
-        $isValidSignature = $momoService->isValidSuccessfulResponse($payload);
+        $isValidSignature = $momoService->isValidResponse($payload);
 
         $showOrderRoute = Route::has('orders.show')
             ? route('orders.show', $order->id)
@@ -148,7 +143,7 @@ class MomoController extends Controller
             $this->sendOrderStatusEmail($order);
 
             return redirect($showOrderRoute)
-                ->with('success', 'Thanh toán đơn hàng qua thẻ ATM thành công!');
+                ->with('success', 'Thanh toán đơn hàng qua MoMo thành công!');
         }
 
         // THANH TOÁN THẤT BẠI HOẶC BỊ HỦY -> HOÀN TỒN KHO SẢN PHẨM
@@ -186,7 +181,7 @@ class MomoController extends Controller
         }
 
         $resultCode       = isset($payload['resultCode']) ? (int)$payload['resultCode'] : -1;
-        $isValidSignature = $momoService->isValidSuccessfulResponse($payload);
+        $isValidSignature = $momoService->isValidResponse($payload);
 
         // THANH TOÁN THÀNH CÔNG
         if ($resultCode === 0 && $isValidSignature) {

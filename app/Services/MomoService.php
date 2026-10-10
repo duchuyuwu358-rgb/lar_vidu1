@@ -18,14 +18,14 @@ class MomoService
         return [
             'endpoint'     => config('services.momo.endpoint')     ?: 'https://test-payment.momo.vn/v2/gateway/api/create',
             'partnerCode'  => config('services.momo.partner_code') ?: 'MOMOBKUN20180529',
-            'accessKey'    => config('services.momo.access_key')   ?: 'klm05TvNBzhg7h7j',
+            'accessKey'    => config('services.momo.access_key')   ?: 'klm99x0Za7RdUODe',
             'secretKey'    => config('services.momo.secret_key')   ?: 'at67qH6mk8w5Y1nAyMoYKMWACiEi2bsa',
             'verifySsl'    => filter_var(config('services.momo.verify_ssl', false), FILTER_VALIDATE_BOOLEAN),
         ];
     }
 
     /**
-     * Khởi tạo giao dịch thanh toán MoMo bằng CỔNG THẺ ATM NỘI ĐỊA (payWithATM)
+     * Khởi tạo giao dịch thanh toán MoMo (Mặc định dùng Cổng All-In-One Gateway: captureWallet)
      */
     public function createPayment(Order $order, PaymentTransaction $transaction): array
     {
@@ -46,9 +46,10 @@ class MomoService
 
         $extraData   = ""; 
         $requestId   = (string) time();
-        $requestType = 'payWithATM';
+        // Đổi sang captureWallet để mở cổng All-in-One có nút "Thanh toán thử nghiệm"
+        $requestType = 'captureWallet';
 
-        // 3. Tạo chữ ký HMAC SHA256 chuẩn
+        // 3. Tạo chữ ký HMAC SHA256 chuẩn theo bảng chữ cái alphabet
         $rawHash = "accessKey={$cfg['accessKey']}&amount={$amount}&extraData={$extraData}&ipnUrl={$ipnUrl}&orderId={$orderId}&orderInfo={$orderInfo}&partnerCode={$cfg['partnerCode']}&redirectUrl={$redirectUrl}&requestId={$requestId}&requestType={$requestType}";
 
         $signature = hash_hmac('sha256', $rawHash, $cfg['secretKey']);
