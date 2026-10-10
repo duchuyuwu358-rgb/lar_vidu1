@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Log;
 class MomoService
 {
     /**
-     * Cấu hình MoMo Sandbox chuẩn cho Thẻ Visa / Mastercard (payWithCC)
+     * Cấu hình MoMo Sandbox chuẩn 100%
      */
     protected function getConfigs(): array
     {
@@ -25,19 +25,19 @@ class MomoService
     }
 
     /**
-     * Khởi tạo giao dịch thanh toán MoMo Thẻ Visa / Mastercard (payWithCC)
+     * Khởi tạo giao dịch thanh toán MoMo Sandbox (Cổng All-In-One Gateway: captureWallet)
      */
     public function createPayment(Order $order, PaymentTransaction $transaction): array
     {
         $cfg = $this->getConfigs();
 
-        // 1. Tính toán số tiền tròn
+        // 1. Tính toán số tiền tròn không chứa số thập phân
         $rawAmount = $transaction->amount > 0 
             ? $transaction->amount 
             : ($order->total_amount ?? $order->total_price ?? $order->total ?? 0);
         $amount = (string) (int) round($rawAmount);
 
-        // 2. Làm sạch orderInfo (LOẠI BỎ DẤU # để tránh lỗi Invalid Signature)
+        // 2. Làm sạch orderInfo (Loại bỏ ký tự đặc biệt #)
         $rawCode   = $order->order_code ?? (string)$order->id;
         $cleanCode = preg_replace('/[^a-zA-Z0-9-]/', '', $rawCode);
         $orderInfo = 'Thanh toan don hang ' . $cleanCode;
@@ -49,7 +49,7 @@ class MomoService
 
         $extraData   = ""; 
         $requestId   = (string) time();
-        $requestType = 'payWithCC'; // Cổng thanh toán Thẻ Visa / Mastercard
+        $requestType = 'captureWallet'; // Cổng All-In-One Gateway ổn định nhất trên Sandbox
 
         // 3. Tạo chữ ký HMAC SHA256 chuẩn MoMo
         $rawHash = "accessKey={$cfg['accessKey']}&amount={$amount}&extraData={$extraData}&ipnUrl={$ipnUrl}&orderId={$orderId}&orderInfo={$orderInfo}&partnerCode={$cfg['partnerCode']}&redirectUrl={$redirectUrl}&requestId={$requestId}&requestType={$requestType}";
@@ -84,7 +84,7 @@ class MomoService
 
             $result = $response->json() ?? [];
 
-            Log::info('MoMo Visa Response:', $result);
+            Log::info('MoMo Sandbox Response:', $result);
 
             $transaction->update([
                 'response_payload' => $result,

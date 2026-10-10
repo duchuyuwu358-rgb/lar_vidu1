@@ -18,7 +18,7 @@ class MomoController extends Controller
 {
     private function sendOrderStatusEmail(Order $order)
     {
-        $recipientEmail =$order->customer_email ?? $order->email ?? $order->user->email ?? null;
+        $recipientEmail = $order->customer_email ?? $order->email ?? $order->user->email ?? null;
 
         if ($recipientEmail) {
             try {
@@ -30,71 +30,90 @@ class MomoController extends Controller
     }
 
     /**
-     * HOÀN TỒN KHO AN TOÀN TUYỆT ĐỐI BẰNG TRUY VẤN SQL TRỰC TIẾP (DIRECT DATABASE QUERY)
+     * TỰ ĐỘNG CỘNG TRẢ LẠI TỒN KHO NẾU THANH TOÁN THẤT BẠI HOẶC BỊ HỦY
      */
     private function restoreStockIfCancelled(Order $order): void
     {
-        // 1. Bỏ qua nếu đơn đã thanh toán thành công hoặc đang xử lý giao hàng
-        if (in_array(strtolower($order->status), ['paid', 'processing', 'completed'])) {
-            return;
-        }
-
-        // 2. Tránh hoàn kho lặp 2 lần nếu đơn đã hủy từ trước
-        if ($order->payment_status === 'failed' &&$order->status === 'cancelled') {
+        // 1. Bỏ qua nếu đơn hàng đã được thanh toán thành công hoặc đang vận chuyển
+        if (in_array(strtolower((string)$order->status), ['paid', 'processing', 'completed'])) {
             return;
         }
 
         DB::transaction(function () use ($order) {
-            // Lấy trực tiếp danh sách chi tiết đơn hàng từ CSDL
+            // 2. Lấy danh sách sản phẩm trong đơn hàng (Thử lần lượt qua Eloquent và Query Builder)
             $items = collect();
-            if (Schema::hasTable('order_details')) {
-                $items = DB::table('order_details')->where('order_id',$order->id)->get();
-            }
-            if ($items->isEmpty() && Schema::hasTable('order_items')) {
-                $items = DB::table('order_items')->where('order_id',$order->id)->get();
-            }
-            if ($items->isEmpty() && Schema::hasTable('details')) {
-                $items = DB::table('details')->where('order_id',$order->id)->get();
+
+            if (method_exists($order, 'items') && $order->items && $order->items->isNotEmpty()) {
+                $items = $order->items;
+            } elseif (method_exists($order, 'orderDetails') && $order->orderDetails && $order->orderDetails->isNotEmpty()) {
+                $items = $order->orderDetails;
+            } elseif (method_exists($order, 'details') && $order->details && $order->details->isNotEmpty()) {
+                $items = $order->details;
+            } elseif (method_exists($order, 'orderItems') && $order->orderItems && $order->orderItems->isNotEmpty()) {
+                $items = $order->orderItems;
             }
 
-            // Fallback sang Eloquent nếu chưa lấy được
+            // Fallback: Truy vấn thẳng bảng chi tiết đơn hàng trong CSDL
             if ($items->isEmpty()) {
-                if ($order->items &&$order->items->isNotEmpty()) {
-                    $items =$order->items;
-                } elseif ($order->orderDetails &&$order->orderDetails->isNotEmpty()) {
-                    $items =$order->orderDetails;
-                } elseif ($order->details &&$order->details->isNotEmpty()) {
-                    $items =$order->details;
+                foreach (['order_details', 'order_items', 'details', 'order_product', 'hood_order'] as $table) {
+                    if (Schema::hasTable($table)) {
+                        $dbItems = DB::table($table)->where('order_id', $order->id)->get();
+                        if ($dbItems->isNotEmpty()) {
+                            $items = $dbItems;
+                            break;
+                        }
+                    }
                 }
             }
 
-            foreach ($items as$item) {
-                $itemArr  = (array)$item;
+            // 3. Thực hiện hoàn lại số lượng tồn kho
+            foreach ($items as $item) {
+                $itemArr  = is_object($item) ? (array) $item : $item;
                 $quantity = (int) ($itemArr['quantity'] ?? $itemArr['qty'] ?? 1);
-
-                $hoodId    =$itemArr['hood_id'] ?? null;
-                $productId = $itemArr['product_id'] ?? $itemArr['service_id'] ?? null;
-
-                // 1. Cộng trả lại tồn kho bảng `hoods`
-                if ($hoodId && Schema::hasTable('hoods')) {
-                    if (Schema::hasColumn('hoods', 'stock')) {
-                        DB::table('hoods')->where('id', $hoodId)->increment('stock',$quantity);
-                    } elseif (Schema::hasColumn('hoods', 'stock_quantity')) {
-                        DB::table('hoods')->where('id', $hoodId)->increment('stock_quantity',$quantity);
-                    }
+                if ($quantity <= 0) {
+                    $quantity = 1;
                 }
 
-                // 2. Cộng trả lại tồn kho bảng `products`
-                if ($productId && Schema::hasTable('products')) {
-                    if (Schema::hasColumn('products', 'stock')) {
-                        DB::table('products')->where('id', $productId)->increment('stock',$quantity);
-                    } elseif (Schema::hasColumn('products', 'stock_quantity')) {
-                        DB::table('products')->where('id', $productId)->increment('stock_quantity',$quantity);
+                // Cách A: Qua Eloquent Model nếu có
+                $productModel = null;
+                if (is_object($item) && method_exists($item, 'getAttributes')) {
+                    $productModel = $item->hood ?? $item->product ?? $item->service ?? null;
+                }
+
+                if ($productModel) {
+                    $attrs = method_exists($productModel, 'getAttributes') ? $productModel->getAttributes() : [];
+                    if (array_key_exists('stock', $attrs)) {
+                        $productModel->increment('stock', $quantity);
+                    } elseif (array_key_exists('stock_quantity', $attrs)) {
+                        $productModel->increment('stock_quantity', $quantity);
+                    } elseif (array_key_exists('quantity', $attrs)) {
+                        $productModel->increment('quantity', $quantity);
+                    }
+                } else {
+                    // Cách B: Truy vấn CSDL trực tiếp
+                    $itemId = $itemArr['hood_id'] ?? $itemArr['product_id'] ?? $itemArr['service_id'] ?? $itemArr['item_id'] ?? null;
+
+                    if ($itemId) {
+                        if (Schema::hasTable('hoods')) {
+                            if (Schema::hasColumn('hoods', 'stock')) {
+                                DB::table('hoods')->where('id', $itemId)->increment('stock', $quantity);
+                            } elseif (Schema::hasColumn('hoods', 'stock_quantity')) {
+                                DB::table('hoods')->where('id', $itemId)->increment('stock_quantity', $quantity);
+                            }
+                        }
+
+                        if (Schema::hasTable('products')) {
+                            if (Schema::hasColumn('products', 'stock')) {
+                                DB::table('products')->where('id', $itemId)->increment('stock', $quantity);
+                            } elseif (Schema::hasColumn('products', 'stock_quantity')) {
+                                DB::table('products')->where('id', $itemId)->increment('stock_quantity', $quantity);
+                            }
+                        }
                     }
                 }
             }
 
-            // Cập nhật trạng thái đơn hàng thành Hủy & Thanh toán thất bại
+            // 4. Đánh dấu trạng thái đơn hàng thành Hủy & Thanh toán thất bại
             DB::table('orders')->where('id', $order->id)->update([
                 'payment_status' => 'failed',
                 'status'         => 'cancelled',
@@ -104,49 +123,50 @@ class MomoController extends Controller
     }
 
     /**
-     * Khởi tạo thanh toán MoMo Thẻ Visa / Mastercard
+     * Khởi tạo thanh toán MoMo
      */
-    public function startPayment(Order $order, MomoService$momoService)
+    public function startPayment(Order $order, MomoService $momoService)
     {
-        $amount =$order->total_amount ?? $order->total_price ?? $order->total ?? 0;
+        $amount = $order->total_amount ?? $order->total_price ?? $order->total ?? 0;
 
         $transaction = PaymentTransaction::create([
             'order_id'       => $order->id,
             'user_id'        => auth()->id() ?? $order->user_id,
             'gateway'        => 'momo',
-            'payment_method' => 'momo_visa',
+            'payment_method' => 'momo_wallet',
             'amount'         => $amount,
             'status'         => 'pending',
         ]);
 
         try {
-            $result =$momoService->createPayment($order,$transaction);
+            $result = $momoService->createPayment($order, $transaction);
 
-            // CÓ PAYURL -> CHUYỂN HƯỚNG SANG MOMO
+            // NẾU CÓ PAYURL -> CHUYỂN TRỰC TIẾP TỚI MOMO
             if (!empty($result['payUrl'])) {
                 return redirect()->away($result['payUrl']);
             }
 
-            // LỖI LẤY PAYURL -> TỰ ĐỘNG HOÀN KHO & CHUYỂN VỀ TRANG ĐƠN HÀNG
+            // NẾU KHÔNG CÓ PAYURL -> TỰ ĐỘNG HOÀN KHO VÀ BÁO LỖI
             $this->restoreStockIfCancelled($order);
 
             $showOrderRoute = Route::has('orders.show')
                 ? route('orders.show', $order->id)
                 : (Route::has('user.orders.show') ? route('user.orders.show', $order->id) : url("/orders/{$order->id}"));
 
-            return redirect($showOrderRoute)->with('error', 'Lỗi MoMo Visa: ' . ($result['message'] ?? 'Không thể khởi tạo thanh toán.'));
+            return redirect($showOrderRoute)->with('error', 'Lỗi MoMo: ' . ($result['message'] ?? 'Không thể tạo liên kết thanh toán.'));
         } catch (\Exception $e) {
             $this->restoreStockIfCancelled($order);
             return redirect()->back()->with('error', 'Lỗi khởi tạo thanh toán: ' . $e->getMessage());
         }
     }
 
-    public function callback(Request $request, MomoService$momoService)
+    public function callback(Request $request, MomoService $momoService)
     {
-        $payload =$request->all();
+        $payload = $request->all();
         Log::info('MoMo Callback Received:', $payload);
 
-        $orderId =$momoService->orderId($payload);$order   = $orderId ? Order::find($orderId) : null;
+        $orderId = $momoService->orderId($payload);
+        $order   = $orderId ? Order::find($orderId) : null;
 
         if (!$order) {
             return redirect('/orders')->with('error', 'Không tìm thấy thông tin đơn hàng.');
@@ -158,10 +178,10 @@ class MomoController extends Controller
 
         $transaction = null;
         if (!empty($payload['orderId'])) {
-            $transaction = PaymentTransaction::where('gateway_order_id',$payload['orderId'])->first();
+            $transaction = PaymentTransaction::where('gateway_order_id', $payload['orderId'])->first();
         }
         if (!$transaction) {
-            $transaction = PaymentTransaction::where('order_id',$order->id)->latest()->first();
+            $transaction = PaymentTransaction::where('order_id', $order->id)->latest()->first();
         }
 
         $resultCode       = isset($payload['resultCode']) ? (int)$payload['resultCode'] : -1;
@@ -171,8 +191,10 @@ class MomoController extends Controller
             ? route('orders.show', $order->id)
             : (Route::has('user.orders.show') ? route('user.orders.show', $order->id) : url("/orders/{$order->id}"));
 
-        if ($resultCode === 0 &&$isValidSignature) {
-            if ($transaction) {$momoService->markPaid($transaction,$payload);
+        // THANH TOÁN THÀNH CÔNG
+        if ($resultCode === 0 && $isValidSignature) {
+            if ($transaction) {
+                $momoService->markPaid($transaction, $payload);
             }
 
             $order->update([
@@ -184,10 +206,12 @@ class MomoController extends Controller
             $this->sendOrderStatusEmail($order);
 
             return redirect($showOrderRoute)
-                ->with('success', 'Thanh toán đơn hàng qua Visa thành công!');
+                ->with('success', 'Thanh toán đơn hàng qua MoMo thành công!');
         }
 
-        if ($transaction) {$momoService->markFailed($transaction,$payload);
+        // THANH TOÁN THẤT BẠI HOẶC BỊ HỦY -> HOÀN TỒN KHO VÀ ĐỔI TRẠNG THÁI ĐƠN HÀNG
+        if ($transaction) {
+            $momoService->markFailed($transaction, $payload);
         }
 
         $this->restoreStockIfCancelled($order);
@@ -196,12 +220,13 @@ class MomoController extends Controller
             ->with('error', 'Thanh toán không thành công hoặc đã bị hủy!');
     }
 
-    public function ipn(Request $request, MomoService$momoService)
+    public function ipn(Request $request, MomoService $momoService)
     {
-        $payload =$request->all();
+        $payload = $request->all();
         Log::info('MoMo IPN Received:', $payload);
 
-        $orderId =$momoService->orderId($payload);$order   = $orderId ? Order::find($orderId) : null;
+        $orderId = $momoService->orderId($payload);
+        $order   = $orderId ? Order::find($orderId) : null;
 
         if (!$order) {
             return response()->json(['message' => 'Order not found'], 404);
@@ -209,17 +234,18 @@ class MomoController extends Controller
 
         $transaction = null;
         if (!empty($payload['orderId'])) {
-            $transaction = PaymentTransaction::where('gateway_order_id',$payload['orderId'])->first();
+            $transaction = PaymentTransaction::where('gateway_order_id', $payload['orderId'])->first();
         }
         if (!$transaction) {
-            $transaction = PaymentTransaction::where('order_id',$order->id)->latest()->first();
+            $transaction = PaymentTransaction::where('order_id', $order->id)->latest()->first();
         }
 
         $resultCode       = isset($payload['resultCode']) ? (int)$payload['resultCode'] : -1;
         $isValidSignature = $momoService->isValidResponse($payload);
 
-        if ($resultCode === 0 &&$isValidSignature) {
-            if ($transaction) {$momoService->markPaid($transaction,$payload);
+        if ($resultCode === 0 && $isValidSignature) {
+            if ($transaction) {
+                $momoService->markPaid($transaction, $payload);
             }
 
             $order->update([
@@ -232,7 +258,8 @@ class MomoController extends Controller
             return response()->json(['message' => 'Success'], 200);
         }
 
-        if ($transaction) {$momoService->markFailed($transaction,$payload);
+        if ($transaction) {
+            $momoService->markFailed($transaction, $payload);
         }
 
         $this->restoreStockIfCancelled($order);
