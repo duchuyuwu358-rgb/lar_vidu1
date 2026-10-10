@@ -11,21 +11,24 @@ use Illuminate\Support\Facades\Log;
 class MomoService
 {
     /**
-     * Lấy cấu hình MoMo Sandbox API v2 chuẩn
+     * Lấy cấu hình MoMo (Làm sạch ký tự khoảng trắng / dấu ngoặc thừa)
      */
     protected function getConfigs(): array
     {
-        $endpoint = trim((string) config('services.momo.endpoint', 'https://test-payment.momo.vn/v2/gateway/api/create'));
+        $endpoint = trim((string) config('services.momo.endpoint', 'https://test-payment.momo.vn/v2/gateway/api/create'), " \t\n\r\0\x0B\"'");
 
-        $partnerCode = trim((string) config('services.momo.partner_code', 'MOMO'), " \t\n\r\0\x0B\"'");
-        $accessKey   = trim((string) config('services.momo.access_key', 'F8BBA842ECF82'), " \t\n\r\0\x0B\"'");
-        $secretKey   = trim((string) config('services.momo.secret_key', 'K951B6PE1waDMi640xX08332A9UWE15i'), " \t\n\r\0\x0B\"'");
+        $partnerCode = trim((string) config('services.momo.partner_code', 'MOMOBKUN20180529'), " \t\n\r\0\x0B\"'");
+        $accessKey   = trim((string) config('services.momo.access_key', 'klm99x0Za7RdUODe'), " \t\n\r\0\x0B\"'");
+        $secretKey   = trim((string) config('services.momo.secret_key', 'at67qH6mk8w5Y1nAyMoYKMWACiEi2bsa'), " \t\n\r\0\x0B\"'");
 
-        // Nếu thiếu hoặc trỏ tới partnerCode v1 cũ, tự động lấy bộ key v2 Sandbox chuẩn của MoMo
-        if (empty($partnerCode) || $partnerCode === 'MOMOBKUN20180529' || str_contains(strtoupper($partnerCode), 'MONO')) {
-            $partnerCode = 'MOMO';
-            $accessKey   = 'F8BBA842ECF82';
-            $secretKey   = 'K951B6PE1waDMi640xX08332A9UWE15i';
+        if (empty($partnerCode) || $partnerCode === 'MOMO' || str_contains(strtoupper($partnerCode), 'MONO')) {
+            $partnerCode = 'MOMOBKUN20180529';
+        }
+        if (empty($accessKey) || $accessKey === 'F8BBA842ECF82') {
+            $accessKey = 'klm99x0Za7RdUODe';
+        }
+        if (empty($secretKey) || $secretKey === 'K951B6PE1waDMi640xX08332A9UWE15i') {
+            $secretKey = 'at67qH6mk8w5Y1nAyMoYKMWACiEi2bsa';
         }
 
         return [
@@ -56,7 +59,7 @@ class MomoService
         $orderInfo = 'Thanh toan don hang ' . $cleanCode;
         $orderId   = $order->id . '_' . $transaction->id . '_' . time();
 
-        // Tự động lấy domain Render thực tế
+        // Tự động nhận diện Domain Render thực tế
         $host   = request()->getHost();
         $scheme = (request()->secure() || app()->environment('production') || str_contains($host, 'onrender.com')) ? 'https' : request()->getScheme();
         $currentDomain = $scheme . '://' . $host;
@@ -87,6 +90,7 @@ class MomoService
 
         $data = [
             'partnerCode' => $cfg['partnerCode'],
+            'accessKey'   => $cfg['accessKey'], // Bổ sung bắt buộc field accessKey trong JSON payload
             'partnerName' => 'XFAN Store',
             'storeId'     => 'XFANStore',
             'requestId'   => $requestId,
@@ -107,7 +111,9 @@ class MomoService
         ]);
 
         try {
-            $response = Http::withOptions([
+            $response = Http::withHeaders([
+                'Content-Type' => 'application/json; charset=UTF-8',
+            ])->withOptions([
                 'verify' => $cfg['verifySsl'],
             ])->post($cfg['endpoint'], $data);
 
