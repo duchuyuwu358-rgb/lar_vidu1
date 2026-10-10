@@ -11,29 +11,34 @@ use Illuminate\Support\Facades\Log;
 class MomoService
 {
     /**
-     * Lấy cấu hình MoMo (Tự động ghi đè Access Key chuẩn nếu phát hiện key bị sai trên Render)
+     * Lấy cấu hình MoMo (Tự động sửa lỗi chính tả partnerCode & accessKey từ Render)
      */
     protected function getConfigs(): array
     {
-        $partnerCode = config('services.momo.partner_code') ?: 'MOMOBKUN20180529';
+        $partnerCode = config('services.momo.partner_code');
         $accessKey   = config('services.momo.access_key');
 
-        // Tự động sửa nếu biến môi trường MOMO_ACCESS_KEY bị điền sai thành klm05TvNBzhg7h7j
-        if ($partnerCode === 'MOMOBKUN20180529' && (empty($accessKey) || $accessKey === 'klm05TvNBzhg7h7j')) {
+        // 1. Tự động sửa Partner Code nếu bị gõ nhầm chữ N (MONOBKUN...) hoặc để trống
+        if (empty($partnerCode) || str_contains(strtoupper($partnerCode), 'MONO')) {
+            $partnerCode = 'MOMOBKUN20180529';
+        }
+
+        // 2. Tự động sửa Access Key nếu bị điền nhầm key cũ (klm05Tv...) hoặc để trống
+        if (empty($accessKey) || $accessKey === 'klm05TvNBzhg7h7j') {
             $accessKey = 'klm99x0Za7RdUODe';
         }
 
         return [
             'endpoint'     => config('services.momo.endpoint')     ?: 'https://test-payment.momo.vn/v2/gateway/api/create',
             'partnerCode'  => $partnerCode,
-            'accessKey'    => $accessKey                           ?: 'klm99x0Za7RdUODe',
+            'accessKey'    => $accessKey,
             'secretKey'    => config('services.momo.secret_key')   ?: 'at67qH6mk8w5Y1nAyMoYKMWACiEi2bsa',
             'verifySsl'    => filter_var(config('services.momo.verify_ssl', false), FILTER_VALIDATE_BOOLEAN),
         ];
     }
 
     /**
-     * Khởi tạo giao dịch thanh toán MoMo (Mặc định dùng Cổng All-In-One Gateway: captureWallet)
+     * Khởi tạo giao dịch thanh toán MoMo (Cổng All-In-One Gateway: captureWallet)
      */
     public function createPayment(Order $order, PaymentTransaction $transaction): array
     {
