@@ -11,36 +11,27 @@ use Illuminate\Support\Facades\Log;
 class MomoService
 {
     /**
-     * Làm sạch giá trị cấu hình (Loại bỏ khoảng trắng, ngoặc kép, nháy đơn)
-     */
-    private function cleanConfigValue(?string $value, string $default): string
-    {
-        if (empty($value)) {
-            return $default;
-        }
-        $cleaned = trim($value, " \t\n\r\0\x0B\"'");
-        return !empty($cleaned) ? $cleaned : $default;
-    }
-
-    /**
-     * Lấy cấu hình MoMo (Đã xử lý làm sạch Key tuyệt đối)
+     * Lấy cấu hình MoMo Sandbox chuẩn (Tránh hoàn toàn lỗi cache key trên Render)
      */
     protected function getConfigs(): array
     {
-        $partnerCode = $this->cleanConfigValue(config('services.momo.partner_code'), 'MOMOBKUN20180529');
-        $accessKey   = $this->cleanConfigValue(config('services.momo.access_key'), 'klm99x0Za7RdUODe');
-        $secretKey   = $this->cleanConfigValue(config('services.momo.secret_key'), 'at67qH6mk8w5Y1nAyMoYKMWACiEi2bsa');
+        $partnerCode = trim((string) config('services.momo.partner_code', 'MOMOBKUN20180529'));
+        $accessKey   = trim((string) config('services.momo.access_key', 'klm99x0Za7RdUODe'));
+        $secretKey   = trim((string) config('services.momo.secret_key', 'at67qH6mk8w5Y1nAyMoYKMWACiEi2bsa'));
 
-        if ($accessKey === 'klm05TvNBzhg7h7j') {
+        // Cố định bộ Key Sandbox chuẩn nếu phát hiện Key bị trống hoặc bị sai cache
+        if (empty($partnerCode) || str_contains(strtoupper($partnerCode), 'MONO')) {
+            $partnerCode = 'MOMOBKUN20180529';
+        }
+        if (empty($accessKey) || $accessKey === 'klm05TvNBzhg7h7j') {
             $accessKey = 'klm99x0Za7RdUODe';
         }
-
-        if (str_contains(strtoupper($partnerCode), 'MONO')) {
-            $partnerCode = 'MOMOBKUN20180529';
+        if (empty($secretKey) || strlen($secretKey) < 10) {
+            $secretKey = 'at67qH6mk8w5Y1nAyMoYKMWACiEi2bsa';
         }
 
         return [
-            'endpoint'     => $this->cleanConfigValue(config('services.momo.endpoint'), 'https://test-payment.momo.vn/v2/gateway/api/create'),
+            'endpoint'     => trim((string) config('services.momo.endpoint', 'https://test-payment.momo.vn/v2/gateway/api/create')),
             'partnerCode'  => $partnerCode,
             'accessKey'    => $accessKey,
             'secretKey'    => $secretKey,
@@ -58,20 +49,22 @@ class MomoService
         $rawAmount = $transaction->amount > 0 
             ? $transaction->amount 
             : ($order->total_amount ?? $order->total_price ?? $order->total ?? 0);
-        $amount = (string) (int) round($rawAmount);
+        
+        $intAmount = (int) round($rawAmount);
+        $strAmount = (string) $intAmount;
 
         $rawCode   = $order->order_code ?? (string)$order->id;
         $cleanCode = preg_replace('/[^a-zA-Z0-9-]/', '', $rawCode);
         $orderInfo = 'Thanh toan don hang ' . $cleanCode;
         $orderId   = $order->id . '_' . $transaction->id . '_' . time();
 
-        // Tự động lấy domain thực tế từ Request
+        // Tự động nhận diện Domain Render thực tế (Ví dụ: https://lar-vidu1-kov7.onrender.com)
         $host   = request()->getHost();
         $scheme = (request()->secure() || app()->environment('production') || str_contains($host, 'onrender.com')) ? 'https' : request()->getScheme();
         $currentDomain = $scheme . '://' . $host;
 
-        $envRedirect = $this->cleanConfigValue(config('services.momo.redirect_url'), '');
-        $envIpn      = $this->cleanConfigValue(config('services.momo.ipn_url'), '');
+        $envRedirect = trim((string) config('services.momo.redirect_url'));
+        $envIpn      = trim((string) config('services.momo.ipn_url'));
 
         $redirectUrl = (!empty($envRedirect) && str_contains($envRedirect, $host)) 
             ? $envRedirect 
@@ -89,8 +82,8 @@ class MomoService
         $extraData = ""; 
         $requestId = (string) time();
 
-        // Chuỗi mã hóa SHA256 chuẩn MoMo v2
-        $rawHash = "accessKey={$cfg['accessKey']}&amount={$amount}&extraData={$extraData}&ipnUrl={$ipnUrl}&orderId={$orderId}&orderInfo={$orderInfo}&partnerCode={$cfg['partnerCode']}&redirectUrl={$redirectUrl}&requestId={$requestId}&requestType={$requestType}";
+        // Chuỗi dữ liệu mã hóa SHA256 chuẩn MoMo API v2
+        $rawHash = "accessKey={$cfg['accessKey']}&amount={$strAmount}&extraData={$extraData}&ipnUrl={$ipnUrl}&orderId={$orderId}&orderInfo={$orderInfo}&partnerCode={$cfg['partnerCode']}&redirectUrl={$redirectUrl}&requestId={$requestId}&requestType={$requestType}";
 
         $signature = hash_hmac('sha256', $rawHash, $cfg['secretKey']);
 
@@ -99,7 +92,7 @@ class MomoService
             'partnerName' => config('app.name', 'XFAN Store'),
             'storeId'     => 'XFANStore',
             'requestId'   => $requestId,
-            'amount'      => $amount,
+            'amount'      => $intAmount, // Chuyển thành Integer chuẩn JSON MoMo
             'orderId'     => $orderId,
             'orderInfo'   => $orderInfo,
             'redirectUrl' => $redirectUrl,
@@ -122,8 +115,8 @@ class MomoService
 
             $result = $response->json() ?? [];
 
-            Log::info('MoMo Create Payment RawHash: ' . $rawHash);
-            Log::info('MoMo Create Payment Response:', $result);
+            Log::info('MoMo RawHash: ' . $rawHash);
+            Log::info('MoMo Response:', $result);
 
             $transaction->update([
                 'response_payload' => $result,
