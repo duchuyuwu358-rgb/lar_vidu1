@@ -11,40 +11,40 @@ use Illuminate\Support\Facades\Log;
 class MomoService
 {
     /**
-     * Lấy cấu hình MoMo (Tự động sửa lỗi chính tả partnerCode & accessKey từ Render)
+     * Lấy cấu hình MoMo (Tự động khắc phục lỗi cấu hình sai trên Render)
      */
     protected function getConfigs(): array
     {
         $partnerCode = config('services.momo.partner_code');
         $accessKey   = config('services.momo.access_key');
 
-        // 1. Tự động sửa Partner Code nếu bị gõ nhầm chữ N (MONOBKUN...) hoặc để trống
+        // Tự động sửa Partner Code nếu gõ nhầm chữ N (MONOBKUN...) hoặc để trống
         if (empty($partnerCode) || str_contains(strtoupper($partnerCode), 'MONO')) {
             $partnerCode = 'MOMOBKUN20180529';
         }
 
-        // 2. Tự động sửa Access Key nếu bị điền nhầm key cũ (klm05Tv...) hoặc để trống
+        // Tự động sửa Access Key nếu bị sai
         if (empty($accessKey) || $accessKey === 'klm05TvNBzhg7h7j') {
             $accessKey = 'klm99x0Za7RdUODe';
         }
 
         return [
-            'endpoint'     => config('services.momo.endpoint')     ?: 'https://test-payment.momo.vn/v2/gateway/api/create',
+            'endpoint'     => 'https://test-payment.momo.vn/v2/gateway/api/create',
             'partnerCode'  => $partnerCode,
             'accessKey'    => $accessKey,
-            'secretKey'    => config('services.momo.secret_key')   ?: 'at67qH6mk8w5Y1nAyMoYKMWACiEi2bsa',
-            'verifySsl'    => filter_var(config('services.momo.verify_ssl', false), FILTER_VALIDATE_BOOLEAN),
+            'secretKey'    => config('services.momo.secret_key') ?: 'at67qH6mk8w5Y1nAyMoYKMWACiEi2bsa',
+            'verifySsl'    => false,
         ];
     }
 
     /**
-     * Khởi tạo giao dịch thanh toán MoMo (Cổng All-In-One Gateway: captureWallet)
+     * Khởi tạo giao dịch thanh toán MoMo (Gateway: captureWallet)
      */
     public function createPayment(Order $order, PaymentTransaction $transaction): array
     {
         $cfg = $this->getConfigs();
 
-        // 1. Tính toán số tiền chính xác
+        // 1. Tính toán số tiền
         $rawAmount = $transaction->amount > 0 
             ? $transaction->amount 
             : ($order->total_amount ?? $order->total_price ?? $order->total ?? 0);
@@ -54,14 +54,16 @@ class MomoService
         $orderInfo = 'Thanh toan don hang #' . ($order->order_code ?? $order->id);
         $orderId   = $order->id . '_' . $transaction->id . '_' . time();
 
-        $redirectUrl = config('services.momo.redirect_url') ?: url('/payment/momo/callback');
-        $ipnUrl      = config('services.momo.ipn_url') ?: url('/payment/momo/ipn');
+        // Lấy đúng domain HTTPS đang chạy thực tế trên Render
+        $baseUrl     = request()->schemeAndHttpHost();
+        $redirectUrl = $baseUrl . '/payment/momo/callback';
+        $ipnUrl      = $baseUrl . '/payment/momo/ipn';
 
         $extraData   = ""; 
         $requestId   = (string) time();
         $requestType = 'captureWallet';
 
-        // 3. Tạo chữ ký HMAC SHA256 chuẩn theo thứ tự alphabet
+        // 3. Tạo chữ ký HMAC SHA256 chuẩn alphabet
         $rawHash = "accessKey={$cfg['accessKey']}&amount={$amount}&extraData={$extraData}&ipnUrl={$ipnUrl}&orderId={$orderId}&orderInfo={$orderInfo}&partnerCode={$cfg['partnerCode']}&redirectUrl={$redirectUrl}&requestId={$requestId}&requestType={$requestType}";
 
         $signature = hash_hmac('sha256', $rawHash, $cfg['secretKey']);
@@ -94,13 +96,13 @@ class MomoService
 
             $result = $response->json() ?? [];
 
-            Log::info('MoMo Response:', $result);
+            Log::info('MoMo Response Payload:', $result);
 
             $transaction->update([
                 'response_payload' => $result,
                 'result_code'      => isset($result['resultCode']) ? (int) $result['resultCode'] : null,
                 'message'          => $result['message'] ?? null,
-                'status'           => isset($result['payUrl']) ? 'initiated' : 'failed',
+                'status'           => !empty($result['payUrl']) ? 'initiated' : 'failed',
             ]);
 
             return $result;

@@ -45,15 +45,23 @@ class MomoController extends Controller
 
             foreach ($items as $item) {
                 $product  = $item->hood ?? $item->product ?? null;
-                $quantity = $item->quantity ?? $item->qty ?? 0;
+                $quantity = $item->quantity ?? $item->qty ?? 1;
 
                 if ($product && $quantity > 0) {
-                    if (isset($product->stock_quantity)) {
-                        $product->increment('stock_quantity', $quantity);
-                    } elseif (isset($product->stock)) {
+                    $attributes = $product->getAttributes();
+
+                    if (array_key_exists('stock', $attributes)) {
                         $product->increment('stock', $quantity);
-                    } elseif (isset($product->quantity)) {
+                    } elseif (array_key_exists('stock_quantity', $attributes)) {
+                        $product->increment('stock_quantity', $quantity);
+                    } elseif (array_key_exists('quantity', $attributes)) {
                         $product->increment('quantity', $quantity);
+                    } else {
+                        try {
+                            $product->increment('stock', $quantity);
+                        } catch (\Exception $e) {
+                            Log::error("Lỗi hoàn kho sản phẩm ID {$product->id}: " . $e->getMessage());
+                        }
                     }
                 }
             }
@@ -84,12 +92,17 @@ class MomoController extends Controller
         try {
             $result = $momoService->createPayment($order, $transaction);
 
-            if (isset($result['payUrl'])) {
+            // NẾU CÓ PAYURL -> CHUYỂN HƯỚNG TỚI CỔNG MOMO
+            if (!empty($result['payUrl'])) {
                 return redirect()->away($result['payUrl']);
             }
 
+            // NẾU KHÔNG CÓ PAYURL -> HOÀN LẠI TỒN KHO VÀ BÁO LỖI
+            $this->restoreStockIfCancelled($order);
+
             return redirect()->back()->with('error', $result['message'] ?? 'Không thể khởi tạo giao dịch MoMo.');
         } catch (\Exception $e) {
+            $this->restoreStockIfCancelled($order);
             return redirect()->back()->with('error', 'Lỗi khởi tạo thanh toán: ' . $e->getMessage());
         }
     }
