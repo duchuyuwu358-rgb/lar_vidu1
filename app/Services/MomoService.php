@@ -27,7 +27,7 @@ class MomoService
     /**
      * Mặc định requestType = payWithCC
      */
-    public function createPayment(Order $order, PaymentTransaction $transaction, string $requestType = 'payWithATM'): array
+    public function createPayment(Order $order, PaymentTransaction $transaction, string $requestType = 'payWithCC'): array
     {
         $cfg = $this->getConfigs();
 

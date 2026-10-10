@@ -135,7 +135,7 @@ class MomoController extends Controller
             }
 
             
-            $result = $momoService->createPayment($order, $transaction, 'payWithATM');
+            $result = $momoService->createPayment($order, $transaction, 'payWithCC');
 
             if (!empty($result['payUrl'])) {
                 return redirect()->away($result['payUrl']);
