@@ -30,17 +30,17 @@ class MomoController extends Controller
     }
 
     /**
-     * HOÀN TỒN KHO 100% KHI HỦY HOẶC THANH TOÁN THẤT BẠI
+     * HOÀN TỒN KHO KHI HỦY HOẶC THANH TOÁN THẤT BẠI
      */
     private function restoreStockIfCancelled(Order $order): void
     {
-        // TỪ CHỐI HOÀN KHO NẾU ĐƠN HÀNG ĐÃ THANH TOÁN THÀNH CÔNG (payment_status = paid)
-        if (strtolower((string) $order->payment_status) === 'paid') {
+        // Tuyệt đối KHÔNG hủy/hoàn kho nếu đơn hàng đã được ghi nhận thanh toán thành công
+        if (in_array(strtolower((string) $order->payment_status), ['paid']) || 
+            in_array(strtolower((string) $order->status), ['paid', 'processing', 'completed', 'shipping'])) {
             return;
         }
 
         DB::transaction(function () use ($order) {
-            // Lấy danh sách sản phẩm trong đơn hàng
             $items = collect();
 
             if (method_exists($order, 'items') && $order->items && $order->items->isNotEmpty()) {
@@ -53,7 +53,6 @@ class MomoController extends Controller
                 $items = $order->orderItems;
             }
 
-            // Truy vấn trực tiếp CSDL nếu Eloquent bị rỗng
             if ($items->isEmpty()) {
                 foreach (['order_details', 'order_items', 'details', 'order_product', 'hood_order'] as $table) {
                     if (Schema::hasTable($table)) {
@@ -66,13 +65,11 @@ class MomoController extends Controller
                 }
             }
 
-            // Thực hiện cộng trả lại kho hàng
             foreach ($items as $item) {
                 $itemArr  = is_object($item) ? (array) $item : $item;
                 $quantity = (int) ($itemArr['quantity'] ?? $itemArr['qty'] ?? 1);
                 if ($quantity <= 0) $quantity = 1;
 
-                // A. Qua Eloquent Model
                 $productModel = null;
                 if (is_object($item) && method_exists($item, 'getAttributes')) {
                     $productModel = $item->hood ?? $item->product ?? $item->service ?? null;
@@ -88,7 +85,6 @@ class MomoController extends Controller
                         $productModel->increment('quantity', $quantity);
                     }
                 } else {
-                    // B. Truy vấn SQL trực tiếp theo ID
                     $itemId = $itemArr['hood_id'] ?? $itemArr['product_id'] ?? $itemArr['service_id'] ?? $itemArr['item_id'] ?? null;
 
                     if ($itemId) {
@@ -111,7 +107,6 @@ class MomoController extends Controller
                 }
             }
 
-            // Cập nhật đơn hàng thành Đã Hủy & Thanh toán thất bại
             DB::table('orders')->where('id', $order->id)->update([
                 'payment_status' => 'failed',
                 'status'         => 'cancelled',
@@ -120,9 +115,6 @@ class MomoController extends Controller
         });
     }
 
-    /**
-     * Khởi tạo thanh toán MoMo
-     */
     public function startPayment(Order $order, MomoService $momoService)
     {
         $amount = $order->total_amount ?? $order->total_price ?? $order->total ?? 0;
@@ -131,7 +123,7 @@ class MomoController extends Controller
             'order_id'       => $order->id,
             'user_id'        => auth()->id() ?? $order->user_id,
             'gateway'        => 'momo',
-            'payment_method' => 'momo_visa',
+            'payment_method' => 'momo_wallet',
             'amount'         => $amount,
             'status'         => 'pending',
         ]);
@@ -139,19 +131,17 @@ class MomoController extends Controller
         try {
             $result = $momoService->createPayment($order, $transaction);
 
-            // NẾU CÓ PAYURL -> CHUYỂN HƯỚNG SANG MOMO VISA
             if (!empty($result['payUrl'])) {
                 return redirect()->away($result['payUrl']);
             }
 
-            // NẾU KHÔNG LẤY ĐƯỢC PAYURL -> TỰ ĐỘNG HOÀN KHO
             $this->restoreStockIfCancelled($order);
 
             $showOrderRoute = Route::has('orders.show')
                 ? route('orders.show', $order->id)
                 : (Route::has('user.orders.show') ? route('user.orders.show', $order->id) : url("/orders/{$order->id}"));
 
-            return redirect($showOrderRoute)->with('error', 'Lỗi MoMo Visa: ' . ($result['message'] ?? 'Không thể tạo liên kết thanh toán.'));
+            return redirect($showOrderRoute)->with('error', 'Lỗi MoMo: ' . ($result['message'] ?? 'Không thể khởi tạo thanh toán.'));
         } catch (\Exception $e) {
             $this->restoreStockIfCancelled($order);
             return redirect()->back()->with('error', 'Lỗi khởi tạo thanh toán: ' . $e->getMessage());
@@ -189,8 +179,8 @@ class MomoController extends Controller
             ? route('orders.show', $order->id)
             : (Route::has('user.orders.show') ? route('user.orders.show', $order->id) : url("/orders/{$order->id}"));
 
-        // THANH TOÁN THÀNH CÔNG
-        if ($resultCode === 0 && $isValidSignature) {
+        // THÀNH CÔNG: Khi MoMo báo resultCode=0 và signature đúng, HOẶC đơn hàng đã được IPN xử lý trước đó
+        if (($resultCode === 0 && $isValidSignature) || strtolower((string)$order->payment_status) === 'paid') {
             if ($transaction) {
                 $momoService->markPaid($transaction, $payload);
             }
@@ -204,10 +194,10 @@ class MomoController extends Controller
             $this->sendOrderStatusEmail($order);
 
             return redirect($showOrderRoute)
-                ->with('success', 'Thanh toán đơn hàng qua Visa thành công!');
+                ->with('success', 'Thanh toán đơn hàng qua MoMo thành công!');
         }
 
-        // THANH TOÁN THẤT BẠI HOẶC BỊ HỦY -> HOÀN KHO LẬP TỨC
+        // THẤT BẠI HOẶC BỊ HỦY
         if ($transaction) {
             $momoService->markFailed($transaction, $payload);
         }

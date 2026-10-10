@@ -11,54 +11,65 @@ use Illuminate\Support\Facades\Log;
 class MomoService
 {
     /**
-     * Cấu hình MoMo Sandbox chuẩn cho Thẻ Visa / Mastercard (payWithCC)
+     * Lấy cấu hình MoMo (Đọc từ config và tự sửa AccessKey cũ nếu có)
      */
     protected function getConfigs(): array
     {
+        $partnerCode = config('services.momo.partner_code', 'MOMOBKUN20180529');
+        $accessKey   = config('services.momo.access_key', 'klm99x0Za7RdUODe');
+        $secretKey   = config('services.momo.secret_key', 'at67qH6mk8w5Y1nAyMoYKMWACiEi2bsa');
+
+        // Tự động điều chỉnh nếu Render hoặc Env vẫn đang giữ AccessKey cũ
+        if (empty($accessKey) || $accessKey === 'klm05TvNBzhg7h7j') {
+            $accessKey = 'klm99x0Za7RdUODe';
+        }
+
+        if (empty($partnerCode) || str_contains(strtoupper($partnerCode), 'MONO')) {
+            $partnerCode = 'MOMOBKUN20180529';
+        }
+
         return [
-            'endpoint'     => 'https://test-payment.momo.vn/v2/gateway/api/create',
-            'partnerCode'  => 'MOMOBKUN20180529',
-            'accessKey'    => 'klm05TvNBzhg7h7j',
-            'secretKey'    => 'at67qH6mk8w5Y1nAyMoYKMWACiEi2bsa',
-            'verifySsl'    => false,
+            'endpoint'     => config('services.momo.endpoint', 'https://test-payment.momo.vn/v2/gateway/api/create'),
+            'partnerCode'  => $partnerCode,
+            'accessKey'    => $accessKey,
+            'secretKey'    => $secretKey,
+            'verifySsl'    => filter_var(config('services.momo.verify_ssl', false), FILTER_VALIDATE_BOOLEAN),
         ];
     }
 
     /**
-     * Khởi tạo giao dịch thanh toán MoMo bằng THẺ QUỐC TẾ (payWithCC)
+     * Khởi tạo giao dịch thanh toán MoMo
      */
     public function createPayment(Order $order, PaymentTransaction $transaction): array
     {
         $cfg = $this->getConfigs();
 
-        // 1. Tính toán số tiền tròn (không số thập phân)
         $rawAmount = $transaction->amount > 0 
             ? $transaction->amount 
             : ($order->total_amount ?? $order->total_price ?? $order->total ?? 0);
         $amount = (string) (int) round($rawAmount);
 
-        // 2. Làm sạch orderInfo (Tuyệt đối KHÔNG chứa ký tự đặc biệt như #)
         $rawCode   = $order->order_code ?? (string)$order->id;
         $cleanCode = preg_replace('/[^a-zA-Z0-9-]/', '', $rawCode);
         $orderInfo = 'Thanh toan don hang ' . $cleanCode;
         $orderId   = $order->id . '_' . $transaction->id . '_' . time();
 
         $baseUrl     = request()->schemeAndHttpHost();
-        $redirectUrl = $baseUrl . '/payment/momo/callback';
-        $ipnUrl      = $baseUrl . '/payment/momo/ipn';
+        $redirectUrl = config('services.momo.redirect_url') ?: $baseUrl . '/payment/momo/callback';
+        $ipnUrl      = config('services.momo.ipn_url') ?: $baseUrl . '/payment/momo/ipn';
 
         $extraData   = ""; 
         $requestId   = (string) time();
-        $requestType = 'payWithCC'; // Bắt buộc dùng payWithCC để mở form nhập thẻ Visa
+        $requestType = 'captureWallet';
 
-        // 3. Tạo chữ ký HMAC SHA256 chuẩn alphabet của MoMo
+        // Tạo chữ ký HMAC SHA256 chuẩn alphabet
         $rawHash = "accessKey={$cfg['accessKey']}&amount={$amount}&extraData={$extraData}&ipnUrl={$ipnUrl}&orderId={$orderId}&orderInfo={$orderInfo}&partnerCode={$cfg['partnerCode']}&redirectUrl={$redirectUrl}&requestId={$requestId}&requestType={$requestType}";
 
         $signature = hash_hmac('sha256', $rawHash, $cfg['secretKey']);
 
         $data = [
             'partnerCode' => $cfg['partnerCode'],
-            'partnerName' => 'XFAN Store',
+            'partnerName' => config('app.name', 'XFAN Store'),
             'storeId'     => 'XFANStore',
             'requestId'   => $requestId,
             'amount'      => $amount,
@@ -84,7 +95,7 @@ class MomoService
 
             $result = $response->json() ?? [];
 
-            Log::info('MoMo Visa Response:', $result);
+            Log::info('MoMo Create Payment Response:', $result);
 
             $transaction->update([
                 'response_payload' => $result,
@@ -134,6 +145,9 @@ class MomoService
         return $this->isSuccessful($payload) && $this->isValidResponse($payload);
     }
 
+    /**
+     * Kiểm tra chữ ký bảo mật trả về từ MoMo
+     */
     public function isValidResponse(array $payload): bool
     {
         if (!isset($payload['signature'])) {

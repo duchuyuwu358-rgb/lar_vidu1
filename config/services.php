@@ -2,16 +2,6 @@
 
 return [
 
-    /*
-    |--------------------------------------------------------------------------
-    | Third Party Services
-    |--------------------------------------------------------------------------
-    |
-    | This file is for storing the credentials for third party services such
-    | as Mailgun, Postmark, AWS and more.
-    |
-    */
-
     'postmark' => [
         'key' => env('POSTMARK_API_KEY'),
     ],
@@ -33,14 +23,12 @@ return [
         ],
     ],
 
-    // CẤU HÌNH GOOGLE OAUTH (Hoạt động linh hoạt Local & Render)
     'google' => [
         'client_id'     => env('GOOGLE_CLIENT_ID'),
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
         'redirect'      => env('GOOGLE_REDIRECT_URI', '/auth/google/callback'),
     ],
 
-    // CẤU HÌNH GIAO HÀNG NHANH (GHN)
     'ghn' => [
         'base_url'         => env('GHN_BASE_URL', 'https://dev-online-gateway.ghn.vn/shiip/public-api'),
         'token'            => env('GHN_TOKEN'),
@@ -49,11 +37,11 @@ return [
         'from_district_id' => env('GHN_FROM_DISTRICT_ID'),
     ],
 
-    // CẤU HÌNH VÍ MOMO
+    // CẤU HÌNH VÍ MOMO (Đã tối ưu fallback key chuẩn)
     'momo' => [
         'endpoint'     => env('MOMO_ENDPOINT', 'https://test-payment.momo.vn/v2/gateway/api/create'),
         'partner_code' => env('MOMO_PARTNER_CODE', 'MOMOBKUN20180529'),
-        'access_key'   => env('MOMO_ACCESS_KEY', 'klm05TvNBzhg7h7j'),
+        'access_key'   => env('MOMO_ACCESS_KEY', 'klm99x0Za7RdUODe'),
         'secret_key'   => env('MOMO_SECRET_KEY', 'at67qH6mk8w5Y1nAyMoYKMWACiEi2bsa'),
         'verify_ssl'   => env('MOMO_VERIFY_SSL', false),
         'redirect_url' => env('MOMO_REDIRECT_URL'),
