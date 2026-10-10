@@ -11,27 +11,27 @@ use Illuminate\Support\Facades\Log;
 class MomoService
 {
     /**
-     * Cấu hình MoMo Sandbox chuẩn cho Thẻ Quốc Tế (Visa/Mastercard)
+     * Cấu hình MoMo Sandbox chuẩn 100%
      */
     protected function getConfigs(): array
     {
         return [
             'endpoint'     => 'https://test-payment.momo.vn/v2/gateway/api/create',
             'partnerCode'  => 'MOMOBKUN20180529',
-            'accessKey'    => 'klm05TvNBzhg7h7j',
+            'accessKey'    => 'klm99x0Za7RdUODe',
             'secretKey'    => 'at67qH6mk8w5Y1nAyMoYKMWACiEi2bsa',
             'verifySsl'    => false,
         ];
     }
 
     /**
-     * Khởi tạo giao dịch thanh toán MoMo bằng THẺ QUỐC TẾ (payWithCC)
+     * Khởi tạo giao dịch thanh toán MoMo (Mặc định captureWallet - Cổng Ví MoMo All-In-One)
      */
     public function createPayment(Order $order, PaymentTransaction $transaction): array
     {
         $cfg = $this->getConfigs();
 
-        // 1. Tính toán số tiền
+        // 1. Tính toán số tiền tròn không có số thập phân
         $rawAmount = $transaction->amount > 0 
             ? $transaction->amount 
             : ($order->total_amount ?? $order->total_price ?? $order->total ?? 0);
@@ -47,7 +47,7 @@ class MomoService
 
         $extraData   = ""; 
         $requestId   = (string) time();
-        $requestType = 'payWithCC'; // Phương thức thanh toán qua Thẻ Quốc Tế (Visa/Mastercard)
+        $requestType = 'captureWallet'; // Cổng chạy ổn định nhất trên Sandbox
 
         // 3. Tạo chữ ký HMAC SHA256 chuẩn MoMo
         $rawHash = "accessKey={$cfg['accessKey']}&amount={$amount}&extraData={$extraData}&ipnUrl={$ipnUrl}&orderId={$orderId}&orderInfo={$orderInfo}&partnerCode={$cfg['partnerCode']}&redirectUrl={$redirectUrl}&requestId={$requestId}&requestType={$requestType}";
@@ -82,7 +82,7 @@ class MomoService
 
             $result = $response->json() ?? [];
 
-            Log::info('MoMo Visa Response:', $result);
+            Log::info('MoMo Response:', $result);
 
             $transaction->update([
                 'response_payload' => $result,
