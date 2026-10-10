@@ -11,32 +11,16 @@ use Illuminate\Support\Facades\Log;
 class MomoService
 {
     /**
-     * Lấy cấu hình MoMo (Làm sạch ký tự khoảng trắng / dấu ngoặc thừa)
+     * Cố định bộ cấu hình MoMo Sandbox API v2 chuẩn chính thức
      */
     protected function getConfigs(): array
     {
-        $endpoint = trim((string) config('services.momo.endpoint', 'https://test-payment.momo.vn/v2/gateway/api/create'), " \t\n\r\0\x0B\"'");
-
-        $partnerCode = trim((string) config('services.momo.partner_code', 'MOMOBKUN20180529'), " \t\n\r\0\x0B\"'");
-        $accessKey   = trim((string) config('services.momo.access_key', 'klm99x0Za7RdUODe'), " \t\n\r\0\x0B\"'");
-        $secretKey   = trim((string) config('services.momo.secret_key', 'at67qH6mk8w5Y1nAyMoYKMWACiEi2bsa'), " \t\n\r\0\x0B\"'");
-
-        if (empty($partnerCode) || $partnerCode === 'MOMO' || str_contains(strtoupper($partnerCode), 'MONO')) {
-            $partnerCode = 'MOMOBKUN20180529';
-        }
-        if (empty($accessKey) || $accessKey === 'F8BBA842ECF82') {
-            $accessKey = 'klm99x0Za7RdUODe';
-        }
-        if (empty($secretKey) || $secretKey === 'K951B6PE1waDMi640xX08332A9UWE15i') {
-            $secretKey = 'at67qH6mk8w5Y1nAyMoYKMWACiEi2bsa';
-        }
-
         return [
-            'endpoint'    => $endpoint,
-            'partnerCode' => $partnerCode,
-            'accessKey'   => $accessKey,
-            'secretKey'   => $secretKey,
-            'verifySsl'   => filter_var(config('services.momo.verify_ssl', false), FILTER_VALIDATE_BOOLEAN),
+            'endpoint'    => 'https://test-payment.momo.vn/v2/gateway/api/create',
+            'partnerCode' => 'MOMO',
+            'accessKey'   => 'F8BBA842ECF82',
+            'secretKey'   => 'K951B6PE1waDMi640xX08332A9UWE15i',
+            'verifySsl'   => false,
         ];
     }
 
@@ -59,38 +43,26 @@ class MomoService
         $orderInfo = 'Thanh toan don hang ' . $cleanCode;
         $orderId   = $order->id . '_' . $transaction->id . '_' . time();
 
-        // Tự động nhận diện Domain Render thực tế
-        $host   = request()->getHost();
-        $scheme = (request()->secure() || app()->environment('production') || str_contains($host, 'onrender.com')) ? 'https' : request()->getScheme();
+        // Tự động nhận diện Domain Render thực tế (https://lar-vidu1-kov7.onrender.com)
+        $host          = request()->getHost();
+        $scheme        = (request()->secure() || app()->environment('production') || str_contains($host, 'onrender.com')) ? 'https' : request()->getScheme();
         $currentDomain = $scheme . '://' . $host;
 
-        $envRedirect = trim((string) config('services.momo.redirect_url'), " \t\n\r\0\x0B\"'");
-        $envIpn      = trim((string) config('services.momo.ipn_url'), " \t\n\r\0\x0B\"'");
-
-        $redirectUrl = (!empty($envRedirect) && str_contains($envRedirect, $host)) 
-            ? $envRedirect 
-            : $currentDomain . '/payment/momo/callback';
-
-        $ipnUrl = (!empty($envIpn) && str_contains($envIpn, $host)) 
-            ? $envIpn 
-            : $currentDomain . '/payment/momo/ipn';
-
-        if (app()->environment('production') || str_contains($host, 'onrender.com')) {
-            $redirectUrl = str_replace('http://', 'https://', $redirectUrl);
-            $ipnUrl      = str_replace('http://', 'https://', $ipnUrl);
-        }
+        $redirectUrl = $currentDomain . '/payment/momo/callback';
+        $ipnUrl      = $currentDomain . '/payment/momo/ipn';
 
         $extraData = ""; 
         $requestId = (string) time();
 
-        // Chuỗi mã hóa SHA256 chuẩn MoMo API v2
+        // 1. Chuỗi mã hóa HMAC SHA256 chuẩn MoMo API v2
         $rawHash = "accessKey={$cfg['accessKey']}&amount={$strAmount}&extraData={$extraData}&ipnUrl={$ipnUrl}&orderId={$orderId}&orderInfo={$orderInfo}&partnerCode={$cfg['partnerCode']}&redirectUrl={$redirectUrl}&requestId={$requestId}&requestType={$requestType}";
 
         $signature = hash_hmac('sha256', $rawHash, $cfg['secretKey']);
 
+        // 2. Data gửi sang MoMo API v2 (BẮT BUỘC PHẢI CÓ CẢ partnerCode VÀ accessKey)
         $data = [
             'partnerCode' => $cfg['partnerCode'],
-            'accessKey'   => $cfg['accessKey'], // Bổ sung bắt buộc field accessKey trong JSON payload
+            'accessKey'   => $cfg['accessKey'],
             'partnerName' => 'XFAN Store',
             'storeId'     => 'XFANStore',
             'requestId'   => $requestId,
