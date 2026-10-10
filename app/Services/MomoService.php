@@ -11,14 +11,22 @@ use Illuminate\Support\Facades\Log;
 class MomoService
 {
     /**
-     * Lấy cấu hình MoMo (Ưu tiên config .env, fallback về cổng Test mặc định)
+     * Lấy cấu hình MoMo (Tự động ghi đè Access Key chuẩn nếu phát hiện key bị sai trên Render)
      */
     protected function getConfigs(): array
     {
+        $partnerCode = config('services.momo.partner_code') ?: 'MOMOBKUN20180529';
+        $accessKey   = config('services.momo.access_key');
+
+        // Tự động sửa nếu biến môi trường MOMO_ACCESS_KEY bị điền sai thành klm05TvNBzhg7h7j
+        if ($partnerCode === 'MOMOBKUN20180529' && (empty($accessKey) || $accessKey === 'klm05TvNBzhg7h7j')) {
+            $accessKey = 'klm99x0Za7RdUODe';
+        }
+
         return [
             'endpoint'     => config('services.momo.endpoint')     ?: 'https://test-payment.momo.vn/v2/gateway/api/create',
-            'partnerCode'  => config('services.momo.partner_code') ?: 'MOMOBKUN20180529',
-            'accessKey'    => config('services.momo.access_key')   ?: 'klm99x0Za7RdUODe',
+            'partnerCode'  => $partnerCode,
+            'accessKey'    => $accessKey                           ?: 'klm99x0Za7RdUODe',
             'secretKey'    => config('services.momo.secret_key')   ?: 'at67qH6mk8w5Y1nAyMoYKMWACiEi2bsa',
             'verifySsl'    => filter_var(config('services.momo.verify_ssl', false), FILTER_VALIDATE_BOOLEAN),
         ];
@@ -46,10 +54,9 @@ class MomoService
 
         $extraData   = ""; 
         $requestId   = (string) time();
-        // Đổi sang captureWallet để mở cổng All-in-One có nút "Thanh toán thử nghiệm"
         $requestType = 'captureWallet';
 
-        // 3. Tạo chữ ký HMAC SHA256 chuẩn theo bảng chữ cái alphabet
+        // 3. Tạo chữ ký HMAC SHA256 chuẩn theo thứ tự alphabet
         $rawHash = "accessKey={$cfg['accessKey']}&amount={$amount}&extraData={$extraData}&ipnUrl={$ipnUrl}&orderId={$orderId}&orderInfo={$orderInfo}&partnerCode={$cfg['partnerCode']}&redirectUrl={$redirectUrl}&requestId={$requestId}&requestType={$requestType}";
 
         $signature = hash_hmac('sha256', $rawHash, $cfg['secretKey']);
@@ -81,6 +88,8 @@ class MomoService
             ])->post($cfg['endpoint'], $data);
 
             $result = $response->json() ?? [];
+
+            Log::info('MoMo Response:', $result);
 
             $transaction->update([
                 'response_payload' => $result,
