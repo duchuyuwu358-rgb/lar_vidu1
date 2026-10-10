@@ -71,7 +71,7 @@ class MomoController extends Controller
     }
 
     /**
-     * Khởi tạo thanh toán MoMo
+     * Khởi tạo thanh toán MoMo Thẻ Visa/Mastercard
      */
     public function startPayment(Order $order, MomoService $momoService)
     {
@@ -81,7 +81,7 @@ class MomoController extends Controller
             'order_id'       => $order->id,
             'user_id'        => auth()->id() ?? $order->user_id,
             'gateway'        => 'momo',
-            'payment_method' => 'momo_atm',
+            'payment_method' => 'momo_visa',
             'amount'         => $amount,
             'status'         => 'pending',
         ]);
@@ -89,19 +89,17 @@ class MomoController extends Controller
         try {
             $result = $momoService->createPayment($order, $transaction);
 
-            // NẾU CÓ PAYURL -> CHUYỂN SANG TRANG MOMO
             if (!empty($result['payUrl'])) {
                 return redirect()->away($result['payUrl']);
             }
 
-            // NẾU KHÔNG CÓ PAYURL -> HOÀN TỒN KHO
             $this->restoreStockIfCancelled($order);
 
             $showOrderRoute = Route::has('orders.show')
                 ? route('orders.show', $order->id)
                 : (Route::has('user.orders.show') ? route('user.orders.show', $order->id) : url("/orders/{$order->id}"));
 
-            return redirect($showOrderRoute)->with('error', 'Lỗi MoMo: ' . ($result['message'] ?? 'Không thể tạo link thanh toán.'));
+            return redirect($showOrderRoute)->with('error', 'Lỗi MoMo Visa: ' . ($result['message'] ?? 'Không tạo được liên kết thanh toán.'));
         } catch (\Exception $e) {
             $this->restoreStockIfCancelled($order);
             return redirect()->back()->with('error', 'Lỗi khởi tạo thanh toán: ' . $e->getMessage());
@@ -153,7 +151,7 @@ class MomoController extends Controller
             $this->sendOrderStatusEmail($order);
 
             return redirect($showOrderRoute)
-                ->with('success', 'Thanh toán đơn hàng qua MoMo thành công!');
+                ->with('success', 'Thanh toán đơn hàng qua Visa thành công!');
         }
 
         if ($transaction) {

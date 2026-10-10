@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Log;
 class MomoService
 {
     /**
-     * Cấu hình MoMo Sandbox chuẩn 100% (Ghi đè tuyệt đối để tránh lỗi Render)
+     * Cấu hình MoMo Sandbox chuẩn cho Thẻ Quốc Tế (Visa/Mastercard)
      */
     protected function getConfigs(): array
     {
@@ -25,19 +25,19 @@ class MomoService
     }
 
     /**
-     * Khởi tạo giao dịch thanh toán MoMo Sandbox
+     * Khởi tạo giao dịch thanh toán MoMo bằng THẺ QUỐC TẾ (payWithCC)
      */
     public function createPayment(Order $order, PaymentTransaction $transaction): array
     {
         $cfg = $this->getConfigs();
 
-        // 1. Số tiền không chứa số thập phân
+        // 1. Tính toán số tiền
         $rawAmount = $transaction->amount > 0 
             ? $transaction->amount 
             : ($order->total_amount ?? $order->total_price ?? $order->total ?? 0);
         $amount = (string) (int) round($rawAmount);
 
-        // 2. Mã đơn hàng & thông tin
+        // 2. Thông tin đơn hàng & Mã giao dịch
         $orderInfo = 'Thanh toan don hang #' . ($order->order_code ?? $order->id);
         $orderId   = $order->id . '_' . $transaction->id . '_' . time();
 
@@ -47,7 +47,7 @@ class MomoService
 
         $extraData   = ""; 
         $requestId   = (string) time();
-        $requestType = 'payWithATM';
+        $requestType = 'payWithCC'; // Phương thức thanh toán qua Thẻ Quốc Tế (Visa/Mastercard)
 
         // 3. Tạo chữ ký HMAC SHA256 chuẩn MoMo
         $rawHash = "accessKey={$cfg['accessKey']}&amount={$amount}&extraData={$extraData}&ipnUrl={$ipnUrl}&orderId={$orderId}&orderInfo={$orderInfo}&partnerCode={$cfg['partnerCode']}&redirectUrl={$redirectUrl}&requestId={$requestId}&requestType={$requestType}";
@@ -82,7 +82,7 @@ class MomoService
 
             $result = $response->json() ?? [];
 
-            Log::info('MoMo Sandbox Response:', $result);
+            Log::info('MoMo Visa Response:', $result);
 
             $transaction->update([
                 'response_payload' => $result,
