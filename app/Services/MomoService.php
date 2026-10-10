@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Log;
 class MomoService
 {
     /**
-     * Lấy cấu hình MoMo (Đọc từ config và tự động bổ sung fallback key chuẩn)
+     * Lấy cấu hình MoMo
      */
     protected function getConfigs(): array
     {
@@ -37,9 +37,9 @@ class MomoService
     }
 
     /**
-     * Khởi tạo giao dịch thanh toán MoMo (Hỗ trợ mở cổng Thẻ Visa / MasterCard / Ví MoMo)
+     * Khởi tạo giao dịch thanh toán MoMo (Dùng requestType = captureWallet chuẩn Sandbox)
      */
-    public function createPayment(Order $order, PaymentTransaction $transaction, string $requestType = 'payWithMethod'): array
+    public function createPayment(Order $order, PaymentTransaction $transaction, string $requestType = 'captureWallet'): array
     {
         $cfg = $this->getConfigs();
 
@@ -57,7 +57,7 @@ class MomoService
         $redirectUrl = config('services.momo.redirect_url') ?: $baseUrl . '/payment/momo/callback';
         $ipnUrl      = config('services.momo.ipn_url') ?: $baseUrl . '/payment/momo/ipn';
 
-        // Ép buộc dùng giao thức HTTPS an toàn khi đẩy lên môi trường Production / Render
+        // Ép buộc dùng giao thức HTTPS khi chạy trên Render
         if (app()->environment('production') || str_contains($baseUrl, 'onrender.com')) {
             $redirectUrl = str_replace('http://', 'https://', $redirectUrl);
             $ipnUrl      = str_replace('http://', 'https://', $ipnUrl);
@@ -66,7 +66,7 @@ class MomoService
         $extraData = ""; 
         $requestId = (string) time();
 
-        // Tạo chữ ký HMAC SHA256 chuẩn theo bảng chữ cái
+        // Tạo chữ ký HMAC SHA256 chuẩn
         $rawHash = "accessKey={$cfg['accessKey']}&amount={$amount}&extraData={$extraData}&ipnUrl={$ipnUrl}&orderId={$orderId}&orderInfo={$orderInfo}&partnerCode={$cfg['partnerCode']}&redirectUrl={$redirectUrl}&requestId={$requestId}&requestType={$requestType}";
 
         $signature = hash_hmac('sha256', $rawHash, $cfg['secretKey']);
@@ -149,9 +149,6 @@ class MomoService
         return $this->isSuccessful($payload) && $this->isValidResponse($payload);
     }
 
-    /**
-     * Kiểm tra chữ ký bảo mật phản hồi từ MoMo
-     */
     public function isValidResponse(array $payload): bool
     {
         if (!isset($payload['signature'])) {
