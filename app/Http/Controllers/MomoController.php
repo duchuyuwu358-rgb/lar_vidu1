@@ -117,6 +117,10 @@ class MomoController extends Controller
 
     public function startPayment(Order $order, MomoService $momoService)
     {
+        $showOrderRoute = Route::has('orders.show')
+            ? route('orders.show', $order->id)
+            : (Route::has('user.orders.show') ? route('user.orders.show', $order->id) : (Route::has('orders.index') ? route('orders.index') : url("/orders/{$order->id}")));
+
         try {
             $amount = $order->total_amount ?? $order->total_price ?? $order->total ?? 0;
 
@@ -139,15 +143,12 @@ class MomoController extends Controller
 
             $this->restoreStockIfCancelled($order);
 
-            $showOrderRoute = Route::has('orders.show')
-                ? route('orders.show', $order->id)
-                : (Route::has('user.orders.show') ? route('user.orders.show', $order->id) : url("/orders/{$order->id}"));
-
             return redirect($showOrderRoute)->with('error', 'Lỗi MoMo: ' . ($result['message'] ?? 'Không thể khởi tạo thanh toán.'));
         } catch (\Exception $e) {
             Log::error('MoMo Start Payment Exception: ' . $e->getMessage());
             $this->restoreStockIfCancelled($order);
-            return redirect()->back()->with('error', 'Lỗi khởi tạo thanh toán: ' . $e->getMessage());
+
+            return redirect($showOrderRoute)->with('error', 'Lỗi khởi tạo thanh toán: ' . $e->getMessage());
         }
     }
 
@@ -180,7 +181,7 @@ class MomoController extends Controller
 
         $showOrderRoute = Route::has('orders.show')
             ? route('orders.show', $order->id)
-            : (Route::has('user.orders.show') ? route('user.orders.show', $order->id) : url("/orders/{$order->id}"));
+            : (Route::has('user.orders.show') ? route('user.orders.show', $order->id) : (Route::has('orders.index') ? route('orders.index') : url("/orders/{$order->id}")));
 
         // THÀNH CÔNG: Khi MoMo báo resultCode=0 và signature đúng, HOẶC đơn hàng đã được IPN xử lý trước đó
         if (($resultCode === 0 && $isValidSignature) || strtolower((string)$order->payment_status) === 'paid') {

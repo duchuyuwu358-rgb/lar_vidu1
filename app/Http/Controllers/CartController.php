@@ -81,7 +81,7 @@ class CartController extends Controller
     }
 
     /**
-     * 3. Áp dụng mã giảm giá bất kỳ từ CSDL
+     * 3. Áp dụng mã giảm giá
      */
     public function applyCoupon(Request $request)
     {
@@ -97,12 +97,10 @@ class CartController extends Controller
             return back()->with('error', "Mã giảm giá '{$code}' không tồn tại hoặc đã bị ngừng áp dụng.");
         }
 
-        // Kiểm tra Hạn sử dụng
         if ($coupon->expires_at && Carbon::parse($coupon->expires_at)->isPast()) {
             return back()->with('error', 'Mã giảm giá này đã hết hạn sử dụng.');
         }
 
-        // Kiểm tra Số lượng mã còn lại
         if ($coupon->quantity !== null && $coupon->quantity <= 0) {
             return back()->with('error', 'Mã giảm giá này đã hết lượt sử dụng.');
         }
@@ -139,7 +137,6 @@ class CartController extends Controller
             return back()->with('error', 'Đơn hàng chưa đạt giá trị tối thiểu ' . number_format($coupon->min_order_amount) . 'đ để dùng mã này.');
         }
 
-        // Tính giá trị giảm giá
         $discountAmount = 0;
         if ($coupon->type === 'percent') {
             $discountAmount = ($eligibleSubtotal * $coupon->value) / 100;
@@ -181,7 +178,12 @@ class CartController extends Controller
         $cart         = session()->get('cart', []);
 
         if (empty($cart)) {
-            return redirect()->route('cart.index')->with('error', 'Giỏ hàng của bạn đang trống!');
+            $checkoutCart = session()->get('checkout_cart', []);
+            if (!empty($checkoutCart)) {
+                $cart = $checkoutCart;
+            } else {
+                return redirect()->route('cart.index')->with('error', 'Giỏ hàng của bạn đang trống!');
+            }
         }
 
         foreach ($quantities as $key => $qty) {
@@ -211,7 +213,6 @@ class CartController extends Controller
 
         session()->put('checkout_cart', $checkoutCart);
 
-        // Tính lại số tiền giảm từ Coupon nếu có
         $discountAmount = 0;
         if (session()->has('applied_coupon')) {
             $applied = session('applied_coupon');
@@ -238,7 +239,7 @@ class CartController extends Controller
     }
 
     /**
-     * 7. XỬ LÝ ĐẶT HÀNG (CÓ LƯU MÃ GIẢM GIÁ VÀ SỐ TIỀN GIẢM)
+     * 7. XỬ LÝ ĐẶT HÀNG
      */
     public function processCheckout(Request $request)
     {
@@ -303,8 +304,8 @@ class CartController extends Controller
                     'address'         => trim($request->address),
                     'phone'           => trim($request->phone),
                     'total_price'     => $finalTotal,
-                    'coupon_code'     => $appliedCouponCode, // <-- LƯU MÃ GIẢM GIÁ
-                    'discount_amount' => $discountAmount,    // <-- LƯU SỐ TIỀN GIẢM
+                    'coupon_code'     => $appliedCouponCode,
+                    'discount_amount' => $discountAmount,
                     'status'          => 'pending',
                     'to_district_id'  => (int)$request->to_district_id,
                     'to_ward_code'    => (string)$request->to_ward_code,
@@ -339,7 +340,6 @@ class CartController extends Controller
                     }
                 }
 
-                // Trừ số lượng sử dụng mã ưu đãi nếu có
                 if (session()->has('applied_coupon')) {
                     $applied = session('applied_coupon');
                     $coupon = Coupon::find($applied['coupon_id'] ?? null) ?? Coupon::where('code', $applied['code'] ?? '')->first();
@@ -354,7 +354,7 @@ class CartController extends Controller
             return redirect()->route('cart.index')->with('error', $e->getMessage());
         }
 
-        // Xóa giỏ hàng & session coupon
+        // Xóa các sản phẩm đã thanh toán khỏi giỏ
         $cart = session()->get('cart', []);
         foreach (array_keys($checkoutCart) as $key) {
             unset($cart[$key]);
@@ -363,19 +363,12 @@ class CartController extends Controller
         session()->forget('checkout_cart');
         session()->forget('applied_coupon');
 
-        // MoMo
+        // MoMo Payment
         if ($request->payment_method === 'momo') {
-            PaymentTransaction::create([
-                'order_id' => $order->id,
-                'gateway'  => 'momo',
-                'amount'   => $order->total_price,
-                'status'   => 'pending',
-            ]);
-
             return redirect()->route('user.orders.momo.start', $order);
         }
 
-        // COD
+        // COD Payment
         $ghnOrderCode = $this->pushToGhn($order);
 
         PaymentTransaction::create([
