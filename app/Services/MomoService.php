@@ -11,27 +11,22 @@ use Illuminate\Support\Facades\Log;
 class MomoService
 {
     /**
-     * Lấy cấu hình MoMo (Cố định khóa Sandbox khi chạy thử nghiệm)
+     * Lấy cấu hình MoMo Sandbox API v2 chuẩn
      */
     protected function getConfigs(): array
     {
         $endpoint = trim((string) config('services.momo.endpoint', 'https://test-payment.momo.vn/v2/gateway/api/create'));
 
-        // Ép cố định bộ khóa Sandbox chuẩn của MoMo khi dùng endpoint test
-        if (str_contains($endpoint, 'test-payment.momo.vn')) {
-            return [
-                'endpoint'    => $endpoint,
-                'partnerCode' => 'MOMOBKUN20180529',
-                'accessKey'   => 'klm99x0Za7RdUODe',
-                'secretKey'   => 'at67qH6mk8w5Y1nAyMoYKMWACiEi2bsa',
-                'verifySsl'   => false,
-            ];
-        }
+        $partnerCode = trim((string) config('services.momo.partner_code', 'MOMO'), " \t\n\r\0\x0B\"'");
+        $accessKey   = trim((string) config('services.momo.access_key', 'F8BBA842ECF82'), " \t\n\r\0\x0B\"'");
+        $secretKey   = trim((string) config('services.momo.secret_key', 'K951B6PE1waDMi640xX08332A9UWE15i'), " \t\n\r\0\x0B\"'");
 
-        // Cấu hình khi chuyển sang môi trường Production thật
-        $partnerCode = trim((string) config('services.momo.partner_code'), " \t\n\r\0\x0B\"'");
-        $accessKey   = trim((string) config('services.momo.access_key'), " \t\n\r\0\x0B\"'");
-        $secretKey   = trim((string) config('services.momo.secret_key'), " \t\n\r\0\x0B\"'");
+        // Nếu thiếu hoặc trỏ tới partnerCode v1 cũ, tự động lấy bộ key v2 Sandbox chuẩn của MoMo
+        if (empty($partnerCode) || $partnerCode === 'MOMOBKUN20180529' || str_contains(strtoupper($partnerCode), 'MONO')) {
+            $partnerCode = 'MOMO';
+            $accessKey   = 'F8BBA842ECF82';
+            $secretKey   = 'K951B6PE1waDMi640xX08332A9UWE15i';
+        }
 
         return [
             'endpoint'    => $endpoint,
@@ -85,7 +80,7 @@ class MomoService
         $extraData = ""; 
         $requestId = (string) time();
 
-        // Chuỗi mã hóa SHA256 chuẩn API v2
+        // Chuỗi mã hóa SHA256 chuẩn MoMo API v2
         $rawHash = "accessKey={$cfg['accessKey']}&amount={$strAmount}&extraData={$extraData}&ipnUrl={$ipnUrl}&orderId={$orderId}&orderInfo={$orderInfo}&partnerCode={$cfg['partnerCode']}&redirectUrl={$redirectUrl}&requestId={$requestId}&requestType={$requestType}";
 
         $signature = hash_hmac('sha256', $rawHash, $cfg['secretKey']);
