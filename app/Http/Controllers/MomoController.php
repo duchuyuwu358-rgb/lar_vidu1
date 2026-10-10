@@ -15,9 +15,6 @@ use Illuminate\Support\Facades\DB;
 
 class MomoController extends Controller
 {
-    /**
-     * Gửi Gmail thông báo cập nhật đơn hàng
-     */
     private function sendOrderStatusEmail(Order $order)
     {
         $recipientEmail = $order->customer_email ?? $order->email ?? $order->user->email ?? null;
@@ -32,7 +29,7 @@ class MomoController extends Controller
     }
 
     /**
-     * HOÀN LẠI SỐ LƯỢNG TỒN KHO NẾU THANH TOÁN THẤT BẠI HOẶC BỊ HỦY
+     * HOÀN LẠI TỒN KHO NẾU GIAO DỊCH LỖI HOẶC HỦY
      */
     private function restoreStockIfCancelled(Order $order): void
     {
@@ -84,7 +81,7 @@ class MomoController extends Controller
             'order_id'       => $order->id,
             'user_id'        => auth()->id() ?? $order->user_id,
             'gateway'        => 'momo',
-            'payment_method' => 'momo_wallet',
+            'payment_method' => 'momo_atm',
             'amount'         => $amount,
             'status'         => 'pending',
         ]);
@@ -92,24 +89,25 @@ class MomoController extends Controller
         try {
             $result = $momoService->createPayment($order, $transaction);
 
-            // NẾU CÓ PAYURL -> CHUYỂN HƯỚNG TỚI CỔNG MOMO
+            // NẾU CÓ PAYURL -> CHUYỂN SANG TRANG MOMO
             if (!empty($result['payUrl'])) {
                 return redirect()->away($result['payUrl']);
             }
 
-            // NẾU KHÔNG CÓ PAYURL -> HOÀN LẠI TỒN KHO VÀ BÁO LỖI
+            // NẾU KHÔNG CÓ PAYURL -> HOÀN TỒN KHO
             $this->restoreStockIfCancelled($order);
 
-            return redirect()->back()->with('error', $result['message'] ?? 'Không thể khởi tạo giao dịch MoMo.');
+            $showOrderRoute = Route::has('orders.show')
+                ? route('orders.show', $order->id)
+                : (Route::has('user.orders.show') ? route('user.orders.show', $order->id) : url("/orders/{$order->id}"));
+
+            return redirect($showOrderRoute)->with('error', 'Lỗi MoMo: ' . ($result['message'] ?? 'Không thể tạo link thanh toán.'));
         } catch (\Exception $e) {
             $this->restoreStockIfCancelled($order);
             return redirect()->back()->with('error', 'Lỗi khởi tạo thanh toán: ' . $e->getMessage());
         }
     }
 
-    /**
-     * Xử lý khi MoMo chuyển hướng khách hàng về lại website
-     */
     public function callback(Request $request, MomoService $momoService)
     {
         $payload = $request->all();
@@ -141,7 +139,6 @@ class MomoController extends Controller
             ? route('orders.show', $order->id)
             : (Route::has('user.orders.show') ? route('user.orders.show', $order->id) : url("/orders/{$order->id}"));
 
-        // THANH TOÁN THÀNH CÔNG
         if ($resultCode === 0 && $isValidSignature) {
             if ($transaction) {
                 $momoService->markPaid($transaction, $payload);
@@ -159,7 +156,6 @@ class MomoController extends Controller
                 ->with('success', 'Thanh toán đơn hàng qua MoMo thành công!');
         }
 
-        // THANH TOÁN THẤT BẠI HOẶC BỊ HỦY -> HOÀN TỒN KHO SẢN PHẨM
         if ($transaction) {
             $momoService->markFailed($transaction, $payload);
         }
@@ -170,9 +166,6 @@ class MomoController extends Controller
             ->with('error', 'Thanh toán không thành công hoặc đã bị hủy!');
     }
 
-    /**
-     * Xử lý thông báo ngầm IPN từ MoMo
-     */
     public function ipn(Request $request, MomoService $momoService)
     {
         $payload = $request->all();
@@ -196,7 +189,6 @@ class MomoController extends Controller
         $resultCode       = isset($payload['resultCode']) ? (int)$payload['resultCode'] : -1;
         $isValidSignature = $momoService->isValidResponse($payload);
 
-        // THANH TOÁN THÀNH CÔNG
         if ($resultCode === 0 && $isValidSignature) {
             if ($transaction) {
                 $momoService->markPaid($transaction, $payload);
@@ -212,7 +204,6 @@ class MomoController extends Controller
             return response()->json(['message' => 'Success'], 200);
         }
 
-        // THANH TOÁN THẤT BẠI HOẶC BỊ HỦY -> HOÀN TỒN KHO SẢN PHẨM
         if ($transaction) {
             $momoService->markFailed($transaction, $payload);
         }

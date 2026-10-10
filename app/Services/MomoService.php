@@ -11,59 +11,45 @@ use Illuminate\Support\Facades\Log;
 class MomoService
 {
     /**
-     * Lấy cấu hình MoMo (Tự động khắc phục lỗi cấu hình sai trên Render)
+     * Cấu hình MoMo Sandbox chuẩn 100% (Ghi đè tuyệt đối để tránh lỗi Render)
      */
     protected function getConfigs(): array
     {
-        $partnerCode = config('services.momo.partner_code');
-        $accessKey   = config('services.momo.access_key');
-
-        // Tự động sửa Partner Code nếu gõ nhầm chữ N (MONOBKUN...) hoặc để trống
-        if (empty($partnerCode) || str_contains(strtoupper($partnerCode), 'MONO')) {
-            $partnerCode = 'MOMOBKUN20180529';
-        }
-
-        // Tự động sửa Access Key nếu bị sai
-        if (empty($accessKey) || $accessKey === 'klm05TvNBzhg7h7j') {
-            $accessKey = 'klm99x0Za7RdUODe';
-        }
-
         return [
             'endpoint'     => 'https://test-payment.momo.vn/v2/gateway/api/create',
-            'partnerCode'  => $partnerCode,
-            'accessKey'    => $accessKey,
-            'secretKey'    => config('services.momo.secret_key') ?: 'at67qH6mk8w5Y1nAyMoYKMWACiEi2bsa',
+            'partnerCode'  => 'MOMOBKUN20180529',
+            'accessKey'    => 'klm05TvNBzhg7h7j',
+            'secretKey'    => 'at67qH6mk8w5Y1nAyMoYKMWACiEi2bsa',
             'verifySsl'    => false,
         ];
     }
 
     /**
-     * Khởi tạo giao dịch thanh toán MoMo (Gateway: captureWallet)
+     * Khởi tạo giao dịch thanh toán MoMo Sandbox
      */
     public function createPayment(Order $order, PaymentTransaction $transaction): array
     {
         $cfg = $this->getConfigs();
 
-        // 1. Tính toán số tiền
+        // 1. Số tiền không chứa số thập phân
         $rawAmount = $transaction->amount > 0 
             ? $transaction->amount 
             : ($order->total_amount ?? $order->total_price ?? $order->total ?? 0);
         $amount = (string) (int) round($rawAmount);
 
-        // 2. Thông tin đơn hàng & Mã giao dịch
+        // 2. Mã đơn hàng & thông tin
         $orderInfo = 'Thanh toan don hang #' . ($order->order_code ?? $order->id);
         $orderId   = $order->id . '_' . $transaction->id . '_' . time();
 
-        // Lấy đúng domain HTTPS đang chạy thực tế trên Render
         $baseUrl     = request()->schemeAndHttpHost();
         $redirectUrl = $baseUrl . '/payment/momo/callback';
         $ipnUrl      = $baseUrl . '/payment/momo/ipn';
 
         $extraData   = ""; 
         $requestId   = (string) time();
-        $requestType = 'captureWallet';
+        $requestType = 'payWithATM';
 
-        // 3. Tạo chữ ký HMAC SHA256 chuẩn alphabet
+        // 3. Tạo chữ ký HMAC SHA256 chuẩn MoMo
         $rawHash = "accessKey={$cfg['accessKey']}&amount={$amount}&extraData={$extraData}&ipnUrl={$ipnUrl}&orderId={$orderId}&orderInfo={$orderInfo}&partnerCode={$cfg['partnerCode']}&redirectUrl={$redirectUrl}&requestId={$requestId}&requestType={$requestType}";
 
         $signature = hash_hmac('sha256', $rawHash, $cfg['secretKey']);
@@ -96,7 +82,7 @@ class MomoService
 
             $result = $response->json() ?? [];
 
-            Log::info('MoMo Response Payload:', $result);
+            Log::info('MoMo Sandbox Response:', $result);
 
             $transaction->update([
                 'response_payload' => $result,
