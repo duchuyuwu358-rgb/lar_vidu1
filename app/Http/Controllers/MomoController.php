@@ -29,9 +29,6 @@ class MomoController extends Controller
         }
     }
 
-    /**
-     * HOÀN TỒN KHO KHI HỦY HOẶC THANH TOÁN THẤT BẠI
-     */
     private function restoreStockIfCancelled(Order $order): void
     {
         if (in_array(strtolower((string) $order->payment_status), ['paid']) || 
@@ -123,7 +120,7 @@ class MomoController extends Controller
         try {
             $amount = $order->total_amount ?? $order->total_price ?? $order->total ?? 0;
 
-            // Tìm transaction đã được tạo trước đó hoặc tạo mới với đúng các cột có trong bảng CSDL
+            // Loại bỏ hoàn toàn user_id & payment_method để không bị lỗi 1054 Unknown column
             $transaction = PaymentTransaction::where('order_id', $order->id)
                 ->where('gateway', 'momo')
                 ->latest()
@@ -188,7 +185,6 @@ class MomoController extends Controller
             ? route('orders.show', $order->id)
             : (Route::has('user.orders.show') ? route('user.orders.show', $order->id) : (Route::has('orders.index') ? route('orders.index') : url("/orders/{$order->id}")));
 
-        // THÀNH CÔNG: Khi MoMo báo resultCode=0 và signature đúng, HOẶC đơn hàng đã được IPN xử lý trước đó
         if (($resultCode === 0 && $isValidSignature) || strtolower((string)$order->payment_status) === 'paid') {
             if ($transaction) {
                 $momoService->markPaid($transaction, $payload);
@@ -206,7 +202,6 @@ class MomoController extends Controller
                 ->with('success', 'Thanh toán đơn hàng qua MoMo thành công!');
         }
 
-        // THẤT BẠI HOẶC BỊ HỦY
         if ($transaction) {
             $momoService->markFailed($transaction, $payload);
         }
