@@ -11,16 +11,18 @@ use Illuminate\Support\Facades\Log;
 class MomoService
 {
     /**
-     * Bộ cấu hình MoMo Sandbox API v2 chính thức (thanh toán Thẻ / Visa)
+     * Bộ cấu hình MoMo Sandbox API v2 chính thức
      */
     protected function getConfigs(): array
     {
+        // Lấy cấu hình từ file .env (hoặc từ cài đặt Environment trên Render)
+        // Nếu không có, sẽ tự động dùng bộ khóa Sandbox mặc định của MoMo.
         return [
-            'endpoint'    => 'https://test-payment.momo.vn/v2/gateway/api/create',
-            'partnerCode' => 'MOMO',
-            'accessKey'   => 'F8BBA842ECF82',
-            'secretKey'   => 'K951B6PE1waDMi640xX08332A9UWE15i',
-            'verifySsl'   => false,
+            'endpoint'    => env('MOMO_ENDPOINT', 'https://test-payment.momo.vn/v2/gateway/api/create'),
+            'partnerCode' => env('MOMO_PARTNER_CODE', 'MOMO'),
+            'accessKey'   => env('MOMO_ACCESS_KEY', 'F8BBA842ECF85'),
+            'secretKey'   => env('MOMO_SECRET_KEY', 'K951B6FA68A05B09A0A629B51E6E028F'),
+            'verifySsl'   => env('MOMO_VERIFY_SSL', false),
         ];
     }
 
