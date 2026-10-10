@@ -1,180 +1,177 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Services;
 
-use Illuminate\Http\Request;
-use App\Services\MomoService;
 use App\Models\Order;
 use App\Models\PaymentTransaction;
-use App\Mail\OrderStatusUpdatedMail;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Route;
 
-class MomoController extends Controller
+class MomoService
 {
     /**
-     * Gửi Gmail thông báo cập nhật đơn hàng
+     * Lấy cấu hình MoMo (Ưu tiên config .env, fallback về cổng Test mặc định)
      */
-    private function sendOrderStatusEmail(Order $order)
+    protected function getConfigs(): array
     {
-        $recipientEmail = $order->customer_email ?? $order->email ?? $order->user->email ?? null;
-
-        if ($recipientEmail) {
-            try {
-                Mail::to($recipientEmail)->send(new OrderStatusUpdatedMail($order));
-            } catch (\Exception $e) {
-                Log::error("Lỗi gửi mail MoMo đơn hàng #{$order->id}: " . $e->getMessage());
-            }
-        }
+        return [
+            'endpoint'     => config('services.momo.endpoint')     ?: 'https://test-payment.momo.vn/v2/gateway/api/create',
+            'partnerCode'  => config('services.momo.partner_code') ?: 'MOMOBKUN20180529',
+            'accessKey'    => config('services.momo.access_key')   ?: 'klm05TvNBzhg7h7j',
+            'secretKey'    => config('services.momo.secret_key')   ?: 'at67qH6mk8w5Y1nAyMoYKMWACiEi2bsa',
+            'verifySsl'    => filter_var(config('services.momo.verify_ssl', false), FILTER_VALIDATE_BOOLEAN),
+        ];
     }
 
     /**
-     * Khởi tạo thanh toán MoMo (Thẻ ATM)
+     * Khởi tạo giao dịch thanh toán MoMo bằng CỔNG THẺ ATM NỘI ĐỊA (payWithATM)
      */
-    public function startPayment(Order $order, MomoService $momoService)
+    public function createPayment(Order $order, PaymentTransaction $transaction): array
     {
-        $amount = $order->total_amount ?? $order->total_price ?? $order->total ?? 0;
+        $cfg = $this->getConfigs();
 
-        $transaction = PaymentTransaction::create([
-            'order_id'       => $order->id,
-            'user_id'        => auth()->id() ?? $order->user_id,
-            'gateway'        => 'momo',
-            'payment_method' => 'momo_atm',
-            'amount'         => $amount,
-            'status'         => 'pending',
+        // 1. Tính toán số tiền chính xác
+        $rawAmount = $transaction->amount > 0 
+            ? $transaction->amount 
+            : ($order->total_amount ?? $order->total_price ?? $order->total ?? 0);
+        $amount = (string) (int) round($rawAmount);
+
+        // 2. Thông tin đơn hàng & Mã giao dịch
+        $orderInfo = 'Thanh toan don hang #' . ($order->order_code ?? $order->id);
+        $orderId   = $order->id . '_' . $transaction->id . '_' . time();
+
+        $redirectUrl = config('services.momo.redirect_url') ?: url('/payment/momo/callback');
+        $ipnUrl      = config('services.momo.ipn_url') ?: url('/payment/momo/ipn');
+
+        $extraData   = ""; 
+        $requestId   = (string) time();
+        $requestType = 'payWithATM';
+
+        // 3. Tạo chữ ký HMAC SHA256 chuẩn
+        $rawHash = "accessKey={$cfg['accessKey']}&amount={$amount}&extraData={$extraData}&ipnUrl={$ipnUrl}&orderId={$orderId}&orderInfo={$orderInfo}&partnerCode={$cfg['partnerCode']}&redirectUrl={$redirectUrl}&requestId={$requestId}&requestType={$requestType}";
+
+        $signature = hash_hmac('sha256', $rawHash, $cfg['secretKey']);
+
+        $data = [
+            'partnerCode' => $cfg['partnerCode'],
+            'partnerName' => 'XFAN Store',
+            'storeId'     => 'XFANStore',
+            'requestId'   => $requestId,
+            'amount'      => $amount,
+            'orderId'     => $orderId,
+            'orderInfo'   => $orderInfo,
+            'redirectUrl' => $redirectUrl,
+            'ipnUrl'      => $ipnUrl,
+            'lang'        => 'vi',
+            'extraData'   => $extraData,
+            'requestType' => $requestType,
+            'signature'   => $signature,
+        ];
+
+        $transaction->update([
+            'gateway_order_id' => $orderId,
+            'request_payload'  => $data,
         ]);
 
         try {
-            $result = $momoService->createPayment($order, $transaction);
+            $response = Http::withOptions([
+                'verify' => $cfg['verifySsl'],
+            ])->post($cfg['endpoint'], $data);
 
-            if (isset($result['payUrl'])) {
-                return redirect()->away($result['payUrl']);
-            }
+            $result = $response->json() ?? [];
 
-            return redirect()->back()->with('error', $result['message'] ?? 'Không thể khởi tạo giao dịch MoMo.');
+            $transaction->update([
+                'response_payload' => $result,
+                'result_code'      => isset($result['resultCode']) ? (int) $result['resultCode'] : null,
+                'message'          => $result['message'] ?? null,
+                'status'           => isset($result['payUrl']) ? 'initiated' : 'failed',
+            ]);
+
+            return $result;
         } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'Lỗi khởi tạo thanh toán: ' . $e->getMessage());
+            Log::error('MoMo Create Payment Exception: ' . $e->getMessage());
+            $transaction->update(['status' => 'failed', 'message' => $e->getMessage()]);
+            return ['resultCode' => -1, 'message' => 'Lỗi kết nối tới MoMo: ' . $e->getMessage()];
         }
     }
 
-    /**
-     * Xử lý khi MoMo chuyển hướng khách hàng quay lại website
-     */
-    public function callback(Request $request, MomoService $momoService)
+    public function isSuccessful(array $payload): bool
     {
-        $payload = $request->all();
-        Log::info('MoMo Callback Received:', $payload);
-
-        $orderId = $momoService->orderId($payload);
-        $order   = $orderId ? Order::find($orderId) : null;
-
-        if (!$order) {
-            Log::error('MoMo Callback Error: Order not found.', ['payload' => $payload]);
-            return redirect('/orders')->with('error', 'Không tìm thấy thông tin đơn hàng.');
-        }
-
-        // Tự động khôi phục phiên đăng nhập nếu mất Cookie khi redirect từ MoMo
-        if (!Auth::check() && $order->user_id) {
-            Auth::loginUsingId($order->user_id);
-        }
-
-        $transaction = null;
-        if (!empty($payload['orderId'])) {
-            $transaction = PaymentTransaction::where('gateway_order_id', $payload['orderId'])->first();
-        }
-        if (!$transaction) {
-            $transaction = PaymentTransaction::where('order_id', $order->id)->latest()->first();
-        }
-
-        $resultCode       = isset($payload['resultCode']) ? (int)$payload['resultCode'] : -1;
-        $isValidSignature = $momoService->isValidSuccessfulResponse($payload);
-
-        $showOrderRoute = Route::has('orders.show')
-            ? route('orders.show', $order->id)
-            : (Route::has('user.orders.show') ? route('user.orders.show', $order->id) : url("/orders/{$order->id}"));
-
-        if ($resultCode === 0 && $isValidSignature) {
-            if ($transaction) {
-                $momoService->markPaid($transaction, $payload);
-            }
-
-            $order->update([
-                'payment_status' => 'paid',
-                'status'         => 'processing',
-            ]);
-
-            session()->forget('cart');
-            $this->sendOrderStatusEmail($order);
-
-            return redirect($showOrderRoute)
-                ->with('success', 'Thanh toán đơn hàng qua thẻ ATM thành công!');
-        }
-
-        if ($transaction) {
-            $momoService->markFailed($transaction, $payload);
-        }
-
-        $order->update([
-            'payment_status' => 'failed',
-            'status'         => 'cancelled'
-        ]);
-
-        return redirect($showOrderRoute)
-            ->with('error', 'Thanh toán không thành công hoặc đã bị hủy!');
+        return isset($payload['resultCode']) && (string) $payload['resultCode'] === '0';
     }
 
-    /**
-     * Xử lý thông báo ngầm (IPN) từ server MoMo -> Server của bạn
-     */
-    public function ipn(Request $request, MomoService $momoService)
+    public function markPaid(PaymentTransaction $transaction, array $payload): void
     {
-        $payload = $request->all();
-        Log::info('MoMo IPN Received:', $payload);
-
-        $orderId = $momoService->orderId($payload);
-        $order   = $orderId ? Order::find($orderId) : null;
-
-        if (!$order) {
-            return response()->json(['message' => 'Order not found'], 404);
-        }
-
-        $transaction = null;
-        if (!empty($payload['orderId'])) {
-            $transaction = PaymentTransaction::where('gateway_order_id', $payload['orderId'])->first();
-        }
-        if (!$transaction) {
-            $transaction = PaymentTransaction::where('order_id', $order->id)->latest()->first();
-        }
-
-        $resultCode       = isset($payload['resultCode']) ? (int)$payload['resultCode'] : -1;
-        $isValidSignature = $momoService->isValidSuccessfulResponse($payload);
-
-        if ($resultCode === 0 && $isValidSignature) {
-            if ($transaction) {
-                $momoService->markPaid($transaction, $payload);
-            }
-
-            $order->update([
-                'payment_status' => 'paid',
-                'status'         => 'processing',
-            ]);
-
-            $this->sendOrderStatusEmail($order);
-
-            return response()->json(['message' => 'Success'], 200);
-        }
-
-        if ($transaction) {
-            $momoService->markFailed($transaction, $payload);
-        }
-
-        $order->update([
-            'payment_status' => 'failed',
-            'status'         => 'cancelled'
+        $transaction->update([
+            'transaction_id'   => $payload['transId'] ?? null,
+            'result_code'      => (int) ($payload['resultCode'] ?? 0),
+            'message'          => $payload['message'] ?? 'Thanh toán thành công',
+            'response_payload' => $payload,
+            'status'           => 'paid',
+            'paid_at'          => Carbon::now(),
         ]);
+    }
 
-        return response()->json(['message' => 'Invalid signature or failed transaction'], 400);
+    public function markFailed(PaymentTransaction $transaction, array $payload): void
+    {
+        $transaction->update([
+            'transaction_id'   => $payload['transId'] ?? null,
+            'result_code'      => isset($payload['resultCode']) ? (int) $payload['resultCode'] : null,
+            'message'          => $payload['message'] ?? 'Thanh toán thất bại',
+            'response_payload' => $payload,
+            'status'           => 'failed',
+        ]);
+    }
+
+    public function isValidSuccessfulResponse(array $payload): bool
+    {
+        return $this->isSuccessful($payload) && $this->isValidResponse($payload);
+    }
+
+    public function isValidResponse(array $payload): bool
+    {
+        if (!isset($payload['signature'])) {
+            return false;
+        }
+
+        $cfg       = $this->getConfigs();
+        $accessKey = $cfg['accessKey'];
+        $secretKey = $cfg['secretKey'];
+
+        $amount       = (string) ($payload['amount'] ?? '');
+        $extraData    = (string) ($payload['extraData'] ?? '');
+        $message      = (string) ($payload['message'] ?? '');
+        $orderId      = (string) ($payload['orderId'] ?? '');
+        $orderInfo    = (string) ($payload['orderInfo'] ?? '');
+        $orderType    = (string) ($payload['orderType'] ?? '');
+        $partnerCode  = (string) ($payload['partnerCode'] ?? '');
+        $payType      = (string) ($payload['payType'] ?? '');
+        $requestId    = (string) ($payload['requestId'] ?? '');
+        $responseTime = (string) ($payload['responseTime'] ?? '');
+        $resultCode   = (string) ($payload['resultCode'] ?? '');
+        $transId      = (string) ($payload['transId'] ?? '');
+
+        $rawHash = "accessKey={$accessKey}&amount={$amount}&extraData={$extraData}&message={$message}&orderId={$orderId}&orderInfo={$orderInfo}&orderType={$orderType}&partnerCode={$partnerCode}&payType={$payType}&requestId={$requestId}&responseTime={$responseTime}&resultCode={$resultCode}&transId={$transId}";
+
+        $expectedSignature = hash_hmac('sha256', $rawHash, $secretKey);
+
+        return hash_equals($expectedSignature, (string) $payload['signature']);
+    }
+
+    public function orderId(array $payload): ?int
+    {
+        if (!empty($payload['extraData']) && is_numeric($payload['extraData'])) {
+            return (int) $payload['extraData'];
+        }
+
+        if (!empty($payload['orderId'])) {
+            $parts = explode('_', $payload['orderId']);
+            if (isset($parts[0]) && is_numeric($parts[0])) {
+                return (int) $parts[0];
+            }
+        }
+
+        return null;
     }
 }

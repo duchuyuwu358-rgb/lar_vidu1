@@ -14,9 +14,6 @@ use Illuminate\Support\Facades\Route;
 
 class MomoController extends Controller
 {
-    /**
-     * Gửi Gmail thông báo cập nhật đơn hàng
-     */
     private function sendOrderStatusEmail(Order $order)
     {
         $recipientEmail = $order->customer_email ?? $order->email ?? $order->user->email ?? null;
@@ -30,19 +27,15 @@ class MomoController extends Controller
         }
     }
 
-    /**
-     * Khởi tạo thanh toán MoMo
-     */
     public function startPayment(Order $order, MomoService $momoService)
     {
-        // Tính tiền chuẩn xác từ đơn hàng
         $amount = $order->total_amount ?? $order->total_price ?? $order->total ?? 0;
 
         $transaction = PaymentTransaction::create([
             'order_id'       => $order->id,
             'user_id'        => auth()->id() ?? $order->user_id,
             'gateway'        => 'momo',
-            'payment_method' => 'momo',
+            'payment_method' => 'momo_atm',
             'amount'         => $amount,
             'status'         => 'pending',
         ]);
@@ -60,9 +53,6 @@ class MomoController extends Controller
         }
     }
 
-    /**
-     * Xử lý khi MoMo chuyển hướng khách hàng quay lại website
-     */
     public function callback(Request $request, MomoService $momoService)
     {
         $payload = $request->all();
@@ -72,16 +62,13 @@ class MomoController extends Controller
         $order   = $orderId ? Order::find($orderId) : null;
 
         if (!$order) {
-            Log::error('MoMo Callback Error: Order not found.', ['payload' => $payload]);
             return redirect('/orders')->with('error', 'Không tìm thấy thông tin đơn hàng.');
         }
 
-        // Tự động khôi phục phiên đăng nhập nếu mất Cookie khi redirect từ MoMo
         if (!Auth::check() && $order->user_id) {
             Auth::loginUsingId($order->user_id);
         }
 
-        // Tìm đúng bản ghi giao dịch theo gateway_order_id hoặc order_id
         $transaction = null;
         if (!empty($payload['orderId'])) {
             $transaction = PaymentTransaction::where('gateway_order_id', $payload['orderId'])->first();
@@ -93,7 +80,6 @@ class MomoController extends Controller
         $resultCode       = isset($payload['resultCode']) ? (int)$payload['resultCode'] : -1;
         $isValidSignature = $momoService->isValidSuccessfulResponse($payload);
 
-        // Đường dẫn trả về giao diện đơn hàng an toàn
         $showOrderRoute = Route::has('orders.show')
             ? route('orders.show', $order->id)
             : (Route::has('user.orders.show') ? route('user.orders.show', $order->id) : url("/orders/{$order->id}"));
@@ -103,23 +89,18 @@ class MomoController extends Controller
                 $momoService->markPaid($transaction, $payload);
             }
 
-            // Cập nhật trạng thái đơn hàng (Chỉ cập nhật các trường có sẵn trong CSDL)
             $order->update([
                 'payment_status' => 'paid',
                 'status'         => 'processing',
             ]);
 
-            // Xóa giỏ hàng khỏi Session
             session()->forget('cart');
-
-            // Gửi Mail thông báo đơn hàng
             $this->sendOrderStatusEmail($order);
 
             return redirect($showOrderRoute)
-                ->with('success', 'Thanh toán đơn hàng qua MoMo thành công! Email xác nhận đã được gửi đến hộp thư của bạn.');
+                ->with('success', 'Thanh toán đơn hàng qua thẻ ATM thành công!');
         }
 
-        // Trường hợp Thanh toán thất bại hoặc Hủy giao dịch
         if ($transaction) {
             $momoService->markFailed($transaction, $payload);
         }
@@ -133,9 +114,6 @@ class MomoController extends Controller
             ->with('error', 'Thanh toán không thành công hoặc đã bị hủy!');
     }
 
-    /**
-     * Xử lý thông báo ngầm (IPN) từ server MoMo -> Server của bạn
-     */
     public function ipn(Request $request, MomoService $momoService)
     {
         $payload = $request->all();
