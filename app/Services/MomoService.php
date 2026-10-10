@@ -11,16 +11,16 @@ use Illuminate\Support\Facades\Log;
 class MomoService
 {
     /**
-     * Cố định bộ cấu hình MoMo Sandbox API v2 chuẩn chính thức
+     * Lấy cấu hình MoMo từ config/services.php (.env)
      */
     protected function getConfigs(): array
     {
         return [
-            'endpoint'    => 'https://test-payment.momo.vn/v2/gateway/api/create',
-            'partnerCode' => 'MOMO',
-            'accessKey'   => 'F8BBA842ECF82',
-            'secretKey'   => 'K951B6PE1waDMi640xX08332A9UWE15i',
-            'verifySsl'   => false,
+            'endpoint'    => config('services.momo.endpoint', 'https://test-payment.momo.vn/v2/gateway/api/create'),
+            'partnerCode' => config('services.momo.partner_code', 'MOMOBKUN20180529'),
+            'accessKey'   => config('services.momo.access_key', 'klm99x0Za7RdUODe'),
+            'secretKey'   => config('services.momo.secret_key', 'at67qH6mk8w5Y1nAyMoYKMWACiEi2bsa'),
+            'verifySsl'   => filter_var(config('services.momo.verify_ssl', false), FILTER_VALIDATE_BOOLEAN),
         ];
     }
 
@@ -43,13 +43,18 @@ class MomoService
         $orderInfo = 'Thanh toan don hang ' . $cleanCode;
         $orderId   = $order->id . '_' . $transaction->id . '_' . time();
 
-        // Tự động nhận diện Domain Render thực tế (https://lar-vidu1-kov7.onrender.com)
-        $host          = request()->getHost();
-        $scheme        = (request()->secure() || app()->environment('production') || str_contains($host, 'onrender.com')) ? 'https' : request()->getScheme();
-        $currentDomain = $scheme . '://' . $host;
+        // Tự động nhận diện Domain Render thực tế hoặc cấu hình trong services/env
+        $redirectUrl = config('services.momo.redirect_url');
+        $ipnUrl      = config('services.momo.ipn_url');
 
-        $redirectUrl = $currentDomain . '/payment/momo/callback';
-        $ipnUrl      = $currentDomain . '/payment/momo/ipn';
+        if (empty($redirectUrl) || empty($ipnUrl) || str_contains($redirectUrl, '127.0.0.1')) {
+            $host          = request()->getHost();
+            $scheme        = (request()->secure() || app()->environment('production') || str_contains($host, 'onrender.com')) ? 'https' : request()->getScheme();
+            $currentDomain = $scheme . '://' . $host;
+
+            $redirectUrl = $currentDomain . '/payment/momo/callback';
+            $ipnUrl      = $currentDomain . '/payment/momo/ipn';
+        }
 
         $extraData = ""; 
         $requestId = (string) time();
@@ -59,7 +64,7 @@ class MomoService
 
         $signature = hash_hmac('sha256', $rawHash, $cfg['secretKey']);
 
-        // 2. Data gửi sang MoMo API v2 (BẮT BUỘC PHẢI CÓ CẢ partnerCode VÀ accessKey)
+        // 2. Data gửi sang MoMo API v2
         $data = [
             'partnerCode' => $cfg['partnerCode'],
             'accessKey'   => $cfg['accessKey'],

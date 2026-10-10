@@ -117,23 +117,25 @@ class MomoController extends Controller
 
     public function startPayment(Order $order, MomoService $momoService)
     {
-        $amount = $order->total_amount ?? $order->total_price ?? $order->total ?? 0;
-
-        $transaction = PaymentTransaction::create([
-            'order_id'       => $order->id,
-            'user_id'        => auth()->id() ?? $order->user_id,
-            'gateway'        => 'momo',
-            'payment_method' => 'momo_wallet',
-            'amount'         => $amount,
-            'status'         => 'pending',
-        ]);
-
         try {
+            $amount = $order->total_amount ?? $order->total_price ?? $order->total ?? 0;
+
+            $transaction = PaymentTransaction::create([
+                'order_id'       => $order->id,
+                'user_id'        => auth()->id() ?? $order->user_id,
+                'gateway'        => 'momo',
+                'payment_method' => 'momo_wallet',
+                'amount'         => $amount,
+                'status'         => 'pending',
+            ]);
+
             $result = $momoService->createPayment($order, $transaction);
 
             if (!empty($result['payUrl'])) {
                 return redirect()->away($result['payUrl']);
             }
+
+            Log::error('MoMo Start Payment Failed: ', $result);
 
             $this->restoreStockIfCancelled($order);
 
@@ -143,6 +145,7 @@ class MomoController extends Controller
 
             return redirect($showOrderRoute)->with('error', 'Lỗi MoMo: ' . ($result['message'] ?? 'Không thể khởi tạo thanh toán.'));
         } catch (\Exception $e) {
+            Log::error('MoMo Start Payment Exception: ' . $e->getMessage());
             $this->restoreStockIfCancelled($order);
             return redirect()->back()->with('error', 'Lỗi khởi tạo thanh toán: ' . $e->getMessage());
         }
