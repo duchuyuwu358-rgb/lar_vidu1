@@ -14,15 +14,15 @@ class MomoService
      * Bộ cấu hình MoMo Sandbox API v2
      */
     protected function getConfigs(): array
-    {
-        return [
-            'endpoint'    => env('MOMO_ENDPOINT', 'https://test-payment.momo.vn/v2/gateway/api/create'),
-            'partnerCode' => env('MOMO_PARTNER_CODE', 'MOMO'),
-            'accessKey'   => env('MOMO_ACCESS_KEY', 'F8s3S2yB2256o25g'),
-            'secretKey'   => env('MOMO_SECRET_KEY', 'At92FuRBn126253652362536'),
-            'verifySsl'   => env('MOMO_VERIFY_SSL', false),
-        ];
-    }
+{
+    return [
+        'endpoint'    => env('MOMO_ENDPOINT', 'https://test-payment.momo.vn/v2/gateway/api/create'),
+        'partnerCode' => env('MOMO_PARTNER_CODE', 'MOMOBKUN20180529'),
+        'accessKey'   => env('MOMO_ACCESS_KEY', 'klm05TvNBzhg7h7j'),
+        'secretKey'   => env('MOMO_SECRET_KEY', 'at67qH6mk8w5Y1nAyMoYKMWACiEi2bsa'),
+        'verifySsl'   => env('MOMO_VERIFY_SSL', false),
+    ];
+}
 
     /**
      * Khởi tạo giao dịch thanh toán MoMo (Mặc định requestType = captureWallet)
