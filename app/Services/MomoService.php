@@ -12,6 +12,7 @@ class MomoService
 {
     /**
      * Bộ cấu hình MoMo Sandbox API v2 đồng bộ khóa Lab06
+     * Đã cập nhật verifySsl mặc định = TRUE
      */
     protected function getConfigs(): array
     {
@@ -20,12 +21,12 @@ class MomoService
             'partnerCode' => env('MOMO_PARTNER_CODE', 'MOMOBKUN20180529'),
             'accessKey'   => env('MOMO_ACCESS_KEY', 'klm05TvNBzhg7h7j'),
             'secretKey'   => env('MOMO_SECRET_KEY', 'at67qH6mk8w5Y1nAyMoYKMWACiEi2bsa'),
-            'verifySsl'   => env('MOMO_VERIFY_SSL', false),
+            'verifySsl'   => filter_var(env('MOMO_VERIFY_SSL', true), FILTER_VALIDATE_BOOLEAN),
         ];
     }
 
     /**
-     * Mặc định requestType = payWithCC (Visa/Mastercard)
+     * Tạo yêu cầu thanh toán MoMo (Mặc định requestType = payWithCC cho Visa/Mastercard)
      */
     public function createPayment(Order $order, PaymentTransaction $transaction, string $requestType = 'payWithCC'): array
     {
@@ -86,7 +87,7 @@ class MomoService
             $response = Http::withHeaders([
                 'Content-Type' => 'application/json; charset=UTF-8',
             ])->withOptions([
-                'verify' => $cfg['verifySsl'],
+                'verify' => $cfg['verifySsl'], // XÁC THỰC SSL = TRUE
             ])->post($cfg['endpoint'], $data);
 
             $result = $response->json() ?? [];

@@ -136,9 +136,9 @@ class MomoController extends Controller
                 'status'   => 'pending',
             ]);
 
-            // ===== ĐÃ SỬA TẠI ĐÂY =====
-            // Ép buộc dùng phương thức 'payWithATM' để MoMo hiện màn hình nhập Thẻ Nội Địa (Napas)
-            $requestType = 'payWithATM'; 
+            // ===== ĐÃ CẬP NHẬT TẠI ĐÂY =====
+            // Ép buộc sử dụng 'payWithCC' để gọi trang nhập Thẻ Quốc Tế (Visa/Mastercard)
+            $requestType = 'payWithCC'; 
             $result = $momoService->createPayment($order, $transaction, $requestType);
 
             if (!empty($result['payUrl'])) {
