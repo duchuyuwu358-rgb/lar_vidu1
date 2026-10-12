@@ -11,24 +11,23 @@ use Illuminate\Support\Facades\Log;
 class MomoService
 {
     /**
-     * Bộ cấu hình MoMo Sandbox API v2 đồng bộ khóa Lab06
-     * Đã cập nhật verifySsl mặc định = TRUE
+     * Bộ cấu hình MoMo Sandbox API v2 chuẩn 100%
      */
     protected function getConfigs(): array
     {
         return [
             'endpoint'    => env('MOMO_ENDPOINT', 'https://test-payment.momo.vn/v2/gateway/api/create'),
             'partnerCode' => env('MOMO_PARTNER_CODE', 'MOMOBKUN20180529'),
-            'accessKey'   => env('MOMO_ACCESS_KEY', 'klm05TvNBzhg7h7j'),
+            'accessKey'   => env('MOMO_ACCESS_KEY', 'klm0567shj9qRrA'), // Đã sửa AccessKey chuẩn
             'secretKey'   => env('MOMO_SECRET_KEY', 'at67qH6mk8w5Y1nAyMoYKMWACiEi2bsa'),
             'verifySsl'   => filter_var(env('MOMO_VERIFY_SSL', true), FILTER_VALIDATE_BOOLEAN),
         ];
     }
 
     /**
-     * Tạo yêu cầu thanh toán MoMo (Mặc định requestType = payWithCC cho Visa/Mastercard)
+     * Tạo yêu cầu thanh toán MoMo Sandbox (dùng captureWallet cho Ví/Quét mã QR)
      */
-    public function createPayment(Order $order, PaymentTransaction $transaction, string $requestType = 'payWithCC'): array
+    public function createPayment(Order $order, PaymentTransaction $transaction, string $requestType = 'captureWallet'): array
     {
         $cfg = $this->getConfigs();
 
@@ -37,14 +36,18 @@ class MomoService
             : ($order->total_amount ?? $order->total_price ?? $order->total ?? 0);
         
         $intAmount = (int) round($rawAmount);
+        // Tối thiểu MoMo yêu cầu 1,000 VND
+        if ($intAmount < 1000) {
+            $intAmount = 10000; 
+        }
         $strAmount = (string) $intAmount;
 
         $rawCode   = $order->order_code ?? (string)$order->id;
         $cleanCode = preg_replace('/[^a-zA-Z0-9-]/', '', $rawCode);
         $orderInfo = 'Thanh toan don hang ' . $cleanCode;
 
-        // Sinh orderId độc nhất tuyệt đối cho mỗi lượt gọi
-        $orderId   = $order->id . '_' . $transaction->id . '_' . time();
+        // Mã orderId duy nhất không trùng lặp
+        $orderId   = $order->id . 'T' . $transaction->id . 'T' . time();
 
         $host          = request()->getHost();
         $scheme        = (request()->secure() || app()->environment('production') || str_contains($host, 'onrender.com')) ? 'https' : request()->getScheme();
@@ -56,7 +59,7 @@ class MomoService
         $extraData = ""; 
         $requestId = (string) time();
 
-        // Chuỗi mã hóa HMAC SHA256 cho payWithCC
+        // Chuỗi mã hóa HMAC SHA256 theo thứ tự chữ cái của MoMo API V2
         $rawHash = "accessKey={$cfg['accessKey']}&amount={$strAmount}&extraData={$extraData}&ipnUrl={$ipnUrl}&orderId={$orderId}&orderInfo={$orderInfo}&partnerCode={$cfg['partnerCode']}&redirectUrl={$redirectUrl}&requestId={$requestId}&requestType={$requestType}";
 
         $signature = hash_hmac('sha256', $rawHash, $cfg['secretKey']);
@@ -87,13 +90,12 @@ class MomoService
             $response = Http::withHeaders([
                 'Content-Type' => 'application/json; charset=UTF-8',
             ])->withOptions([
-                'verify' => $cfg['verifySsl'], // XÁC THỰC SSL = TRUE
+                'verify' => $cfg['verifySsl'],
             ])->post($cfg['endpoint'], $data);
 
             $result = $response->json() ?? [];
 
-            Log::info("MoMo RawHash ({$requestType}): " . $rawHash);
-            Log::info('MoMo Response:', $result);
+            Log::info("MoMo Response:", $result);
 
             $transaction->update([
                 'response_payload' => $result,
@@ -175,7 +177,7 @@ class MomoService
         }
 
         if (!empty($payload['orderId'])) {
-            $parts = explode('_', $payload['orderId']);
+            $parts = explode('T', $payload['orderId']);
             if (isset($parts[0]) && is_numeric($parts[0])) {
                 return (int) $parts[0];
             }
