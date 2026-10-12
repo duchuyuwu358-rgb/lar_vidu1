@@ -18,7 +18,8 @@ class MomoController extends Controller
 {
     private function sendOrderStatusEmail(Order $order)
     {
-        $recipientEmail = $order->customer_email ?? $order->email ?? $order->user->email ?? null;
+        // Sử dụng Nullsafe operator (?->) để tránh văng lỗi khi đơn hàng không gắn với User
+        $recipientEmail = $order->customer_email ?? $order->email ?? $order->user?->email ?? null;
 
         if ($recipientEmail) {
             try {
@@ -143,8 +144,9 @@ class MomoController extends Controller
                 'status'   => 'pending',
             ]);
 
-            // Gọi MoMo payWithCC (Visa)
-            $result = $momoService->createPayment($order, $transaction, 'payWithCC');
+            // Lấy request_type từ config (mặc định là 'captureWallet' để thanh toán thành công trên Sandbox)
+            $requestType = config('services.momo.request_type', 'captureWallet');
+            $result = $momoService->createPayment($order, $transaction, $requestType);
 
             if (!empty($result['payUrl'])) {
                 return redirect()->away($result['payUrl']);
@@ -152,7 +154,6 @@ class MomoController extends Controller
 
             Log::error('MoMo Start Payment Failed: ', $result);
 
-            // KHÔNG hủy đơn hàng ở đây, giữ đơn hàng pending để user thử lại
             return redirect($showOrderRoute)->with('error', 'Không thể kết nối MoMo: ' . ($result['message'] ?? 'Thử lại sau.'));
         } catch (\Exception $e) {
             Log::error('MoMo Start Payment Exception: ' . $e->getMessage());
@@ -228,7 +229,7 @@ class MomoController extends Controller
             $momoService->markFailed($transaction, $payload);
         }
 
-        // GIỮ NGUYÊN ĐƠN HÀNG (Pending/Unpaid), KHÔNG HOÀN KHO, ĐỂ KHÁCH BẤM THANH TOÁN LAI
+        // GIỮ NGUYÊN ĐƠN HÀNG (Pending/Unpaid), KHÔNG HOÀN KHO, ĐỂ KHÁCH BẤM THANH TOÁN LẠI
         return redirect($showOrderRoute)
             ->with('error', 'Thanh toán chưa thành công (' . ($payload['message'] ?? 'Thẻ bị từ chối') . '). Đơn hàng của bạn vẫn được lưu, hãy bấm nút "Thanh toán qua MoMo" để thử lại!');
     }
