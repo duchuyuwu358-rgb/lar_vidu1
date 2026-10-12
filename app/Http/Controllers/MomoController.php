@@ -18,7 +18,6 @@ class MomoController extends Controller
 {
     private function sendOrderStatusEmail(Order $order)
     {
-        // Sử dụng Nullsafe operator (?->) để tránh văng lỗi khi đơn hàng không gắn với User
         $recipientEmail = $order->customer_email ?? $order->email ?? $order->user?->email ?? null;
 
         if ($recipientEmail) {
@@ -30,9 +29,6 @@ class MomoController extends Controller
         }
     }
 
-    /**
-     * Chỉ gọi hàm này khi người dùng CHỦ ĐỘNG HỦY giao dịch
-     */
     private function restoreStockAndCancelOrder(Order $order): void
     {
         if (in_array(strtolower((string) $order->payment_status), ['paid']) || 
@@ -95,7 +91,6 @@ class MomoController extends Controller
                                 DB::table('hoods')->where('id', $itemId)->increment('stock_quantity', $quantity);
                             }
                         }
-
                         if (Schema::hasTable('products')) {
                             if (Schema::hasColumn('products', 'stock')) {
                                 DB::table('products')->where('id', $itemId)->increment('stock', $quantity);
@@ -122,7 +117,6 @@ class MomoController extends Controller
             : (Route::has('user.orders.show') ? route('user.orders.show', $order->id) : (Route::has('orders.index') ? route('orders.index') : url("/orders/{$order->id}")));
 
         try {
-            // Nếu đã thanh toán thành công thì không cho thanh toán lại
             if (in_array(strtolower((string) $order->payment_status), ['paid']) || 
                 in_array(strtolower((string) $order->status), ['paid', 'processing', 'completed', 'shipping'])) {
                 return redirect($showOrderRoute)->with('info', 'Đơn hàng này đã được thanh toán thành công.');
@@ -130,13 +124,11 @@ class MomoController extends Controller
 
             $amount = $order->total_amount ?? $order->total_price ?? $order->total ?? 0;
 
-            // Đánh dấu các lượt transaction pending cũ thành failed để tạo lượt thanh toán hoàn toàn MỚI
             PaymentTransaction::where('order_id', $order->id)
                 ->where('gateway', 'momo')
                 ->where('status', 'pending')
                 ->update(['status' => 'failed', 'message' => 'Khởi tạo lượt thanh toán mới']);
 
-            // Tạo Transaction MỚI
             $transaction = PaymentTransaction::create([
                 'order_id' => $order->id,
                 'gateway'  => 'momo',
@@ -144,8 +136,9 @@ class MomoController extends Controller
                 'status'   => 'pending',
             ]);
 
-            // Lấy request_type từ config (mặc định là 'captureWallet' để thanh toán thành công trên Sandbox)
-            $requestType = config('services.momo.request_type', 'captureWallet');
+            // ===== ĐÃ SỬA TẠI ĐÂY =====
+            // Ép buộc dùng phương thức 'payWithATM' để MoMo hiện màn hình nhập Thẻ Nội Địa (Napas)
+            $requestType = 'payWithATM'; 
             $result = $momoService->createPayment($order, $transaction, $requestType);
 
             if (!empty($result['payUrl'])) {
@@ -193,7 +186,6 @@ class MomoController extends Controller
             ? route('orders.show', $order->id)
             : (Route::has('user.orders.show') ? route('user.orders.show', $order->id) : (Route::has('orders.index') ? route('orders.index') : url("/orders/{$order->id}")));
 
-        // 1. THANH TOÁN THÀNH CÔNG (resultCode = 0)
         if (($resultCode === 0 && $isValidSignature) || strtolower((string)$order->payment_status) === 'paid') {
             if ($transaction) {
                 $momoService->markPaid($transaction, $payload);
@@ -211,25 +203,21 @@ class MomoController extends Controller
                 ->with('success', 'Thanh toán đơn hàng qua MoMo thành công!');
         }
 
-        // 2. NGƯỜI DÙNG BẤM "QUAY VỀ / HỦY GIAO DỊCH" TRÊN MOMO (resultCode = 1006)
         if ($resultCode === 1006) {
             if ($transaction) {
                 $momoService->markFailed($transaction, $payload);
             }
 
-            // Hủy đơn hàng và hoàn lại tồn kho
             $this->restoreStockAndCancelOrder($order);
 
             return redirect($showOrderRoute)
                 ->with('info', 'Bạn đã hủy giao dịch thanh toán MoMo.');
         }
 
-        // 3. ĐIỀN SAI THẺ / NGÂN HÀNG TỪ CHỐI / LỖI KHÁC (resultCode khác 0 và khác 1006)
         if ($transaction) {
             $momoService->markFailed($transaction, $payload);
         }
 
-        // GIỮ NGUYÊN ĐƠN HÀNG (Pending/Unpaid), KHÔNG HOÀN KHO, ĐỂ KHÁCH BẤM THANH TOÁN LẠI
         return redirect($showOrderRoute)
             ->with('error', 'Thanh toán chưa thành công (' . ($payload['message'] ?? 'Thẻ bị từ chối') . '). Đơn hàng của bạn vẫn được lưu, hãy bấm nút "Thanh toán qua MoMo" để thử lại!');
     }
@@ -287,9 +275,6 @@ class MomoController extends Controller
         return response()->json(['message' => 'Transaction failed'], 400);
     }
 
-    /**
-     * Cho phép bấm Hủy đơn từ giao diện Web
-     */
     public function cancelPayment(Order $order)
     {
         $showOrderRoute = Route::has('orders.show')
