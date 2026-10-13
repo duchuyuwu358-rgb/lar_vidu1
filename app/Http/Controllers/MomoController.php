@@ -136,9 +136,7 @@ class MomoController extends Controller
                 'status'   => 'pending',
             ]);
 
-            // Sử dụng captureWallet phù hợp với môi trường MoMo Sandbox dùng chung
-            $requestType = 'captureWallet'; 
-            $result = $momoService->createPayment($order, $transaction, $requestType);
+            $result = $momoService->createPayment($order, $transaction, 'captureWallet');
 
             if (!empty($result['payUrl'])) {
                 return redirect()->away($result['payUrl']);
