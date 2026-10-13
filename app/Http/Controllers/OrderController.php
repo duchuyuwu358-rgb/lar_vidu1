@@ -73,10 +73,14 @@ class OrderController extends Controller
             }
         }
 
-        // Đã sửa lỗi 500: Loại bỏ tìm kiếm 'email' trực tiếp trên bảng orders
+        // Đã sửa lỗi 500 & Lỗi tìm kiếm mã đơn (lọc bỏ ORD-000...)
         if (!empty($search)) {
             $query->where(function ($q) use ($search) {
-                $q->where('id', 'like', "%{$search}%")
+                // Cắt bỏ phần "ORD-" và các số "0" đứng trước ID
+                $cleanId = preg_replace('/^ORD-0*/i', '', $search);
+
+                $q->where('id', 'like', "%{$cleanId}%")
+                  ->orWhere('id', 'like', "%{$search}%")
                   ->orWhere('name', 'like', "%{$search}%")
                   ->orWhere('phone', 'like', "%{$search}%")
                   ->orWhere('ghn_order_code', 'like', "%{$search}%")
