@@ -136,9 +136,8 @@ class MomoController extends Controller
                 'status'   => 'pending',
             ]);
 
-            // ===== ÉP BUỘC CHUYỂN HƯỚNG TỚI TRANG THANH TOÁN THẺ QUỐC TẾ (VISA/MASTERCARD) =====
-            // Lưu ý: Nếu MoMo sandbox báo lỗi từ chối giao dịch, hãy đổi 'payWithCC' thành 'payWithATM'
-            $requestType = 'payWithCC'; 
+            // Sử dụng captureWallet phù hợp với môi trường MoMo Sandbox dùng chung
+            $requestType = 'captureWallet'; 
             $result = $momoService->createPayment($order, $transaction, $requestType);
 
             if (!empty($result['payUrl'])) {

@@ -25,14 +25,11 @@ class MomoService
     }
 
     /**
-     * Tạo yêu cầu thanh toán MoMo Sandbox (ÉP CỨNG CHỈ DÙNG THẺ VISA)
+     * Tạo yêu cầu thanh toán MoMo Sandbox
      */
-    public function createPayment(Order $order, PaymentTransaction $transaction): array
+    public function createPayment(Order $order, PaymentTransaction $transaction, string $requestType = 'captureWallet'): array
     {
         $cfg = $this->getConfigs();
-
-        // 1. Ép cứng phương thức thanh toán là Thẻ quốc tế (Visa/Mastercard)
-        $requestType = 'payWithCC'; 
 
         $rawAmount = $transaction->amount > 0 
             ? $transaction->amount 
@@ -48,21 +45,22 @@ class MomoService
         $cleanCode = preg_replace('/[^a-zA-Z0-9-]/', '', $rawCode);
         $orderInfo = 'Thanh toan don hang ' . $cleanCode;
 
-        // Mã orderId duy nhất không trùng lặp
-        $orderId   = $order->id . 'T' . $transaction->id . 'T' . time();
+        // Đồng bộ thời gian để requestId và orderId trùng khớp mốc thời gian
+        $time      = time();
+        $requestId = (string) $time;
+        $orderId   = $order->id . 'T' . $transaction->id . 'T' . $time;
 
         $redirectUrl = env('MOMO_REDIRECT_URL', 'https://lar-vidu1-kov7.onrender.com/payment/momo/callback');
         $ipnUrl      = env('MOMO_IPN_URL', 'https://lar-vidu1-kov7.onrender.com/payment/momo/ipn');
 
         $extraData = ""; 
-        $requestId = (string) time();
 
-        // 2. Chuỗi mã hóa HMAC SHA256 chuẩn A-Z
+        // Chuỗi mã hóa HMAC SHA256 theo thứ tự chữ cái (A-Z) của MoMo API V2
         $rawHash = "accessKey={$cfg['accessKey']}&amount={$strAmount}&extraData={$extraData}&ipnUrl={$ipnUrl}&orderId={$orderId}&orderInfo={$orderInfo}&partnerCode={$cfg['partnerCode']}&redirectUrl={$redirectUrl}&requestId={$requestId}&requestType={$requestType}";
 
         $signature = hash_hmac('sha256', $rawHash, $cfg['secretKey']);
 
-        // 3. Payload gửi đi (Đã XÓA trường accessKey để không bị MoMo Reject)
+        // Data JSON payload gửi đi (không chứa accessKey)
         $data = [
             'partnerCode' => $cfg['partnerCode'],
             'partnerName' => 'XFAN Store',
@@ -161,7 +159,6 @@ class MomoService
         $resultCode   = (string) ($payload['resultCode'] ?? '');
         $transId      = (string) ($payload['transId'] ?? '');
 
-        // IPN Signature validation luôn phải có accessKey
         $rawHash = "accessKey={$accessKey}&amount={$amount}&extraData={$extraData}&message={$message}&orderId={$orderId}&orderInfo={$orderInfo}&orderType={$orderType}&partnerCode={$partnerCode}&payType={$payType}&requestId={$requestId}&responseTime={$responseTime}&resultCode={$resultCode}&transId={$transId}";
 
         $expectedSignature = hash_hmac('sha256', $rawHash, $secretKey);
