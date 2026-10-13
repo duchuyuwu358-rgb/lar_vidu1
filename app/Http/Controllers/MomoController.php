@@ -122,9 +122,6 @@ class MomoController extends Controller
                 return redirect($showOrderRoute)->with('info', 'Đơn hàng này đã được thanh toán thành công.');
             }
 
-            // Cập nhật phương thức thanh toán sang momo khi người dùng bắt đầu thanh toán
-            $order->update(['payment_method' => 'momo']);
-
             $amount = $order->total_amount ?? $order->total_price ?? $order->total ?? 0;
 
             PaymentTransaction::where('order_id', $order->id)
@@ -192,10 +189,8 @@ class MomoController extends Controller
                 $momoService->markPaid($transaction, $payload);
             }
 
-            // Đã bổ sung 'payment_method' => 'momo' để đổi tên phương thức thanh toán chuẩn
             $order->update([
                 'payment_status' => 'paid',
-                'payment_method' => 'momo',
                 'status'         => 'processing',
             ]);
 
@@ -253,10 +248,8 @@ class MomoController extends Controller
                 $momoService->markPaid($transaction, $payload);
             }
 
-            // Đã bổ sung 'payment_method' => 'momo' tại Webhook/IPN
             $order->update([
                 'payment_status' => 'paid',
-                'payment_method' => 'momo',
                 'status'         => 'processing',
             ]);
 
