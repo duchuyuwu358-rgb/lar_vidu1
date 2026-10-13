@@ -73,13 +73,12 @@ class OrderController extends Controller
             }
         }
 
-        // Đã sửa lỗi 500: Loại bỏ tìm kiếm 'transaction_id' trực tiếp trên bảng orders
+        // Đã sửa lỗi 500: Loại bỏ tìm kiếm 'email' trực tiếp trên bảng orders
         if (!empty($search)) {
             $query->where(function ($q) use ($search) {
                 $q->where('id', 'like', "%{$search}%")
                   ->orWhere('name', 'like', "%{$search}%")
                   ->orWhere('phone', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%")
                   ->orWhere('ghn_order_code', 'like', "%{$search}%")
                   ->orWhereHas('paymentTransactions', function ($pt) use ($search) {
                       $pt->where('transaction_id', 'like', "%{$search}%")
