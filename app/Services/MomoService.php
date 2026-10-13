@@ -11,16 +11,18 @@ use Illuminate\Support\Facades\Log;
 class MomoService
 {
     /**
-     * Bộ cấu hình MoMo Sandbox API v2
+     * Khớp 100% với danh sách biến Environment trên Render
      */
     protected function getConfigs(): array
     {
         return [
-            'endpoint'    => env('MOMO_ENDPOINT', 'https://test-payment.momo.vn/v2/gateway/api/create'),
-            'partnerCode' => env('MOMO_PARTNER_CODE', 'MOMOBKUN20180529'),
-            'accessKey'   => env('MOMO_ACCESS_KEY', 'klm05TvNBzhg7h7j'), 
-            'secretKey'   => env('MOMO_SECRET_KEY', 'at67qH6mk8w5Y1nAyMoYKMwAC1E12bsa'),
-            'verifySsl'   => env('APP_ENV') === 'production' ? true : false,
+            'endpoint'    => trim(env('MOMO_ENDPOINT', 'https://test-payment.momo.vn/v2/gateway/api/create')),
+            'partnerCode' => trim(env('MOMO_PARTNER_CODE', 'MOMOBKUN20180529')),
+            'accessKey'   => trim(env('MOMO_ACCESS_KEY', 'klm05TvNBzhg7h7j')), 
+            'secretKey'   => trim(env('MOMO_SECRET_KEY', 'at67qH6mk8w5Y1nAyMoYKMwAC1E12bsa')),
+            'redirectUrl' => trim(env('MOMO_REDIRECT_URL', 'https://lar-vidu1-kov7.onrender.com/payment/momo/callback')),
+            'ipnUrl'      => trim(env('MOMO_IPN_URL', 'https://lar-vidu1-kov7.onrender.com/payment/momo/ipn')),
+            'verifySsl'   => filter_var(env('MOMO_VERIFY_SSL', true), FILTER_VALIDATE_BOOLEAN),
         ];
     }
 
@@ -45,24 +47,23 @@ class MomoService
         $cleanCode = preg_replace('/[^a-zA-Z0-9-]/', '', $rawCode);
         $orderInfo = 'Thanh toan don hang ' . $cleanCode;
 
-        // Đồng bộ thời gian để requestId và orderId trùng khớp mốc thời gian
         $time      = time();
         $requestId = (string) $time;
         $orderId   = $order->id . 'T' . $transaction->id . 'T' . $time;
 
-        $redirectUrl = env('MOMO_REDIRECT_URL', 'https://lar-vidu1-kov7.onrender.com/payment/momo/callback');
-        $ipnUrl      = env('MOMO_IPN_URL', 'https://lar-vidu1-kov7.onrender.com/payment/momo/ipn');
+        $redirectUrl = $cfg['redirectUrl'];
+        $ipnUrl      = $cfg['ipnUrl'];
+        $extraData   = ""; 
 
-        $extraData = ""; 
-
-        // Chuỗi mã hóa HMAC SHA256 theo thứ tự chữ cái (A-Z) của MoMo API V2
+        // 1. Chuỗi băm HMAC SHA256 chuẩn A-Z theo quy định MoMo API V2
         $rawHash = "accessKey={$cfg['accessKey']}&amount={$strAmount}&extraData={$extraData}&ipnUrl={$ipnUrl}&orderId={$orderId}&orderInfo={$orderInfo}&partnerCode={$cfg['partnerCode']}&redirectUrl={$redirectUrl}&requestId={$requestId}&requestType={$requestType}";
 
         $signature = hash_hmac('sha256', $rawHash, $cfg['secretKey']);
 
-        // Data JSON payload gửi đi (không chứa accessKey)
+        // 2. Data JSON payload gửi đi (BẮT BUỘC có accessKey để MoMo nhận diện key băm)
         $data = [
             'partnerCode' => $cfg['partnerCode'],
+            'accessKey'   => $cfg['accessKey'],
             'partnerName' => 'XFAN Store',
             'storeId'     => 'XFANStore',
             'requestId'   => $requestId,
