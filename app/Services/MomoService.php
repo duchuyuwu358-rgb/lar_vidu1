@@ -11,23 +11,23 @@ use Illuminate\Support\Facades\Log;
 class MomoService
 {
     /**
-     * Bộ cấu hình MoMo Sandbox API v2 chuẩn 100%
+     * Bộ cấu hình MoMo Sandbox API v2
      */
     protected function getConfigs(): array
     {
         return [
             'endpoint'    => env('MOMO_ENDPOINT', 'https://test-payment.momo.vn/v2/gateway/api/create'),
             'partnerCode' => env('MOMO_PARTNER_CODE', 'MOMOBKUN20180529'),
-            'accessKey'   => env('MOMO_ACCESS_KEY', 'klm0567shj9qRrA'), // Đã sửa AccessKey chuẩn
+            'accessKey'   => env('MOMO_ACCESS_KEY', 'klm0567shj9qRrA'), 
             'secretKey'   => env('MOMO_SECRET_KEY', 'at67qH6mk8w5Y1nAyMoYKMWACiEi2bsa'),
-            'verifySsl'   => filter_var(env('MOMO_VERIFY_SSL', true), FILTER_VALIDATE_BOOLEAN),
+            'verifySsl'   => env('APP_ENV') === 'production' ? true : false,
         ];
     }
 
     /**
-     * Tạo yêu cầu thanh toán MoMo Sandbox (dùng captureWallet cho Ví/Quét mã QR)
+     * Tạo yêu cầu thanh toán MoMo Sandbox
      */
-    public function createPayment(Order $order, PaymentTransaction $transaction, string $requestType = 'captureWallet'): array
+    public function createPayment(Order $order, PaymentTransaction $transaction, string $requestType = 'payWithCC'): array
     {
         $cfg = $this->getConfigs();
 
@@ -36,7 +36,6 @@ class MomoService
             : ($order->total_amount ?? $order->total_price ?? $order->total ?? 0);
         
         $intAmount = (int) round($rawAmount);
-        // Tối thiểu MoMo yêu cầu 1,000 VND
         if ($intAmount < 1000) {
             $intAmount = 10000; 
         }
@@ -49,12 +48,9 @@ class MomoService
         // Mã orderId duy nhất không trùng lặp
         $orderId   = $order->id . 'T' . $transaction->id . 'T' . time();
 
-        $host          = request()->getHost();
-        $scheme        = (request()->secure() || app()->environment('production') || str_contains($host, 'onrender.com')) ? 'https' : request()->getScheme();
-        $currentDomain = $scheme . '://' . $host;
-
-        $redirectUrl = env('MOMO_REDIRECT_URL', $currentDomain . '/payment/momo/callback');
-        $ipnUrl      = env('MOMO_IPN_URL', $currentDomain . '/payment/momo/ipn');
+        // Ép lấy đúng URL Render từ file .env để không bị lỗi sai domain
+        $redirectUrl = env('MOMO_REDIRECT_URL', 'https://lar-vidu1-kov7.onrender.com/payment/momo/callback');
+        $ipnUrl      = env('MOMO_IPN_URL', 'https://lar-vidu1-kov7.onrender.com/payment/momo/ipn');
 
         $extraData = ""; 
         $requestId = (string) time();
