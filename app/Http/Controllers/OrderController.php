@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
+use Carbon\Carbon;
 
 class OrderController extends Controller
 {
@@ -72,6 +73,7 @@ class OrderController extends Controller
             }
         }
 
+        // Đã sửa lỗi 500: Loại bỏ tìm kiếm 'transaction_id' trực tiếp trên bảng orders
         if (!empty($search)) {
             $query->where(function ($q) use ($search) {
                 $q->where('id', 'like', "%{$search}%")
@@ -79,10 +81,9 @@ class OrderController extends Controller
                   ->orWhere('phone', 'like', "%{$search}%")
                   ->orWhere('email', 'like', "%{$search}%")
                   ->orWhere('ghn_order_code', 'like', "%{$search}%")
-                  ->orWhere('momo_transaction_id', 'like', "%{$search}%")
-                  ->orWhere('transaction_id', 'like', "%{$search}%")
                   ->orWhereHas('paymentTransactions', function ($pt) use ($search) {
-                      $pt->where('transaction_id', 'like', "%{$search}%");
+                      $pt->where('transaction_id', 'like', "%{$search}%")
+                         ->orWhere('gateway_order_id', 'like', "%{$search}%");
                   })
                   ->orWhereHas('user', function ($u) use ($search) {
                       $u->where('name', 'like', "%{$search}%")
@@ -91,12 +92,17 @@ class OrderController extends Controller
             });
         }
 
+        // Đã sửa lỗi 500: Format ngày tháng cho chuẩn SQL yyyy-mm-dd
         if (!empty($startDate)) {
-            $query->whereDate('created_at', '>=', $startDate);
+            try {
+                $query->whereDate('created_at', '>=', Carbon::parse($startDate)->format('Y-m-d'));
+            } catch (\Exception $e) {}
         }
 
         if (!empty($endDate)) {
-            $query->whereDate('created_at', '<=', $endDate);
+            try {
+                $query->whereDate('created_at', '<=', Carbon::parse($endDate)->format('Y-m-d'));
+            } catch (\Exception $e) {}
         }
 
         $orders = $query->paginate(15)->appends([
@@ -140,7 +146,6 @@ class OrderController extends Controller
             'email'   => 'required|email',
         ]);
 
-        // Lấy mã giảm giá và số tiền giảm từ Session hoặc Request
         $couponCode     = session('coupon.code') ?? session('coupon.name') ?? $request->coupon_code ?? null;
         $discountAmount = session('coupon.discount') ?? session('coupon.discount_amount') ?? $request->discount_amount ?? 0;
 
@@ -158,10 +163,8 @@ class OrderController extends Controller
             'email'           => $request->email,
         ]);
 
-        // Xóa mã giảm giá khỏi Session sau khi tạo đơn hàng thành công
         session()->forget('coupon');
 
-        // Gửi email xác nhận đặt hàng
         $this->sendOrderStatusEmail($order);
 
         return redirect()->route('orders.show', $order->id)->with('status', 'Đặt hàng thành công!');
