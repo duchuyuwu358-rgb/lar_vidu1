@@ -10,30 +10,18 @@ use Illuminate\Support\Facades\Log;
 
 class MomoService
 {
-    /**
-     * Gán cứng trực tiếp để vượt qua lỗi cache env() trên Render
-     */
-    protected function getConfigs(): array
-    {
-        return [
-            'endpoint'    => 'https://test-payment.momo.vn/v2/gateway/api/create',
-            'partnerCode' => 'MOMOBKUN20180529',
-            'accessKey'   => 'klm05TvNBzhg7h7j', 
-            'secretKey'   => 'at67qH6mk8w5Y1nAyMoYKMwAC1E12bsa',
-            'redirectUrl' => 'https://lar-vidu1-kov7.onrender.com/payment/momo/callback',
-            'ipnUrl'      => 'https://lar-vidu1-kov7.onrender.com/payment/momo/ipn',
-            'verifySsl'   => false,
-        ];
-    }
-
     public function createPayment(Order $order, PaymentTransaction $transaction, string $requestType = 'captureWallet'): array
     {
-        $cfg = $this->getConfigs();
+        // Thông tin cố định
+        $accessKey   = 'klm05TvNBzhg7h7j';
+        $secretKey   = 'at67qH6mk8w5Y1nAyMoYKMwAC1E12bsa';
+        $partnerCode = 'MOMOBKUN20180529';
+        $endpoint    = 'https://test-payment.momo.vn/v2/gateway/api/create';
+        $redirectUrl = 'https://lar-vidu1-kov7.onrender.com/payment/momo/callback';
+        $ipnUrl      = 'https://lar-vidu1-kov7.onrender.com/payment/momo/ipn';
 
-        $rawAmount = $transaction->amount > 0 
-            ? $transaction->amount 
-            : ($order->total_amount ?? $order->total_price ?? $order->total ?? 0);
-        
+        // Thông tin đơn hàng
+        $rawAmount = $transaction->amount > 0 ? $transaction->amount : ($order->total_amount ?? $order->total_price ?? $order->total ?? 0);
         $intAmount = (int) round($rawAmount);
         if ($intAmount < 1000) $intAmount = 10000; 
         $strAmount = (string) $intAmount;
@@ -45,24 +33,25 @@ class MomoService
         $time      = time();
         $requestId = (string) $time;
         $orderId   = $order->id . 'T' . $transaction->id . 'T' . $time;
-
         $extraData = ""; 
 
-        // Chuỗi băm chuẩn
-        $rawHash = "accessKey={$cfg['accessKey']}&amount={$strAmount}&extraData={$extraData}&ipnUrl={$cfg['ipnUrl']}&orderId={$orderId}&orderInfo={$orderInfo}&partnerCode={$cfg['partnerCode']}&redirectUrl={$cfg['redirectUrl']}&requestId={$requestId}&requestType={$requestType}";
+        // 1. Tạo chuỗi băm HMAC SHA256 chuẩn
+        $rawHash = "accessKey={$accessKey}&amount={$strAmount}&extraData={$extraData}&ipnUrl={$ipnUrl}&orderId={$orderId}&orderInfo={$orderInfo}&partnerCode={$partnerCode}&redirectUrl={$redirectUrl}&requestId={$requestId}&requestType={$requestType}";
 
-        $signature = hash_hmac('sha256', $rawHash, $cfg['secretKey']);
+        $signature = hash_hmac('sha256', $rawHash, $secretKey);
 
+        // 2. Mảng dữ liệu gửi đi (Truyền trực tiếp chuỗi 'klm05TvNBzhg7h7j')
         $data = [
-            'partnerCode' => $cfg['partnerCode'],
+            'partnerCode' => $partnerCode,
+            'accessKey'   => 'klm05TvNBzhg7h7j', // BẮT BUỘC KHÔNG THAY ĐỔI
             'partnerName' => 'XFAN Store',
             'storeId'     => 'XFANStore',
             'requestId'   => $requestId,
             'amount'      => $intAmount,
             'orderId'     => $orderId,
             'orderInfo'   => $orderInfo,
-            'redirectUrl' => $cfg['redirectUrl'],
-            'ipnUrl'      => $cfg['ipnUrl'],
+            'redirectUrl' => $redirectUrl,
+            'ipnUrl'      => $ipnUrl,
             'lang'        => 'vi',
             'extraData'   => $extraData,
             'requestType' => $requestType,
@@ -77,9 +66,7 @@ class MomoService
         try {
             $response = Http::withHeaders([
                 'Content-Type' => 'application/json; charset=UTF-8',
-            ])->withOptions([
-                'verify' => $cfg['verifySsl'],
-            ])->post($cfg['endpoint'], $data);
+            ])->post($endpoint, $data);
 
             $result = $response->json() ?? [];
 
