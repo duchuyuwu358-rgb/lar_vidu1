@@ -136,7 +136,8 @@ class MomoController extends Controller
                 'status'   => 'pending',
             ]);
 
-            $result = $momoService->createPayment($order, $transaction, 'captureWallet');
+            // Đã chuyển thành 'payWithCC' để gọi giao diện thanh toán thẻ quốc tế (Visa, Mastercard, JCB)
+            $result = $momoService->createPayment($order, $transaction, 'payWithCC');
 
             if (!empty($result['payUrl'])) {
                 return redirect()->away($result['payUrl']);
